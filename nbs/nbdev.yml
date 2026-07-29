@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "vishalakshi"
+  site-url: "https://vedicreader.github.io/vishalakshi"
+  description: "an all-seeing python notebook - code execution, real time variable inspection, agent session"
+  repo-branch: main
+  repo-url: "https://github.com/vedicreader/vishalakshi"

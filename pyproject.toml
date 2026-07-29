@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vishalakshi"
+dynamic = ["version"]
+description = "an all-seeing python notebook - code execution, real time variable inspection, agent session"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Karthik", email = "karthik.rajgopal@hotmail.com"}]
+keywords = ['nbdev']
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/vedicreader/vishalakshi"
+Documentation = "https://vedicreader.github.io/vishalakshi/"
+
+[project.entry-points.nbdev]
+vishalakshi = "vishalakshi._modidx:d"
+
+[tool.nbdev]
+
+[tool.hatch.build.targets.wheel]
+packages = ["vishalakshi"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/vishalakshi", "/README.md", "/pyproject.toml"]
+
+[tool.hatch.version]
+path = "vishalakshi/__init__.py"
