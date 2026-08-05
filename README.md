@@ -2,12 +2,14 @@
 
 > one vault for everything you read: web, papers, video, files and code, searchable together and answerable by a local or hosted model
 
-Vishalakshi is the layer that makes four tools one thing. [fossick](https://github.com/vedicreader/fossick) gets material off the web, [litesearch](https://github.com/Karthik777/litesearch) stores and retrieves it, [rishi](https://github.com/vedicreader/rishi) answers from it, and [kosha](https://github.com/vedicreader/kosha) does the same for code. A `Vault` is one SQLite file where all of it lands in the same store, so a single question crosses a paper you read in March, a page you scraped last week, a talk you watched, your own notes, and the source tree on your disk.
+Vishalakshi is the thin layer that makes five tools one thing. [fossick](https://github.com/vedicreader/fossick) gets material off the web, [litesearch](https://github.com/Karthik777/litesearch) stores and retrieves it, [rishi](https://github.com/vedicreader/rishi) answers from it, [kosha](https://github.com/vedicreader/kosha) does the same for code, and [rgapi](https://github.com/AnswerDotAI/rgapi) greps what nothing has indexed yet. A `Vault` is one SQLite file where all of it lands in the same store, so a single question crosses a paper you read in March, a page you scraped last week, a talk you watched, your own notes, and the source tree on your disk.
+
+Thin is the design: each method is one call into the library that already does the work, plus the provenance that says why the result is in your corpus. There are no wrappers over their APIs to keep in sync.
 
 ## Install
 
 ```sh
-pip install 'vishalakshi[all]'   # + rishi for answering, + mcp for the server
+pip install 'vishalakshi[all]'   # + rishi to answer, + kosha & rgapi for code, + mcp for the server
 pip install vishalakshi          # vault + acquisition only; no LLM, no MCP
 ```
 
@@ -28,6 +30,8 @@ v.note('Late chunking beats naive chunking '
 
 v.connect()                                     # build the entity graph over all of it
 ```
+
+`v.grab(target)` does whichever of those the target names — a URL, an arXiv id, a YouTube link, a PDF, a file or a directory — which is the one call a script or an agent needs.
 
 Then ask it something:
 
@@ -55,13 +59,15 @@ for r in c.related:  print(r.breadcrumb, 'via', r.via)   # 'graph' or 'vector'
 
 ## Everything in one corpus
 
-Each document carries a `kind`: `web`, `pdf`, `arxiv`, `youtube`, `file`, `code`, `note`. Filter when you want to, don't when you don't:
+Each document carries a `kind`: `web`, `pdf`, `arxiv`, `youtube`, `file`, `code`, `data`, `note`. Filter when you want to, don't when you don't:
 
 ```python
 v.find('attention', kind='note')          # only what you concluded
-v.find('attention', kind=['arxiv','web']) # only what you collected
+v.find('attention', kind='arxiv,web')     # only what you collected
 v.find('attention')                       # everything, ranked together
 ```
+
+The filter is a SQL `WHERE` pushed into litesearch's search, not a pass over the results afterwards, so a narrow filter over a large vault still returns a full page of hits.
 
 Notes are ordinary documents, deliberately. The graph, the clusters and `context()` all see them for free, so what you concluded about a corpus comes back next to the evidence you concluded it from.
 
@@ -80,27 +86,29 @@ Provenance is kept at ingest, so months later `sources()` still says *why* a doc
 ## CLI
 
 ```sh
-vishalakshi add https://example.com/post      # or a file, a directory, an arXiv id, a YouTube URL
+vishalakshi grab https://example.com/post     # or a file, a directory, an arXiv id, a YouTube URL
 vishalakshi web "late chunking retrieval"     # search and ingest in one step
 vishalakshi note "..." --tags retrieval
 vishalakshi connect                           # build the graph after a batch of adds
 vishalakshi context "why does late chunking help"
 vishalakshi ask "why does late chunking help"
-vishalakshi sources; vishalakshi topics; vishalakshi toc
+vishalakshi sources; vishalakshi map; vishalakshi toc
 ```
 
-`$VISHALAKSHI_VAULT` picks the vault file, `$VISHALAKSHI_MODEL` the model `ask` uses.
+Every `Vault` method is a command, and every command's `--help` is generated from the method's own signature and docments — so `vishalakshi <cmd> --help` is never out of date, and there is no wrapper per command in the source.
+
+`$VISHALAKSHI_VAULT` picks the vault file, `$VISHALAKSHI_MODEL` the model `ask` uses, `$VISHALAKSHI_OFFLINE` forces the hashing encoder.
 
 ## MCP
 
-`vishalakshi-mcp` exposes the whole vault to any MCP client — Claude Code, Codex, or anything else that speaks the protocol:
+`vishalakshi-mcp` exposes the vault to any MCP client — Claude Code, Codex, or anything else that speaks the protocol:
 
 ```json
 {"mcpServers": {"vishalakshi": {"command": "vishalakshi-mcp",
                                 "env": {"VISHALAKSHI_VAULT": "~/.vishalakshi/vault.db"}}}}
 ```
 
-Eighteen tools: `context` and `search` for reading, `ask` for answering, `add_url` / `add_web_search` / `add_arxiv` / `add_youtube` / `add_file` / `add_dir` / `add_note` for filling it, plus `toc`, `topics`, `sources`, `related_sections`, `read_section`, `build_graph` and `forget`. An agent that can write notes back into the same vault it reads from accumulates rather than restarts.
+Thirty-two tools, built from the same `Vault` methods the CLI uses, so each tool's schema and description are the method's signature and docstring. `context` and `find` for reading, `ask` for answering, `grab` / `web` / `arxiv` / `youtube` / `add_file` / `add_dir` / `note` for filling it, plus `toc`, `map`, `sources`, `related`, `read`, `connect` and `forget`. An agent that can write notes back into the same vault it reads from accumulates rather than restarts.
 
 ## Models and backends
 
@@ -117,37 +125,37 @@ Eighteen tools: `context` and `search` for reading, `ask` for answering, `add_ur
 v.ask(q)                                   # litert-community/gemma-4-E2B-it-litert-lm on CPU
 v.ask(q, model='qwen-4b-mlx')              # alias -> mlx
 v.ask(q, model='sonnet')                   # alias -> hosted Claude
-v.ask(q, model='mlx-community/Qwen3-4B-4bit')   # full id, runtime inferred
+v.ask(q, model='mlx-community/Qwen3-4B-4bit')    # full id, runtime inferred
 v.ask(q, model='my-local.gguf', runtime='llama') # say it outright when the id can't
 ```
 
-`vishalakshi models` lists the aliases. `$VISHALAKSHI_MODEL` sets the default. The vault never needs the network to *retrieve* — only to answer with a hosted model.
+`vishalakshi.ask.MODELS` lists the aliases. The vault never needs the network to *retrieve* — only to answer with a hosted model.
 
-## Code: kosha, and federated search
+## Code: kosha, ripgrep, and federated search
 
 `v.code(dir)` files source files as ordinary documents. `v.index_code(dir)` is the real code path — it fills **kosha's** stores: AST chunks, symbol names, and a call graph with PageRank.
 
 ```python
-v.index_code('~/src/litesearch')            # {'chunks': 168, 'graph_nodes': 1982, 'graph_edges': 564}
+v.index_code('~/src/litesearch')            # {'files': 42, 'graph_nodes': 1982, ...}
 
 v.code_search('rank fusion')                # semantic + keyword over the repo
 v.code_search('retry package:httpx')        # kosha's key:value filters work
-v.symbol('core.rrf_merge')                  # pagerank, degree, callers, callees
-v.where_to_add('cache the encoder per store')   # where a change belongs
+v.symbol('litesearch.core.rrf_merge')       # pagerank, degree, callers, callees
+v.where_to_add('cache the encoder per store')   # file:line where a change belongs
+v.grep('rrf_all', '~/src/litesearch')       # ripgrep, gitignore-aware
 ```
 
-Then search both at once:
+Then search all of it at once:
 
 ```python
 f = v.federate('rank fusion of ranked lists')
 for h in f.hits: print(h.source, h.where)
 # prose  Reciprocal Rank Fusion › RRF › Why it works
 # repo   /src/litesearch/graph.py:697
-# prose  litesearch fuses FTS and vector legs with RRF because...
-# repo   /src/litesearch/core.py:365
+# grep   /src/litesearch/core.py:365
 ```
 
-The design constraint worth knowing: **the legs do not share a vector space.** kosha embeds identifiers with a code-trained model, the vault embeds prose with a retrieval model — deliberately, because code embeds badly under a prose encoder. So `federate` fuses their *rankings* with RRF, never their distances. Ranking is the one thing that survives a change of encoder, and it is the same mechanism litesearch already uses to combine FTS with vectors. `f.legs` reports what each contributed.
+Three kinds of evidence, three kinds of blindness. The vault embeds prose; kosha embeds identifiers with a code-trained model, deliberately, because code embeds badly under a prose encoder; ripgrep embeds nothing and sees the file as it is on disk right now — including the file nothing has indexed and the edit made a minute ago. **The legs share no vector space**, so `federate` fuses their *rankings* with RRF, never their distances. Ranking is the one thing that survives a change of encoder, and it is the same mechanism litesearch already uses to combine FTS with vectors. Each leg runs independently: `f.legs` reports what each contributed, or why it could not.
 
 ## Harvest: read a page's API, not its HTML
 
@@ -173,19 +181,19 @@ v.watch('late chunking retrieval',       action='web',     every='1d', n=5)
 v.watch('https://shop.example/dairy',    action='harvest', every='12h', pages=5)
 v.watch('Re-read the eval numbers',      action='remind',  every='1w')
 
-v.due()      # what is ready to run
-v.poll()     # run them; failures are recorded, never raised
+v.watches(due_only=True)   # what is ready to run
+v.poll()                   # run them; failures are recorded, never raised
 ```
 
-`poll()` is the tick — call it from cron, a scheduler, or a frontend button. Actions reuse the ordinary acquisition methods, so anything you can file once you can file on a schedule; `remind` writes a note with no network involved. One dead URL never stops the loop.
+`poll()` is the tick — call it from cron, a scheduler, or a frontend button. An action is just the name of an acquisition method, so anything you can file once you can file on a schedule; `remind` writes a note with no network involved. One dead URL never stops the loop.
 
 ## Encoders
 
-The vault wants a real embedder and will fetch a small model2vec one by default. Where that is impossible — an air-gapped box, a blocked registry — it degrades to a deterministic char-n-gram hashing embedder rather than failing, and says so in `stats()['encoder']` and on every `context()` result. Retrieval still works; it is lexical rather than semantic, and you should know which you are getting.
+The vault wants a real embedder and will fetch a small model2vec one by default. Where that is impossible — an air-gapped box, a blocked registry — it degrades to litesearch's deterministic `hash_embed` rather than failing, and says so in `stats()['encoder']` and on every `context()` result. Retrieval still works; it is lexical rather than semantic, and you should know which you are getting.
 
 ```python
 Vault(encoder='minishlab/potion-science-32M')   # pick a different one
-Vault(offline=True)                             # never attempt a download
+Vault(offline=True)                             # never attempt a download — also the CI default
 ```
 
 ## Development
