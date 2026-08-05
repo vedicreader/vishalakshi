@@ -17,7 +17,7 @@ from litesearch.graph import hash_embed, build_graph, resolve_entities, graph_st
 import litesearch.tree, litesearch.graph   # patches add_doc/context/clusters onto Database/Table
 
 # %% ../nbs/00_core.ipynb #kinds
-KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'note')
+KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note')
 
 _WINDOW_NODE = re.compile(r'^Pages \d+(?:–\d+)?: ')
 

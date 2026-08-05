@@ -102,9 +102,82 @@ vishalakshi sources; vishalakshi topics; vishalakshi toc
 
 Eighteen tools: `context` and `search` for reading, `ask` for answering, `add_url` / `add_web_search` / `add_arxiv` / `add_youtube` / `add_file` / `add_dir` / `add_note` for filling it, plus `toc`, `topics`, `sources`, `related_sections`, `read_section`, `build_graph` and `forget`. An agent that can write notes back into the same vault it reads from accumulates rather than restarts.
 
-## Models
+## Models and backends
 
-`ask` goes through rishi, which picks its backend from the model id: a `litert-community` id or a `.litertlm` build runs on LiteRT, a `.gguf` on llama.cpp, an `mlx-community` id on MLX, and a hosted name like `claude-sonnet-5` through fastllm. Local and cloud are the same call, and the vault never needs the network to *retrieve* — only to answer with a hosted model.
+`ask` goes through rishi, which has four backends. rishi picks one from the **shape** of the model id, so a bare marketing name (`gemma-3-4b-it-int4`) matches nothing and is rejected rather than guessed at. Name a real id, use an alias, or say the runtime.
+
+| runtime | what it is | model ids look like | needs |
+|---|---|---|---|
+| `litert` | Google LiteRT, CPU — **the default** | `litert-community/…`, `*.litertlm` | nothing; runs anywhere |
+| `mlx` | Apple silicon | `mlx-community/…` | macOS on ARM |
+| `llama` | llama.cpp, any GGUF | `*-GGUF`, `*.gguf` | `pip install 'rishi[llama]'` |
+| `remote` | hosted, via fastllm | `claude-sonnet-5`, `gpt-…`, `gemini-…` | an API key |
+
+```python
+v.ask(q)                                   # litert-community/gemma-4-E2B-it-litert-lm on CPU
+v.ask(q, model='qwen-4b-mlx')              # alias -> mlx
+v.ask(q, model='sonnet')                   # alias -> hosted Claude
+v.ask(q, model='mlx-community/Qwen3-4B-4bit')   # full id, runtime inferred
+v.ask(q, model='my-local.gguf', runtime='llama') # say it outright when the id can't
+```
+
+`vishalakshi models` lists the aliases. `$VISHALAKSHI_MODEL` sets the default. The vault never needs the network to *retrieve* — only to answer with a hosted model.
+
+## Code: kosha, and federated search
+
+`v.code(dir)` files source files as ordinary documents. `v.index_code(dir)` is the real code path — it fills **kosha's** stores: AST chunks, symbol names, and a call graph with PageRank.
+
+```python
+v.index_code('~/src/litesearch')            # {'chunks': 168, 'graph_nodes': 1982, 'graph_edges': 564}
+
+v.code_search('rank fusion')                # semantic + keyword over the repo
+v.code_search('retry package:httpx')        # kosha's key:value filters work
+v.symbol('core.rrf_merge')                  # pagerank, degree, callers, callees
+v.where_to_add('cache the encoder per store')   # where a change belongs
+```
+
+Then search both at once:
+
+```python
+f = v.federate('rank fusion of ranked lists')
+for h in f.hits: print(h.source, h.where)
+# prose  Reciprocal Rank Fusion › RRF › Why it works
+# repo   /src/litesearch/graph.py:697
+# prose  litesearch fuses FTS and vector legs with RRF because...
+# repo   /src/litesearch/core.py:365
+```
+
+The design constraint worth knowing: **the legs do not share a vector space.** kosha embeds identifiers with a code-trained model, the vault embeds prose with a retrieval model — deliberately, because code embeds badly under a prose encoder. So `federate` fuses their *rankings* with RRF, never their distances. Ranking is the one thing that survives a change of encoder, and it is the same mechanism litesearch already uses to combine FTS with vectors. `f.legs` reports what each contributed.
+
+## Harvest: read a page's API, not its HTML
+
+Listing, product and dashboard pages render from an internal JSON API. fossick can watch a page and capture those calls; the vault turns them into searchable records.
+
+```python
+v.apis('https://www.example-retailer.com/browse/dairy')
+# [0] .../api/bff/products?page=1   records: 24   {"results":[{"sku":...
+
+v.harvest('https://www.example-retailer.com/browse/dairy', pages=5)
+# {'kind': 'data', 'records': 120, 'endpoint': '.../api/bff/products'}
+
+v.find('free range eggs')     # each product is its own retrievable section
+```
+
+Each record becomes a `##` section, so it gets its own tree node and breadcrumb rather than being buried in one blob. `session=True` captures through your logged-in Chrome, so pages behind a login work too. `add_records(...)` files a list of dicts you already have.
+
+## Watches: keeping it current
+
+```python
+v.watch('https://example.com/changelog', action='url',     every='6h')
+v.watch('late chunking retrieval',       action='web',     every='1d', n=5)
+v.watch('https://shop.example/dairy',    action='harvest', every='12h', pages=5)
+v.watch('Re-read the eval numbers',      action='remind',  every='1w')
+
+v.due()      # what is ready to run
+v.poll()     # run them; failures are recorded, never raised
+```
+
+`poll()` is the tick — call it from cron, a scheduler, or a frontend button. Actions reuse the ordinary acquisition methods, so anything you can file once you can file on a schedule; `remind` writes a note with no network involved. One dead URL never stops the loop.
 
 ## Encoders
 

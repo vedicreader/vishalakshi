@@ -157,3 +157,4 @@ checklink/cookies.txt
 pdfs/
 assets/
 .venv/
+.kosha/

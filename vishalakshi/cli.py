@@ -6,7 +6,8 @@ Docs: https://vedicreader.github.io/vishalakshi/cli.html.md"""
 
 # %% auto #0
 __all__ = ['CMDS', 'status', 'search', 'context', 'ask', 'read', 'related', 'toc', 'topics', 'sources', 'add', 'web', 'note',
-           'connect', 'forget', 'main']
+           'connect', 'forget', 'models', 'index_code', 'code', 'symbol', 'federate', 'apis', 'harvest', 'watch',
+           'watches', 'poll', 'unwatch', 'main']
 
 # %% ../nbs/03_cli.ipynb #imports
 import json, os, sys
@@ -162,10 +163,106 @@ def forget(doc_id:str, vault:str=None):
     _v(vault).forget(doc_id)
     print(f'forgot {doc_id}')
 
+# %% ../nbs/03_cli.ipynb #code_cmds
+@call_parse
+def models(as_json:bool=False):
+    "Model aliases and which backend each one runs on."
+    from .ask import MODELS, dflt_model
+    if _out({'default': dflt_model, 'models': {k: dict(id=v[0], runtime=v[1], note=v[2])
+                                               for k, v in MODELS.items()}}, as_json): return
+    print(f'default: {dflt_model}\n')
+    for k, (mid, rt, nt) in MODELS.items(): print(f'  {k:15} {rt:7} {mid:45} {nt}')
+
+@call_parse
+def index_code(dir:str=None, graph:bool=True, env:bool=False, force:bool=False, vault:str=None):
+    "Point the vault at a repo and fill kosha's code store and call graph."
+    print(json.dumps(_v(vault).index_code(dir or '.', graph=graph, env=env, force=force),
+                     indent=2, default=str))
+
+@call_parse
+def code(query:str, n:int=10, env:bool=True, dir:str=None, vault:str=None, as_json:bool=False):
+    "Search code through kosha (supports key:value filters like package:httpx)."
+    rows = _v(vault).code_search(query, limit=n, env=env, dir=dir)
+    out = [dict(mod=r.get('metadata',{}).get('mod_name'), path=r.get('metadata',{}).get('path'),
+                lineno=r.get('metadata',{}).get('lineno')) for r in rows]
+    if _out(out, as_json): return
+    for r in out: print(f"{r['mod']}\n  {r['path']}:{r['lineno']}")
+
+@call_parse
+def symbol(name:str, depth:int=1, dir:str=None, vault:str=None, as_json:bool=False):
+    "A symbol in the call graph: pagerank, degree, callers and callees."
+    s = _v(vault).symbol(name, depth=depth, dir=dir)
+    if _out(dict(node=s.node, info=s.info, callers=list(s.callers), callees=list(s.callees)), as_json): return
+    print(f"{s.node}\n  pagerank: {s.info.get('pagerank')}  in/out: {s.info.get('in_degree')}/{s.info.get('out_degree')}")
+    print(f"  callers: {list(s.callers)[:10]}\n  callees: {list(s.callees)[:10]}")
+
+@call_parse
+def federate(query:str, n:int=12, prose:bool=True, repo:bool=True, env:bool=False,
+             dir:str=None, vault:str=None, as_json:bool=False):
+    "One ranked list across your documents and your code."
+    from .code import fed_rows
+    f = _v(vault).federate(query, limit=n, prose=prose, repo=repo, env=env, dir=dir)
+    if _out({'query': query, 'legs': f.legs, 'note': f.note, 'hits': fed_rows(f.hits)}, as_json): return
+    print(f"{f.note}\nlegs: {f.legs}\n")
+    for i, h in enumerate(f.hits, 1): print(f"[{i}] ({h.source}) {h.where}\n    {h.text[:160]}\n")
+
+# %% ../nbs/03_cli.ipynb #harvest_cmds
+@call_parse
+def apis(url:str, pattern:str='*', session:bool=False, vault:str=None, as_json:bool=False):
+    "Discover the JSON endpoints a page calls, so you can read its data instead of its HTML."
+    rows = _v(vault).apis(url, pattern=pattern, session=session)
+    if _out([dict(r) for r in rows], as_json): return
+    for r in rows: print(f"[{r.n}] {r.url}\n    records: {r.records}  type: {r.content_type}\n    {r.preview[:200]}\n")
+
+@call_parse
+def harvest(url:str, pattern:str='*', capture:int=None, pages:int=1, title:str=None,
+            session:bool=False, force:bool=False, vault:str=None, as_json:bool=False):
+    "Sniff a page's JSON API, pull the records, and file them in the vault as kind='data'."
+    r = _v(vault).harvest(url, pattern=pattern, capture=capture, pages=pages, title=title,
+                          session=session, force=force)
+    if _out(r, as_json): return
+    print(json.dumps(r, indent=2, default=str))
+
+# %% ../nbs/03_cli.ipynb #watch_cmds
+@call_parse
+def watch(target:str, action:str='url', every:str='1d', note:str=None, vault:str=None, as_json:bool=False):
+    "Register a recurring job: re-read a page, re-run a search, re-harvest an API, or remind you."
+    r = _v(vault).watch(target, action=action, every=every, note=note)
+    if _out(r, as_json): return
+    print(json.dumps(r, indent=2, default=str))
+
+@call_parse
+def watches(vault:str=None, as_json:bool=False):
+    "Every registered watch, soonest first."
+    ws = _v(vault).watches()
+    if _out(ws, as_json): return
+    import time as _t
+    for w in ws:
+        due = (w['next_run'] or 0) - _t.time()
+        print(f"{w['id']}  {w['action']:8} every {w['every']:4} "
+              f"{'DUE' if due <= 0 else f'in {due/3600:.1f}h':>10}  runs={w['runs']} "
+              f"{w['last_status'] or '-'}\n    {w['target'][:70]}")
+
+@call_parse
+def poll(limit:int=None, vault:str=None, as_json:bool=False):
+    "Run every watch that is due. This is the tick a cron or a frontend calls."
+    r = _v(vault).poll(limit=limit)
+    if _out(r, as_json): return
+    print(f"checked {r['checked']}, ran {r['ran']}")
+    for x in r['results']: print(f"  {x['action']:8} {x['status']:8} {x['took']}s  {x['target'][:50]}")
+
+@call_parse
+def unwatch(watch_id:str, vault:str=None):
+    "Delete a watch. Documents it already filed stay in the vault."
+    _v(vault).unwatch(watch_id); print(f'unwatched {watch_id}')
+
 # %% ../nbs/03_cli.ipynb #main
 CMDS = {'status': status, 'search': search, 'context': context, 'ask': ask, 'read': read,
         'related': related, 'toc': toc, 'topics': topics, 'sources': sources,
-        'add': add, 'web': web, 'note': note, 'connect': connect, 'forget': forget}
+        'add': add, 'web': web, 'note': note, 'connect': connect, 'forget': forget,
+        'models': models, 'index-code': index_code, 'code': code, 'symbol': symbol,
+        'federate': federate, 'apis': apis, 'harvest': harvest,
+        'watch': watch, 'watches': watches, 'poll': poll, 'unwatch': unwatch}
 
 def main():
     "Entry point for the `vishalakshi` CLI command."

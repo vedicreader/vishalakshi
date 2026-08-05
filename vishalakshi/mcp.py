@@ -7,7 +7,8 @@ Docs: https://vedicreader.github.io/vishalakshi/mcp.html.md"""
 # %% auto #0
 __all__ = ['mcp', 'status', 'search', 'context', 'ask', 'read_section', 'related_sections', 'toc', 'topics', 'sources', 'add_url',
            'add_web_search', 'add_arxiv', 'add_youtube', 'add_file', 'add_dir', 'add_note', 'build_graph', 'forget',
-           'main']
+           'index_code', 'code_search', 'symbol', 'where_to_add', 'federated_search', 'find_apis', 'harvest_api',
+           'add_watch', 'list_watches', 'poll_watches', 'unwatch', 'main']
 
 # %% ../nbs/04_mcp.ipynb #imports
 import os, sys
@@ -147,6 +148,73 @@ def forget(doc_id:str) -> dict:
     "Remove a document, its sections and its chunks from the vault."
     _vault().forget(doc_id)
     return {'forgot': doc_id}
+
+# %% ../nbs/04_mcp.ipynb #code_tools
+@mcp.tool()
+def index_code(path:str, graph:bool=True, env:bool=False) -> dict:
+    "Point the vault at a repo and fill kosha's code store and AST call graph. Do this before code_search, symbol or where_to_add."
+    return _vault().index_code(path, graph=graph, env=env)
+
+@mcp.tool()
+def code_search(query:str, limit:int=10, env:bool=True) -> list:
+    "Search indexed code by meaning and by keyword. Supports key:value filters such as 'retry package:httpx' or 'lang:.py chunker'."
+    return [{'mod': r.get('metadata',{}).get('mod_name'), 'path': r.get('metadata',{}).get('path'),
+             'lineno': r.get('metadata',{}).get('lineno'),
+             'code': _trunc(r.get('content'), 800)} for r in _vault().code_search(query, limit=limit, env=env)]
+
+@mcp.tool()
+def symbol(name:str, depth:int=1) -> dict:
+    "A symbol in the call graph: its file, PageRank, degree, callers and callees. Use it to trace how code connects rather than just where a string appears."
+    s = _vault().symbol(name, depth=depth)
+    return {'node': s.node, 'info': {k: v for k, v in s.info.items() if k != 'co_dispatched'},
+            'callers': list(s.callers)[:30], 'callees': list(s.callees)[:30]}
+
+@mcp.tool()
+def where_to_add(description:str, limit:int=5) -> list:
+    "Where in the indexed repo a described change belongs, ranked over the call graph."
+    return [{'mod': r.get('metadata',{}).get('mod_name') if isinstance(r, dict) else str(r)}
+            for r in _vault().where_to_add(description, limit=limit)]
+
+@mcp.tool()
+def federated_search(query:str, limit:int=12, prose:bool=True, repo:bool=True, env:bool=False) -> dict:
+    "One ranked list across the document vault AND the code index. Use when a question spans both — a design note and the function that implements it."
+    from .code import fed_rows
+    f = _vault().federate(query, limit=limit, prose=prose, repo=repo, env=env)
+    return {'query': query, 'legs': f.legs, 'note': f.note, 'hits': fed_rows(f.hits)}
+
+# %% ../nbs/04_mcp.ipynb #harvest_tools
+@mcp.tool()
+def find_apis(url:str, pattern:str='*', session:bool=False) -> list:
+    "Discover the JSON endpoints a page calls. Listing, product and dashboard pages render from an internal API that is cleaner to read than their HTML; this finds it."
+    return [dict(r) for r in _vault().apis(url, pattern=pattern, session=session)]
+
+@mcp.tool()
+def harvest_api(url:str, pattern:str='*', capture:int|None=None, pages:int=1, title:str|None=None,
+                session:bool=False) -> dict:
+    "Sniff a page's JSON API, pull its records, and file them in the vault as kind='data' — one searchable section per record. capture picks an endpoint from find_apis; pages>1 paginates."
+    return _vault().harvest(url, pattern=pattern, capture=capture, pages=pages, title=title, session=session)
+
+# %% ../nbs/04_mcp.ipynb #watch_tools
+@mcp.tool()
+def add_watch(target:str, action:str='url', every:str='1d', note:str|None=None) -> dict:
+    "Register a recurring job. action: url|web|harvest|arxiv|youtube|crawl|remind. every: '30m','6h','1d','1w'. action='remind' writes a note on a schedule with no network."
+    return _vault().watch(target, action=action, every=every, note=note)
+
+@mcp.tool()
+def list_watches() -> list:
+    "Every registered watch with its schedule, run count and last status."
+    return _vault().watches()
+
+@mcp.tool()
+def poll_watches(limit:int|None=None) -> dict:
+    "Run every watch that is due, and report what each did. This is the tick a scheduler or frontend calls."
+    return _vault().poll(limit=limit)
+
+@mcp.tool()
+def unwatch(watch_id:str) -> dict:
+    "Delete a watch. Documents it already filed stay in the vault."
+    _vault().unwatch(watch_id)
+    return {'unwatched': watch_id}
 
 # %% ../nbs/04_mcp.ipynb #main
 def main():

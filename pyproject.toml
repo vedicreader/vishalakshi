@@ -25,7 +25,8 @@ dependencies = [
 [project.optional-dependencies]
 ask = ["rishi>=0.0.2"]
 mcp = ["mcp>=1.2.0,<2"]
-all = ["rishi>=0.0.2", "mcp>=1.2.0,<2"]
+code = ["kosha>=0.0.9"]
+all = ["rishi>=0.0.2", "mcp>=1.2.0,<2", "kosha>=0.0.9"]
 
 [project.scripts]
 vishalakshi = "vishalakshi.cli:main"
