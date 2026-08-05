@@ -5,17 +5,31 @@ build-backend = "hatchling.build"
 [project]
 name = "vishalakshi"
 dynamic = ["version"]
-description = "an all-seeing python notebook - code execution, real time variable inspection, agent session"
+description = "one vault for everything you read: web, papers, video, files and code, searchable together and answerable by a local or hosted model"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [{name = "Karthik", email = "karthik.rajgopal@hotmail.com"}]
-keywords = ['nbdev']
+keywords = ['nbdev', 'rag', 'research', 'memory', 'semantic search', 'knowledge base']
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
 ]
-dependencies = []
+dependencies = [
+    "litesearch>=0.1.0",
+    "fossick>=0.1.0",
+    "fastcore>=1.12.31",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+ask = ["rishi>=0.0.2"]
+mcp = ["mcp>=1.2.0,<2"]
+all = ["rishi>=0.0.2", "mcp>=1.2.0,<2"]
+
+[project.scripts]
+vishalakshi = "vishalakshi.cli:main"
+vishalakshi-mcp = "vishalakshi.mcp:main"
 
 [project.urls]
 Repository = "https://github.com/vedicreader/vishalakshi"

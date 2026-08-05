@@ -150,3 +150,10 @@ checklink/cookies.txt
 
 # Quarto
 .quarto
+
+# local vault + extracted assets
+*.db
+*.usearch
+pdfs/
+assets/
+.venv/
