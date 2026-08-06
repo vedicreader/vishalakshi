@@ -14,12 +14,14 @@ from inspect import Parameter, Signature, signature
 from fastcore.all import L
 from fastcore.script import anno_parser
 from .core import Vault
-from . import acquire, ask, code   # noqa: F401 — these patch the Vault methods the CLI exposes
+from . import acquire, ask, code, extract   # noqa: F401 — these patch the Vault methods the CLI exposes
 
 # %% ../nbs/04_cli.ipynb #11ed4c4a
-CMDS = ('stats find sections context ask explain read related toc map sources grab url web crawl '
-        'arxiv pdf youtube add_file add_dir note code connect forget apis harvest add_records '
-        'watch watches unwatch pause poll index_code code_search symbol where_to_add grep federate').split()
+CMDS = ('stats find sections context ask explain read related toc map sources doc document grab url '
+        'web crawl arxiv pdf youtube add_file add_dir note code connect forget apis harvest '
+        'add_records watch watches unwatch pause poll index_code code_search symbol where_to_add '
+        'grep federate categorize categorize_all doctypes of_type ner extract extract_all '
+        'ask_doc').split()
 
 @cache
 def vault(path:str=None) -> Vault:

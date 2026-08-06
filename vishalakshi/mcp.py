@@ -18,9 +18,10 @@ except ImportError as e:
                       "`pip install 'vishalakshi[mcp]'`") from e
 
 # %% ../nbs/05_mcp.ipynb #fad2b047
-TOOLS = ('stats find sections context ask read related toc map sources grab url web arxiv youtube '
-         'add_file add_dir note connect forget apis harvest watch watches poll unwatch '
-         'index_code code_search symbol where_to_add grep federate').split()
+TOOLS = ('stats find sections context ask read related toc map sources document grab url web arxiv '
+         'youtube add_file add_dir note connect forget apis harvest watch watches poll unwatch '
+         'index_code code_search symbol where_to_add grep federate categorize categorize_all '
+         'doctypes of_type ner extract extract_all ask_doc').split()
 
 mcp = FastMCP('vishalakshi', instructions=(
     'A personal research vault: web pages, papers, transcripts, files, code and notes in one '
@@ -28,7 +29,13 @@ mcp = FastMCP('vishalakshi', instructions=(
     'connect to, which is what you want before answering a question. `find` locates things, '
     '`read` pulls one section in full, `related` answers "what else reads like this". `grab` '
     'files anything you point it at; `note` writes your own conclusions back so they are searched '
-    'alongside the sources. Run `connect` after a batch of adds to enable the associative leg.'))
+    'alongside the sources. Run `connect` after a batch of adds to enable the associative leg.\n\n'
+    'For one document rather than the corpus: `document` returns the whole of it, `categorize` says '
+    'what kind of thing it is (invoice, catalogue, contract, paper, …), `extract` pulls its fields '
+    'out against a schema — a name like `invoice`, or a spec like `vendor:str, total:float` you '
+    'make up on the spot — and `ask_doc` answers a question about that document with the rest of '
+    'the vault as context, as prose or as a shape you name. `extract_all` does it across every '
+    'document of one type, which is how a folder of invoices becomes a table.'))
 
 def as_tool(name:str):
     'Register one `Vault` method as an MCP tool, forcing its result through JSON.'

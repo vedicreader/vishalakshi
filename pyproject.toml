@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
 authors = [{name = "Karthik", email = "karthik.rajgopal@hotmail.com"}]
-keywords = ['nbdev', 'rag', 'research', 'memory', 'semantic search', 'knowledge base']
+keywords = ['nbdev', 'rag', 'research', 'memory', 'semantic search', 'knowledge base',
+            'document classification', 'information extraction', 'structured output', 'ner']
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
@@ -25,6 +26,12 @@ dependencies = [
     "rgapi",
     "rishi",
 ]
+
+# spaCy is optional on purpose: `extract` types documents and pulls entities out of them from regex
+# signals alone, and only sharpens both when a pipeline is installed. The pipeline itself is not on
+# PyPI, so it stays a separate step: `python -m spacy download en_core_web_sm`.
+[project.optional-dependencies]
+nlp = ["spacy>=3.7"]
 
 [project.scripts]
 vishalakshi = "vishalakshi.cli:main"

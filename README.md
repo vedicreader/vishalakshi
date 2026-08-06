@@ -230,6 +230,171 @@ L(v.related(nid, limit=4)).attrgot('breadcrumb')
 
     ['index › Code: kosha, ripgrep, and federated search', 'index › Code: kosha, ripgrep, and federated search', 'README › What retrieval actually returns', '03 code']
 
+## What each document is, and what is inside it
+
+`kind` says how a document arrived. What it *is* — an invoice, a price list, a contract, a paper, a
+transcript, a source file — is a different question, and one worth answering: a vault that knows
+which of its documents are invoices can hand you their totals as a table.
+
+`categorize` answers it with a cue table first and a model only where the table cannot decide. That
+order is the design rather than an optimisation: typing ten thousand documents through an LLM is
+hours of compute to answer a question a regex answers about most of them.
+
+``` python
+INVOICE = '''# INVOICE
+
+Invoice No: ACM-2024-0117
+Date: 2024-03-01
+Payment terms: Net 30
+Bill to: Contoso GmbH, Berlin
+From: Acme Supplies Ltd
+
+## Line items
+
+| Description | Qty | Unit price | Amount |
+|---|---|---|---|
+| Widget, steel | 12 | $8.50 | $102.00 |
+| Gasket, nitrile | 40 | $1.20 | $48.00 |
+
+Subtotal: $150.00
+VAT (20%): $30.00
+Total due: $180.00
+'''
+
+v.add(INVOICE, 'Acme invoice ACM-2024-0117', source='/inbox/acme-0117.md')
+r = v.categorize('/inbox/acme-0117.md', llm=False)
+r.doctype, r.score, r.decisive, r.by
+```
+
+    ('invoice', 1.0, True, 'cues (spacy+regex)')
+
+`score` and `decisive` are the seam. A clear winner needs no model; a two-way tie is exactly the
+case worth spending one on, which is what `llm=None` — the default — decides for itself. `by`
+records which leg answered, so a vault's types can be audited and re-run selectively.
+
+``` python
+r.scores        # every type scored against the document, best first
+```
+
+    {'invoice': 1.0,
+     'quote': 0.52,
+     'purchase_order': 0.5,
+     'receipt': 0.4,
+     'catalogue': 0.325}
+
+`categorize_all` types everything in the vault that is not typed yet, and `doctypes` is then the
+shape of what you have collected — the same question `map()` answers about topics, asked about kinds
+of document:
+
+``` python
+v.categorize_all(llm=False)     # everything not typed yet; a failure is recorded, not raised
+v.doctypes()                    # the shape of the corpus
+```
+
+    {'code': 7, 'documentation': 4, 'invoice': 1}
+
+Notebooks read as code, the README as documentation, the invoice as an invoice — and no model was
+loaded to say so. `force=False` makes that cheap to re-run after an ingest: only what arrived since
+is looked at.
+
+With [spaCy](https://spacy.io) installed — `pip install 'vishalakshi[nlp]'` and
+`python -m spacy download en_core_web_sm` — the same pass also reaches the entity labels a regex
+cannot, and `ner` reads them off one document. Without it, the labels come from the regex signals
+instead, and `method` says which you got.
+
+``` python
+v.ner('/inbox/acme-0117.md').ents.map(lambda e: (e.label, e.text))[:6]
+```
+
+    [('DATE', '2024-03-01'), ('PERSON', 'Bill'), ('PERSON', 'Contoso GmbH'), ('GPE', 'Berlin'), ('ORG', 'Acme Supplies Ltd'), ('PERSON', 'Description | Qty')]
+
+## Fields, not prose
+
+`extract` reads a whole document and returns a dict. The shapes for the common paperwork are ready:
+
+``` python
+from dataclasses import fields
+from vishalakshi.extract import SCHEMAS, as_schema
+
+list(SCHEMAS)
+```
+
+    ['invoice',
+     'purchase_order',
+     'quote',
+     'receipt',
+     'catalogue',
+     'contract',
+     'resume',
+     'paper',
+     'meeting_notes',
+     'other']
+
+``` python
+[f.name for f in fields(as_schema('invoice'))]
+```
+
+    ['number',
+     'date',
+     'due_date',
+     'vendor',
+     'vendor_tax_id',
+     'bill_to',
+     'ship_to',
+     'currency',
+     'subtotal',
+     'tax',
+     'total',
+     'payment_terms',
+     'items']
+
+With no `schema`, the document is categorised first and the shape follows from what it turned out to
+be — which is what makes this useful pointed at a folder of mixed paperwork:
+
+``` python
+e = v.extract('/inbox/acme-0117.md')      # no schema: the doctype picks one
+e.schema, e.fields['total'], e.fields['items']
+```
+
+rishi constrains the model to the schema — a forced tool call on the hosted and LiteRT backends, a
+grammar on llama.cpp, a parsed JSON reply on MLX — so what comes back is the fields you asked for
+rather than prose about them. `extract_all(doctype='invoice')` does the same across every invoice in
+the vault and hands back one row each, which is a dataframe away from being useful.
+
+A shape you have not declared works the same way, named in one string at the moment you ask:
+
+``` python
+[f.name for f in fields(as_schema('vendor:str, total:float, due_date:str'))]
+```
+
+    ['vendor', 'total', 'due_date']
+
+``` python
+v.extract('/inbox/acme-0117.md', schema='vendor:str, total:float, due_date:str').fields
+```
+
+## Asking about one document, with the vault as context
+
+`ask` retrieves sections from everywhere. `ask_doc` starts from a document you have already chosen,
+reads *all* of it, and adds the rest of the vault behind it — the document is section `[1]`, so the
+citation contract is the one `ask` already keeps. The document need not be in the vault at all: a
+path on disk is read straight off it, which is how a markdown page or a source file gets asked about
+before it is ever ingested.
+
+``` python
+a = v.ask_doc('../vishalakshi/extract.py',                  # a file on disk, never ingested
+              'what does this module do that core.py does not?')
+print(a.answer)
+```
+
+And the same question answered as data instead of prose — `schema=` turns any question into a
+structured response, built at the moment you ask it:
+
+``` python
+v.ask_doc('/inbox/acme-0117.md', 'what is owed, to whom, and by when?',
+          schema='amount:float, currency:str, owed_to:str, due:str').fields
+```
+
 ## CLI
 
 ``` sh

@@ -11,13 +11,13 @@ __all__ = ['KINDS', 'DFLT_ENC', 'tidy_bc', 'kinds', 'mk_encoder', 'Vault']
 import json, re, uuid, warnings
 from functools import partial
 import numpy as np
-from fastcore.all import AttrDict, L, Path, ifnone, patch
+from fastcore.all import AttrDict, L, Path, first, ifnone, patch
 from litesearch import (database, dir2files, doc_encoder, query_encoder, hash_embed, static_embedder,
         pdf_parse, build_graph, resolve_entities, DOC_EXTS)
 
 # %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note')
-_window, DFLT_ENC = re.compile(r'^Pages \d+(?:–\d+)?: '), 'minishlab/potion-multilingual-128M'
+_window, DFLT_ENC = re.compile(r'^Pages \d+(?:–\d+)?:'), 'minishlab/potion-multilingual-128M'
 
 def tidy_bc(bc:str) -> str:
     "Drop `build_tree`'s `Pages n–m:` window placeholders from a breadcrumb: real nodes, noise in a citation."
@@ -234,6 +234,74 @@ def read(self:Vault, node_id:str, max_chars:int=6000) -> dict:
 def toc(self:Vault, **kw) -> list:
     'The table of contents across every document in the vault.'
     return self.db.toc(store=self.store, **kw)
+
+# %% ../nbs/00_core.ipynb #7a1f2b64
+@patch
+def doc(self:Vault, ref:str) -> dict:
+    """One document row, by `doc_id`, exact `source`, or a title substring; `meta` already decoded.
+
+    Three ways to name one document because three different things hand you a reference: retrieval
+    returns `doc_id`s, acquisition returns the url or path it filed, and you remember the title.
+    Exact matches are tried first, so a title that happens to contain another's is still reachable."""
+    q = str(ref or '').replace("'", "''")
+    for w in (f"id='{q}'", f"source='{q}'", f"title LIKE '%{q}%'"):
+        if (r := first(self.g.docs(where=w, order_by='added_at desc'))):
+            return dict(r, meta=json.loads(r['meta'] or '{}'))
+    return None
+
+@patch
+def document(self:Vault,
+             ref:str,               # doc_id, source (url or path), or a title substring
+             max_chars:int=40000,   # cap on the text returned
+             headings:bool=True,    # put the node titles back as markdown headings
+             disk:bool=True,        # fall back to a path on disk the vault has never seen
+) -> AttrDict:
+    """One whole document, reassembled in document order — the unit a model reads to extract from.
+
+    `read` returns a section; this returns all of them. Headings go back in because a chunk is
+    stored bare and a heading is often the only thing that says what a number *means*: an invoice
+    reassembled without its `Total` line is a column of unlabelled figures — but only the headings the
+    document actually wrote, never `build_tree`'s window placeholders. `disk=True` reads a markdown or
+    source file the vault does not hold, so a file can be handed to a model without ingesting it
+    first — `origin` says which of the two answered."""
+    d = self.doc(ref)
+    if d is None:
+        p = Path(ref or '')
+        if not (disk and p.is_file()): raise ValueError(f'no document in the vault matching {ref!r}')
+        txt = p.read_text(errors='replace')
+        return AttrDict(doc_id=None, title=p.name, source=str(p), kind='file', meta={}, pages=None,
+                        origin='disk', nodes=0, chars=len(txt), truncated=len(txt) > max_chars,
+                        text=txt[:max_chars])
+    did = d['id'].replace("'", "''")
+    chunks = {}
+    for c in self.g.store(where=f"doc_id='{did}'", select='content, node_id, page, rowid as rowid'):
+        chunks.setdefault(c['node_id'], []).append(c)
+    nodes, parts = sorted(self.g.nodes(where=f"doc_id='{did}'"), key=lambda r: r['seq']), []
+    for nd in nodes:
+        # a `Pages n–m:` title is `build_tree`'s window placeholder, not a heading the document
+        # wrote — noise here for the same reason `tidy_bc` drops it from a citation
+        if headings and nd['level'] and (t := (nd['title'] or '').strip()) and not _window.match(t):
+            parts.append('#'*min(nd['level'], 6) + ' ' + t)
+        parts += [c['content'] for c in sorted(chunks.get(nd['id'], []),
+                                               key=lambda c: (c['page'] or 0, c['rowid']))]
+    txt = '\n\n'.join(p for p in parts if (p or '').strip())
+    return AttrDict(doc_id=d['id'], title=d['title'], source=d['source'], kind=d['kind'], meta=d['meta'],
+                    pages=d['pages'], origin='vault', nodes=len(nodes), chars=len(txt),
+                    truncated=len(txt) > max_chars, text=txt[:max_chars])
+
+@patch
+def set_meta(self:Vault, doc_id:str, **kv) -> dict:
+    """Merge key/values into one document's `meta`, and return the merged dict.
+
+    What a document *is* lands here rather than in `kind`: `kind` is the fixed facet retrieval
+    filters on (`KINDS`, chosen by whatever acquired the document), while a document type is a
+    judgement — one a later, better model may revise."""
+    did = (doc_id or '').replace("'", "''")
+    r = first(self.g.docs(where=f"id='{did}'"))
+    if not r: raise ValueError(f'no document {doc_id!r} in the vault')
+    m = {**json.loads(r['meta'] or '{}'), **kv}
+    self.g.docs.update(dict(id=doc_id, meta=json.dumps(m, default=str)))
+    return m
 
 # %% ../nbs/00_core.ipynb #36eaae10
 @patch
