@@ -262,15 +262,16 @@ Total due: $180.00
 '''
 
 v.add(INVOICE, 'Acme invoice ACM-2024-0117', source='/inbox/acme-0117.md')
-r = v.categorize('/inbox/acme-0117.md', llm=False)
+r = v.categorize('/inbox/acme-0117.md', llm='never')
 r.doctype, r.score, r.decisive, r.by
 ```
 
     ('invoice', 1.0, True, 'cues (spacy+regex)')
 
 `score` and `decisive` are the seam. A clear winner needs no model; a two-way tie is exactly the
-case worth spending one on, which is what `llm=None` — the default — decides for itself. `by`
-records which leg answered, so a vault's types can be audited and re-run selectively.
+case worth spending one on, which is what `llm='auto'` — the default — decides for itself. It will
+use a model it can find and never start a download to get one. `by` records which leg answered, so a
+vault's types can be audited and re-run selectively.
 
 ``` python
 r.scores        # every type scored against the document, best first
@@ -287,7 +288,7 @@ shape of what you have collected — the same question `map()` answers about top
 of document:
 
 ``` python
-v.categorize_all(llm=False)     # everything not typed yet; a failure is recorded, not raised
+v.categorize_all(llm='never')   # everything not typed yet; a failure is recorded, not raised
 v.doctypes()                    # the shape of the corpus
 ```
 
@@ -19458,6 +19459,38 @@ survives a change of encoder, and it is the same mechanism litesearch already us
 with vectors. Each leg runs independently: `f.legs` reports what each contributed, or why it could
 not.
 
+### One tree, two indexes
+
+A repo is prose *and* code, and the two want different indexes. `add_tree` splits it: documents to
+the vault, source files to kosha, entity graph rebuilt once at the end rather than once per file.
+`grab` routes a directory here, so the one-call path gets it too.
+
+``` python
+v.add_tree('..')          # docs to the vault, source to kosha; v.grab('..') does the same
+```
+
+Filing `.py` files into the prose store instead — which is what `v.code(dir)` does — buys none of
+`symbol`, `where_to_add` or the call graph. If kosha is missing, `add_tree` falls back to exactly
+that and says so, because a searchable fallback beats a traceback.
+
+And once a repo *is* indexed, `context` stops needing to be asked: it appends code sections to what
+it retrieves. `code=None` decides by looking for `.kosha/code.db` on disk rather than by loading
+anything, so a question about late chunking pays nothing for a leg it has no use for.
+
+``` python
+c = v.context('where does the entity graph get rebuilt?', sections=3, related=0, code=3, dir='..')
+c.code, [r.breadcrumb for r in c.results if r.node_id is None]
+```
+
+    (3,
+     ['repo › ../vishalakshi/core.py:308',
+      'grep › nbs/index.ipynb:69242',
+      'repo › ../vishalakshi/extract.py:309'])
+
+Those sections are numbered alongside the prose ones and cite like them, so `ask` needed no changes
+at all — a code citation just has no `node_id`, because its handle is a `path:line` on disk rather
+than something `read()` can open.
+
 ## Harvest: read a page’s API, not its HTML
 
 Listing, product and dashboard pages render from an internal JSON API. fossick can watch a page and
@@ -19536,6 +19569,65 @@ Both encoders are stored at float16, which is litesearch’s own default width. 
 size optimisation: `Database.context` does not thread a `dtype=` down to its section search, so a
 float32 store is read back there as float16 — the vectors survive, the *distances* do not, and
 retrieval silently degrades to keyword ranking.
+
+The vault takes any encoder [litesearch](https://github.com/vedicreader/litesearch) ships, by name:
+
+``` python
+from vishalakshi.core import ENCODERS, enc_spec
+
+{k: (m if isinstance(m, str) else m['model']) for k, m in ENCODERS.items()}
+```
+
+    {'default': 'minishlab/potion-multilingual-128M',
+     'multilingual': 'minishlab/potion-multilingual-128M',
+     'retrieval': 'minishlab/potion-retrieval-32M',
+     'science': 'minishlab/potion-science-32M',
+     'code': 'minishlab/potion-code-16M-v2',
+     'gemma': 'onnx-community/embeddinggemma-300m-ONNX',
+     'bge-micro': 'TaylorAI/bge-micro-v2',
+     'modernbert': 'nomic-ai/modernbert-embed-base',
+     'nomic': 'nomic-ai/nomic-embed-text-v1.5'}
+
+Two kinds, and the difference is a real trade rather than a detail. A static model is a lookup
+table: milliseconds per document, no GPU, no batching. An ONNX transformer actually reads word order
+and costs perhaps a hundred times more per chunk. Ingest is where that bill lands, so the default
+stays static and the choice stays yours — `science` for papers, `gemma` or `bge-micro` when fidelity
+is worth the wait, `code` for identifiers.
+
+``` python
+enc_spec('science'), enc_spec('bge-micro')[1], enc_spec('gemma')[0]['model']
+```
+
+    (('minishlab/potion-science-32M', 'static'),
+     'onnx',
+     'onnx-community/embeddinggemma-300m-ONNX')
+
+What you cannot do is mix them *inside* one index. One ANN index is one vector space; two models'
+vectors in it are compared as bytes and the distances mean nothing. So a corpus that wants a
+different embedder gets a **shelf** — same file, its own store, its own index — and the shelves are
+combined by rank, the same argument `federate` makes one level up:
+
+``` python
+sci = v.shelf('arxiv', encoder='science')      # papers, under a science model
+sci.add('# Late chunking\n\nWe evaluate contextual chunk embeddings on BEIR.', 'a paper')
+
+[(s['store'], s['encoder'], s['docs']) for s in v.shelves()]
+```
+
+    [('store', 'minishlab/potion-multilingual-128M', 2),
+     ('arxiv', 'minishlab/potion-science-32M', 1)]
+
+``` python
+v.federate('contextual chunk embeddings', repo=False, grep=False, shelves=['arxiv']).legs
+```
+
+    {'prose': 5, 'shelf:arxiv': 1}
+
+A shelf records the encoder that wrote it, so it reopens with the right one and says so loudly when
+it does not. That warning is the point of the registry: litesearch already warns when the stored
+vector *width* disagrees, but when the widths match and the models differ — two 256-dim static
+models, or a real encoder quietly replaced by the hashing fallback after a failed download — nothing
+raises and every distance is computed across two different spaces.
 
 ## Development
 

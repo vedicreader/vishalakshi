@@ -8,10 +8,10 @@ Docs: https://vedicreader.github.io/vishalakshi/acquire.html.md"""
 __all__ = ['ACTIONS', 'clip', 'md_title', 'records', 'records_md', 'secs']
 
 # %% ../nbs/01_acquire.ipynb #903dae85
-import json, re, time, uuid
+import json, re, time, uuid, warnings
 from urllib.parse import urlparse
 from fastcore.all import AttrDict, L, Path, patch
-from litesearch import code_exts, pdf_parse
+from litesearch import code_exts, dir2files, pdf_parse, DOC_EXTS
 from .core import Vault, KINDS
 
 # %% ../nbs/01_acquire.ipynb #39b87feb
@@ -124,9 +124,12 @@ def grab(self:Vault,
          sel:str=None,     # CSS selector, for the web cases
          **kw              # forwarded to whichever method the target names
 ):
-    'File anything, by looking at what it is — the one call a CLI or an agent needs.'
+    """File anything, by looking at what it is — the one call a CLI or an agent needs.
+
+    A directory goes through `add_tree`, so a repo lands split between the two indexes that suit its
+    halves rather than all of it in the prose store."""
     p = Path(target)
-    if p.is_dir(): return self.add_dir(p, **kw)
+    if p.is_dir(): return self.add_tree(p, **kw)
     if p.exists(): return self.add_file(p, title=title, **kw)
     if 'arxiv.org' in target or re.fullmatch(r'\d{4}\.\d{4,5}(v\d+)?', target): return self.arxiv(target, **kw)
     if re.search(r'youtube\.com|youtu\.be', target): return self.youtube(target, **kw)
@@ -139,8 +142,52 @@ def code(self:Vault, dir:str, types:str=code_exts, **kw) -> L:
     """File a source tree into the vault as `kind='code'`, so code and prose answer one query.
     This is deliberately the shallow path: files as documents, headings from the text. For call
     graphs, PageRank over symbols and `where_to_add`, use `index_code` — kosha builds an
-    AST-derived index that this cannot, and `federate` searches both."""
+    AST-derived index that this cannot, and `federate` searches both. `add_tree` does both halves of
+    a mixed tree at once and is usually what you want."""
     return self.add_dir(dir, types=types, kind='code', **kw)
+
+# %% ../nbs/01_acquire.ipynb #4a8d1f26
+@patch
+def add_tree(self:Vault,
+             dir:str,                # tree to ingest
+             types:str=DOC_EXTS,     # extensions filed into the vault as prose
+             code:bool=True,         # index source files with kosha, when the tree has any
+             kind:str=None,          # override the kind for the prose half
+             connect:bool=True,      # rebuild the entity graph once, at the end
+             verbose:bool=False,
+             **kw                    # forwarded to add_file
+) -> AttrDict:
+    """Ingest a whole tree, each half to the index that can actually answer questions about it.
+
+    A mixed tree is the normal case — a repo with a README, docs, notebooks and source — and prose
+    and code want different indexes. Prose wants chunks, headings and embeddings. Code wants an AST:
+    `symbol()`, `where_to_add()` and the call graph exist only in kosha, and filing a `.py` file into
+    the prose store as a document (which is what `Vault.code()` does) buys none of them. So
+    `add_dir` handles the documents, `index_code` handles the source, and this is the one call that
+    knows which is which.
+
+    The graph is rebuilt once at the end rather than per file, for the reason `poll` rebuilds it once
+    per tick: `connect()` reads the whole store, so a tree of two hundred files would otherwise pay
+    for it two hundred times. If kosha is not installed, the source files are filed as prose instead
+    and `code` says so — a searchable fallback beats a traceback.
+
+    `code` is a plain switch rather than a three-way choice because forcing kosha at a tree with no
+    source in it would index nothing at the price of loading a code embedder."""
+    p = Path(dir)
+    if not p.is_dir(): raise ValueError(f'not a directory: {dir}')
+    docs = self.add_dir(p, types=types, kind=kind, **kw)
+    srcs = dir2files(p, types=code_exts) if code else L()
+    out = AttrDict(dir=str(p), docs=docs, n_docs=len(docs), n_code=len(srcs), code=None)
+    if srcs:
+        try: out.code = self.index_code(p, verbose=verbose)
+        except Exception as e:
+            warnings.warn(f'could not index {len(srcs)} source files with kosha '
+                          f'({type(e).__name__}: {str(e)[:120]}) — filing them as prose instead, so '
+                          f'they are at least searchable. Install kosha for symbol search.')
+            out.code = dict(error=f'{type(e).__name__}: {str(e)[:200]}', filed_as_prose=len(srcs))
+            out.docs = docs + srcs.map(self.add_file, kind='code', **kw)
+    if connect and (out.n_docs or out.code): out.graph = self.connect()
+    return out
 
 # %% ../nbs/01_acquire.ipynb #bd035852
 def records(data, min_len:int=2) -> list:

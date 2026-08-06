@@ -21,10 +21,10 @@ except ImportError:
         raise ImportError('vishalakshi-mcp needs the `mcp` package — `pip install mcp`') from e
 
 # %% ../nbs/05_mcp.ipynb #fad2b047
-TOOLS = ('stats find sections context ask read related toc map sources document grab url web arxiv '
-         'youtube add_file add_dir note connect forget apis harvest watch watches poll unwatch '
-         'index_code code_search symbol where_to_add grep federate categorize categorize_all '
-         'doctypes of_type ner extract extract_all ask_doc').split()
+TOOLS = ('stats find sections context ask read related toc map sources document shelves grab url '
+         'web arxiv youtube add_file add_dir add_tree note connect forget apis harvest watch watches '
+         'poll unwatch index_code code_search symbol where_to_add grep federate categorize '
+         'categorize_all doctypes of_type ner extract extract_all ask_doc').split()
 
 mcp = MCPServer('vishalakshi', instructions=(
     'A personal research vault: web pages, papers, transcripts, files, code and notes in one '
@@ -32,7 +32,11 @@ mcp = MCPServer('vishalakshi', instructions=(
     'connect to, which is what you want before answering a question. `find` locates things, '
     '`read` pulls one section in full, `related` answers "what else reads like this". `grab` '
     'files anything you point it at; `note` writes your own conclusions back so they are searched '
-    'alongside the sources. Run `connect` after a batch of adds to enable the associative leg.\n\n'
+    'alongside the sources. `add_tree` points at a directory and splits it: documents into the '
+    'vault, source files into kosha, entity graph rebuilt once at the end. When kosha has indexed '
+    'the repo, `context` and `ask` add code sections to what they retrieve on their own, so a '
+    'question about the user\'s own system is answered from the source rather than from prose about '
+    'it.\n\n'
     'For one document rather than the corpus: `document` returns the whole of it, `categorize` says '
     'what kind of thing it is (invoice, catalogue, contract, paper, …), `extract` pulls its fields '
     'out against a schema — a name like `invoice`, or a spec like `vendor:str, total:float` you '

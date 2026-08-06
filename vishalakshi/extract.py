@@ -17,7 +17,8 @@ from typing import get_origin
 from fastcore.all import AttrDict, L, patch
 from litesearch import spacy_pipe, text_entities
 from .core import Vault
-from .ask import VAULT_SP, cited, resolve_model, split_reasoning   # also patches Vault.chat
+from .ask import (VAULT_SP, cited, model_cached, resolve_model,   # also patches Vault.chat
+                            split_reasoning)
 
 # %% ../nbs/06_extract.ipynb #d8c31e56
 SIGNALS = dict(
@@ -228,7 +229,7 @@ about invoicing is a paper. Reply with exactly one label from the list and nothi
 def categorize(self:Vault,
                ref,                # doc_id, source, title, a path on disk, or a loaded `document()`
                model:str=None,     # a MODELS alias or a full id, for the LLM leg
-               llm:bool=None,      # None -> only when the cues cannot decide; True/False -> always/never
+               llm:str='auto',     # 'auto' -> only when the cues cannot decide | 'always' | 'never'
                labels:str=None,    # comma-separated labels to choose from; None -> DOCTYPES
                max_chars:int=6000, # chars of the document the model and the cues see
                ner:bool=True,      # run spaCy, if installed
@@ -239,8 +240,11 @@ def categorize(self:Vault,
     Cues first, a model only if they cannot decide. That order is the design, not an optimisation:
     typing a vault of ten thousand documents through an LLM is hours of compute to answer a question
     a regex table answers for most of them, and the cases the table gets wrong are the ones where it
-    scores two types nearly the same — which is precisely when `llm=None` spends a model call.
-    `by` records which leg decided, so a vault's types can be audited and re-run selectively. A
+    scores two types nearly the same — which is precisely when `llm='auto'` spends a model call.
+    `llm` is a word rather than a flag because it has three states and a `bool` only reaches two of
+    them from a command line — `--llm` would have to mean both "always" and "the default", and
+    argparse would quietly pick one. `by` records which leg decided, so a vault's types can be
+    audited and re-run selectively. A
     `ref` that is already a `document()` is used as it stands, which is how `extract` types what it
     has just read without reassembling it twice."""
     d = (ref if isinstance(ref, dict) and 'text' in ref
@@ -251,17 +255,25 @@ def categorize(self:Vault,
     sig = signals(txt, ner=ner)
     g = guess_type(txt, sig, kind=d.kind)
     dt, by = g.doctype, f'cues ({g.method})'
-    if llm is True or (llm is None and not g.decisive):
+    mode = {True: 'always', False: 'never', None: 'auto'}.get(llm, str(llm).lower())
+    assert mode in ('auto', 'always', 'never'), f"llm must be auto, always or never — not {llm!r}"
+    if mode == 'always' or (mode == 'auto' and not g.decisive):
         lbls = L(labels.split(',') if isinstance(labels, str) else labels or list(DOCTYPES)).map(str.strip)
         try:
-            said = self.chat(model=model).classify(f'{d.title}\n\n{txt}', list(lbls)+['other'], sp=TYPE_SP)
-            if said in lbls or said == 'other': dt, by = said, f'llm ({resolve_model(model)[0]})'
-            else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
+            mid, rt = resolve_model(model)
+            # `auto` is allowed to *use* a model, not to go and fetch one: a vault of ten thousand
+            # documents must not turn a one-line note into a multi-gigabyte download
+            if mode == 'auto' and rt != 'remote' and not model_cached(mid):
+                by = f'cues ({g.method}); {mid} is not downloaded, so no model was asked'
+            else:
+                said = self.chat(model=model).classify(f'{d.title}\n\n{txt}', list(lbls)+['other'], sp=TYPE_SP)
+                if said in lbls or said == 'other': dt, by = said, f'llm ({mid})'
+                else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
         except Exception as e:
-            # `llm=None` asked for a model *if one can be had*. There may be no rishi, no weights and
-            # no network, and a corpus 90% typed by cues alone is worth far more than a traceback —
-            # so the cue verdict stands, and says why. `llm=True` was an instruction, and raises.
-            if llm is True: raise
+            # `auto` asked for a model *if one can be had*. There may be no rishi, no weights and no
+            # network, and a corpus 90% typed by cues alone is worth far more than a traceback — so
+            # the cue verdict stands, and says why. `always` was an instruction, and raises.
+            if mode == 'always': raise
             by = f'cues ({g.method}); no model available ({type(e).__name__})'
     res = AttrDict(doc_id=d.doc_id, title=d.title, kind=d.kind, doctype=dt, score=g.score,
                    margin=g.margin, decisive=g.decisive, by=by, scores=g.scores,
@@ -510,7 +522,7 @@ def extract(self:Vault,
             max_chars:int=12000,   # chars of the document the model sees
             sp:str=EXTRACT_SP,     # system prompt for the extraction
             save:bool=False,       # write the fields into the document's meta
-            llm:bool=None,         # the LLM leg of the categorisation, when picking the schema
+            llm:str='auto',        # the LLM leg of the categorisation, when picking the schema
 ) -> AttrDict:
     """Pull structured fields out of one document — an invoice's totals, a catalogue's products.
 

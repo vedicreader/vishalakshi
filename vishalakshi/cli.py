@@ -17,11 +17,11 @@ from .core import Vault
 from . import acquire, ask, code, extract   # noqa: F401 — these patch the Vault methods the CLI exposes
 
 # %% ../nbs/04_cli.ipynb #11ed4c4a
-CMDS = ('stats find sections context ask explain read related toc map sources doc document grab url '
-        'web crawl arxiv pdf youtube add_file add_dir note code connect forget apis harvest '
-        'add_records watch watches unwatch pause poll index_code code_search symbol where_to_add '
-        'grep federate categorize categorize_all doctypes of_type ner extract extract_all '
-        'ask_doc').split()
+CMDS = ('stats find sections context ask explain read related toc map sources doc document shelves '
+        'grab url web crawl arxiv pdf youtube add_file add_dir add_tree note code connect forget '
+        'apis harvest add_records watch watches unwatch pause poll index_code code_search symbol '
+        'where_to_add grep federate categorize categorize_all doctypes of_type ner extract '
+        'extract_all ask_doc').split()
 
 @cache
 def vault(path:str=None) -> Vault:
@@ -53,7 +53,8 @@ def show(r):
     if isinstance(r, str): return print(r)
     if isinstance(r, dict) and 'answer' in r:
         print(r['answer'])
-        for c in r.get('cited', []): print(f"  [{c['n']}] {c['breadcrumb']}  {c['node_id']}")
+        # a code citation has no node_id: its handle is the path:line the hit came from
+        for c in r.get('cited', []): print(f"  [{c['n']}] {c['breadcrumb']}  {c['node_id'] or c['source'] or ''}")
     else: print(json.dumps(r, indent=2, default=jsonable))
 
 def main():
