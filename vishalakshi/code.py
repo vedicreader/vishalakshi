@@ -130,7 +130,7 @@ def federate(self:Vault,
              env:bool=False,    # kosha's installed-package index
              grep:bool=True,    # ripgrep over the working tree
              kind:str=None,     # restrict the prose leg to some KINDS
-             shelves:list=None, # other shelves to search as their own legs: names, or Vaults
+             shelves=True,      # other shelves as their own legs: True for all, a list to pick, None for none
              weights:dict=None, # per-leg RRF weights, e.g. {'prose':1.0,'repo':1.5}
              dir:str=None,      # repo for the code and grep legs
              per_leg:int=None,  # hits pulled from each leg before fusion
@@ -151,7 +151,9 @@ def federate(self:Vault,
         try: legs[nm] = f()
         except Exception as e: legs[f'{nm}_error'] = f'{type(e).__name__}: {str(e)[:120]}'
     if prose: leg('prose', lambda: _prose(self, q, n, kind=kind))
-    for sh in L(shelves):
+    names = (self.shelves().attrgot('store').filter(lambda s: s != self.store)
+             if shelves is True else L(shelves))
+    for sh in names:
         s = sh if isinstance(sh, Vault) else self.shelf(sh)
         leg(nm := f'shelf:{s.store}', lambda s=s, nm=nm: _prose(s, q, n, kind=kind, source=nm))
     if repo:  leg('repo', lambda: _code(self.kosha(dir).repo_context(q, limit=n), 'repo'))

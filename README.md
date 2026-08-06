@@ -19604,24 +19604,69 @@ enc_spec('science'), enc_spec('bge-micro')[1], enc_spec('gemma')[0]['model']
 
 What you cannot do is mix them *inside* one index. One ANN index is one vector space; two models'
 vectors in it are compared as bytes and the distances mean nothing. So a corpus that wants a
-different embedder gets a **shelf** — same file, its own store, its own index — and the shelves are
-combined by rank, the same argument `federate` makes one level up:
+different embedder gets a **shelf** — same file, own store, own index — and the shelves are read
+together rather than merged. `SHELVES` is the layout, and it is meant to be edited:
 
 ``` python
-sci = v.shelf('arxiv', encoder='science')      # papers, under a science model
-sci.add('# Late chunking\n\nWe evaluate contextual chunk embeddings on BEIR.', 'a paper')
+from vishalakshi.core import SHELVES, KIND_SHELF
+
+SHELVES, KIND_SHELF
+```
+
+    ({'store': 'default',
+      'papers': 'science',
+      'sanskrit': 'gemma',
+      'code': 'code',
+      'data': 'retrieval'},
+     {'arxiv': 'papers', 'code': 'code', 'data': 'data'})
+
+``` python
+papers = v.shelf('papers')        # no encoder named: the registry knows it is a science model
+papers.add('# Late chunking\n\nWe evaluate contextual chunk embeddings on BEIR.', 'a paper')
 
 [(s['store'], s['encoder'], s['docs']) for s in v.shelves()]
 ```
 
     [('store', 'minishlab/potion-multilingual-128M', 2),
-     ('arxiv', 'minishlab/potion-science-32M', 1)]
+     ('papers', 'minishlab/potion-science-32M', 1)]
+
+`KIND_SHELF` is where acquisition looks, so a paper files itself: `v.grab('2404.12345')` detects an
+arXiv id, `route` sends it to the science shelf, and nothing had to be told twice. Only the certain
+kinds are routed — a PDF is as likely an invoice as a paper, and `categorize` is what knows the
+difference, which it only learns after the document is already somewhere.
 
 ``` python
-v.federate('contextual chunk embeddings', repo=False, grep=False, shelves=['arxiv']).legs
+v.route('arxiv').store, v.route('web').store
 ```
 
-    {'prose': 5, 'shelf:arxiv': 1}
+    ('papers', 'store')
+
+Reading spans the library two ways. `federate` fuses the shelves by rank alongside kosha and
+ripgrep — every shelf in the file, by default:
+
+``` python
+v.federate('contextual chunk embeddings', repo=False, grep=False).legs
+```
+
+    {'prose': 5, 'shelf:papers': 1}
+
+…and `context` — so `ask` — appends a couple of sections from each *other* shelf to what it
+retrieved here, tagged with where they came from. A shelf's scores are not comparable with this
+shelf's, so they arrive as extra sections for the model to weigh rather than merged into one
+ranking, and `read(node_id, store=…)` opens any of them:
+
+``` python
+e = v.elsewhere('contextual chunk embeddings')
+[(r.store, r.breadcrumb) for r in e]
+```
+
+    [('papers', 'papers › a paper')]
+
+``` python
+v.read(e[0].node_id, store=e[0].store)['text'][:80]
+```
+
+    '# Late chunking\n\nWe evaluate contextual chunk embeddings on BEIR.'
 
 A shelf records the encoder that wrote it, so it reopens with the right one and says so loudly when
 it does not. That warning is the point of the registry: litesearch already warns when the stored

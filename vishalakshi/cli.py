@@ -18,6 +18,7 @@ from . import acquire, ask, code, extract   # noqa: F401 — these patch the Vau
 
 # %% ../nbs/04_cli.ipynb #11ed4c4a
 CMDS = ('stats find sections context ask explain read related toc map sources doc document shelves '
+        'elsewhere '
         'grab url web crawl arxiv pdf youtube add_file add_dir add_tree note code connect forget '
         'apis harvest add_records watch watches unwatch pause poll index_code code_search symbol '
         'where_to_add grep federate categorize categorize_all doctypes of_type ner extract '
