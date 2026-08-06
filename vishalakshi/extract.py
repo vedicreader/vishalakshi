@@ -15,6 +15,7 @@ from collections import Counter
 from dataclasses import dataclass, fields, is_dataclass, make_dataclass, asdict
 from typing import get_origin
 from fastcore.all import AttrDict, L, patch
+from litesearch import spacy_pipe, text_entities
 from .core import Vault
 from .ask import VAULT_SP, cited, resolve_model, split_reasoning   # also patches Vault.chat
 
@@ -44,87 +45,89 @@ _SIG = {k: re.compile(v, re.I|re.M) for k, v in SIGNALS.items()}
 # spaCy over a whole book is slow, and the head of a document is where its type is decided
 NER_CHARS, _NLP = 20000, {}
 
-def nlp(model:str='en_core_web_sm', quiet:bool=False):
-    """A cached spaCy pipeline, or `None` when spaCy or its model is not installed.
+def nlp(model:str='en_core_web_sm', download:bool=True):
+    """litesearch's spaCy pipeline, cached — or `None` when neither spaCy nor a model can be had.
 
-    Absent is a normal state, not an error: the parser and the lemmatizer are excluded because
-    nothing here needs them, and everything that uses this degrades to regex signals and says so —
-    the same bargain `mk_encoder` strikes with `hash_embed`."""
+    litesearch depends on spaCy already and already knows how to get a model: `spacy_pipe` fetches
+    one on first use, because a spaCy model is not installable as a dependency. Caching is the only
+    thing added here, and it is not cosmetic — `spacy_pipe` loads the model on every call, and
+    `categorize_all` over a vault of ten thousand documents would otherwise pay for that ten
+    thousand times."""
     if model in _NLP: return _NLP[model]
-    try:
-        import spacy
-        _NLP[model] = spacy.load(model, exclude=['parser', 'lemmatizer'])
-    except Exception as e:
-        if not quiet: warnings.warn(
-            f'no spaCy pipeline {model!r} ({type(e).__name__}) — named entities will come from regex '
-            f"signals only. For real NER: pip install 'vishalakshi[nlp]' && python -m spacy download {model}")
-        _NLP[model] = None
-    return _NLP[model]
+    p = _NLP[model] = spacy_pipe(model, download=download)
+    if p is None: warnings.warn(
+        f'no spaCy pipeline {model!r} — named entities will come from yake keyphrases and the regex '
+        f'signals instead. To get the real labels: python -m spacy download {model}')
+    return p
 
 def signals(text:str,            # the document text
-            ner:bool=True,       # run spaCy over the head of it, if a pipeline is installed
+            ner:bool=True,       # ask litesearch for entities as well as the regex signals
             model:str='en_core_web_sm',
-            limit:int=20,        # distinct entities kept
+            terms:bool=True,     # keep spaCy's noun chunks, not only its labelled entities
+            limit:int=20,        # entities kept
 ) -> AttrDict:
-    """Countable evidence in one document: `counts` per signal, plus named entities.
+    """Countable evidence in one document: `counts` per signal, plus the entities it names.
 
-    Regex answers always; spaCy answers when installed, and reaches the labels a regex cannot —
-    `ORG`, `PERSON`, `GPE`, `PRODUCT`. Its labels are merged into `counts`, so a caller asks "is
-    there money in here" once and does not care which leg found it, and kept *separately* in
-    `labels`, so a scorer that wants to know what spaCy specifically saw is not handed a regex hit
-    wearing the same name. `method` says which legs ran, because a score is only comparable against
-    another score from the same legs."""
+    The regex leg always answers, and it owns the numeric evidence — money, dates, percentages,
+    reference numbers — which is where a cue table gets most of its confidence about paperwork. The
+    entity leg is litesearch's: `text_entities` returns `ORG`, `PERSON`, `GPE`, `PRODUCT`, `LAW` and
+    the rest of the labels it keeps for the vault's own entity graph, and degrades to yake
+    keyphrases when no spaCy model is installed. Nothing here re-implements either.
+
+    Those labels are also kept *separately* in `labels`, so a scorer asking what spaCy specifically
+    saw is not handed a regex hit wearing the same name. `method` says which legs ran, because a
+    score is only comparable against another score from the same legs."""
     counts = {k: len(p.findall(text or '')) for k, p in _SIG.items()}
-    labels, ents, d = {}, L(), (nlp(model) if ner else None)
-    if d is not None:
-        seen = {}
-        for e in d((text or '')[:NER_CHARS]).ents:
-            k = (e.label_, re.sub(r'\s+', ' ', e.text.strip())[:60])
-            if not k[1]: continue
-            seen[k] = seen.get(k, 0) + 1
-            labels[e.label_.lower()] = labels.get(e.label_.lower(), 0) + 1
-        counts = {k: counts.get(k, 0) + labels.get(k, 0) for k in (*counts, *labels)}
-        ents = L(AttrDict(label=l, text=t, n=n) for (l, t), n in
-                 sorted(seen.items(), key=lambda kv: -kv[1])[:limit])
-    else:
-        ents = L(AttrDict(label=k.upper(), text=re.sub(r'\s+', ' ', m.strip())[:60], n=1)
-                 for k in ('money', 'date', 'ref', 'email', 'url')
-                 for m in _SIG[k].findall(text or '')[:4] if isinstance(m, str))[:limit]
+    d = nlp(model) if ner else None
+    found = L(text_entities((text or '')[:NER_CHARS], d, noun_chunks=terms) if ner else ()).map(
+        lambda t: AttrDict(label=(t[1] or '').upper(), text=re.sub(r'\s+', ' ', t[0].strip())[:60])
+        ).filter(lambda e: e.text)
+    # `labels` is counted over everything found and `limit` caps only what is *shown*, because
+    # `cue_scores` reads the labels: a display cap that silently moved a score would be a trap
+    labels = dict(Counter(e.label.lower() for e in found))
+    if d is not None:   # a noun chunk is a phrase, not a name: it is evidence of nothing in particular
+        counts = {k: counts.get(k, 0) + (labels.get(k, 0) if k != 'term' else 0)
+                  for k in (*counts, *(l for l in labels if l != 'term'))}
     return AttrDict(counts={k: v for k, v in counts.items() if v}, labels=labels,
-                    ents=ents, method='spacy+regex' if d is not None else 'regex')
+                    # a labelled entity is worth more of a short list than a noun chunk; the sort is
+                    # stable, so document order survives inside each group
+                    ents=found.sorted(key=lambda e: e.label in ('TERM', 'KEYPHRASE'))[:limit],
+                    method=('spacy+regex' if d is not None else 'yake+regex' if found else 'regex'))
 
 # %% ../nbs/06_extract.ipynb #5c2e8b14
 DOCTYPES = {
-    # label: the cue phrases that are evidence for it, the regex signals it needs, and the spaCy
-    # entity labels it expects. Each leg is scored as a *fraction* matched, never a count, so a long
-    # document cannot out-score a short one on the same evidence.
-    'invoice': dict(needs=('money',), ents=('MONEY', 'ORG', 'DATE'), cues=(
+    # label: the cue phrases that are evidence for it, the regex signals it needs, and the entity
+    # labels it expects. Each leg is scored as a *fraction* matched, never a count, so a long
+    # document cannot out-score a short one on the same evidence. The entity labels are drawn from
+    # the set litesearch keeps (`ORG`, `PERSON`, `GPE`, `PRODUCT`, `LAW`, …) — all nameable things,
+    # never money or dates, which the regex leg reads far more reliably off an invoice anyway.
+    'invoice': dict(needs=('money',), ents=('ORG',), cues=(
         r'\b(?:tax )?invoice\b', r'\b(?:amount|balance|total) due\b', r'\bbill(?:ed)? to\b|\bremit\b',
         r'\bpayment terms?\b|\bnet \d{1,3}\b', r'\bsub-?total\b', r'\b(?:vat|gst|sales tax)\b')),
-    'receipt': dict(needs=('money',), ents=('MONEY', 'ORG'), cues=(
+    'receipt': dict(needs=('money',), ents=('ORG',), cues=(
         r'\breceipt\b', r'\bthank you for your (?:order|purchase|payment)\b',
         r'\bcard\b[^\n]{0,16}\bending\b|\bcash tendered\b|\bchange due\b',
         r'\btransaction (?:id|no)\b|\bauth(?:orisation|orization) code\b',
         r'\bpaid\b|\bpayment received\b', r'\bmerchant\b|\bstore #\s?\d+\b')),
-    'purchase_order': dict(needs=('ref',), ents=('ORG', 'DATE'), cues=(
+    'purchase_order': dict(needs=('ref',), ents=('ORG',), cues=(
         r'\bpurchase order\b|\bp\.?o\.?\s*(?:no|number|#)', r'\bship(?:[ -]?to)?\b',
         r'\bdelivery date\b|\brequested delivery\b', r'\bvendor\b|\bsupplier\b',
         r'\brequisition\b', r'\bunit price\b')),
-    'quote': dict(needs=('money',), ents=('MONEY', 'ORG'), cues=(
+    'quote': dict(needs=('money',), ents=('ORG',), cues=(
         r'\bquotation\b|\bquote\s*(?:no|number|#)|\bestimate\b', r'\bvalid (?:until|for|through)\b',
         r'\bunit price\b', r'\bterms and conditions\b',
         r'\bwe are pleased to (?:quote|offer)\b|\bno obligation\b')),
-    'catalogue': dict(needs=('money',), ents=('PRODUCT', 'MONEY'), cues=(
+    'catalogue': dict(needs=('money',), ents=('PRODUCT',), cues=(
         r'\bcatalog(?:ue)?\b|\bprice list\b|\bproduct list\b',
         r'\bsku\b|\bmodel\s*(?:no|number)\b|\bpart\s*(?:no|number)\b',
         r'\b(?:in|out of) stock\b|\bavailability\b', r'\bper (?:unit|pack|case|kg|litre|liter)\b',
         r'\bspecifications?\b|\bdimensions\b', r'\badd to (?:cart|basket)\b')),
-    'contract': dict(needs=(), ents=('ORG', 'DATE', 'LAW'), cues=(
+    'contract': dict(needs=(), ents=('ORG', 'LAW'), cues=(
         r'\bagreement\b|\bcontract\b', r'\bparties\b|\bby and between\b',
         r'\bhereby\b|\bwhereas\b|\bhereinafter\b', r'\bshall\b',
         r'\bgoverning law\b|\bjurisdiction\b|\btermination\b',
         r'\bconfidential(?:ity)?\b|\bindemnif|\bliability\b')),
-    'resume': dict(needs=('email',), ents=('PERSON', 'ORG', 'DATE'), cues=(
+    'resume': dict(needs=('email',), ents=('PERSON', 'ORG'), cues=(
         r'\b(?:curriculum vitae|resum[eé])\b',
         r'\bwork experience\b|\bemployment history\b|\bprofessional experience\b',
         r'\beducation\b', r'\bskills\b', r'\bcertification',
@@ -133,7 +136,7 @@ DOCTYPES = {
         r'\babstract\b', r'\bintroduction\b', r'\brelated work\b|\bmethodology\b|\bexperiments?\b',
         r'\breferences\b|\bbibliography\b', r'\bwe (?:propose|present|show|evaluate)\b',
         r'\bdoi:|\barxiv:')),
-    'report': dict(needs=(), ents=('MONEY', 'PERCENT', 'ORG'), cues=(
+    'report': dict(needs=(), ents=('ORG',), cues=(
         r'\bexecutive summary\b', r'\bfindings\b|\bconclusions?\b|\brecommendations?\b',
         r'\bq[1-4] \d{4}\b|\bfiscal year\b|\bfy\d{2}\b|\bquarter\b',
         r'\btable \d+\b|\bfigure \d+\b|\bappendix\b',
@@ -151,7 +154,7 @@ DOCTYPES = {
         r'^(?:from|to|cc|bcc|subject|sent):', r'^\s*(?:dear|hi|hello)\b',
         r'\b(?:best|kind) regards\b|\bsincerely\b|\bthanks,\b',
         r'\bforwarded message\b|\bwrote:\s*$', r'\bunsubscribe\b')),
-    'meeting_notes': dict(needs=(), ents=('PERSON', 'DATE'), cues=(
+    'meeting_notes': dict(needs=(), ents=('PERSON',), cues=(
         r'\b(?:meeting|call) notes\b|\bminutes\b', r'\battendees\b|\bparticipants\b|\bpresent\b',
         r'\bagenda\b', r'\baction items?\b|\bnext steps\b|\bfollow[- ]ups?\b',
         r'\bdecided\b|\bdecisions?\b|\bowner\b|\bdue by\b')),
@@ -162,7 +165,7 @@ DOCTYPES = {
     'transcript': dict(needs=('time',), ents=('PERSON',), cues=(
         r'\btranscript\b', r'^\s*\[?\d{1,2}:\d{2}', r'^\s*(?:speaker \d|[A-Z][a-z]+\s?[A-Z]?[a-z]*):',
         r'\b(?:um|uh|you know|i mean)\b', r'\bwelcome (?:back|to)\b|\bthanks for (?:watching|listening)\b')),
-    'article': dict(needs=(), ents=('PERSON', 'ORG', 'DATE'), cues=(
+    'article': dict(needs=(), ents=('PERSON', 'ORG'), cues=(
         r'\bpublished\b|\bposted (?:on|by)\b', r'\bread more\b|\bshare this\b|\bcomments?\b',
         r'\bsubscribe\b|\bnewsletter\b', r'\baccording to\b', r'\btags?:|\bcategor(?:y|ies):')),
 }
@@ -177,12 +180,13 @@ def cue_scores(text:str, sig=None) -> dict:
     """Every doctype scored against `text`, best first — the categorisation no model is needed for.
 
     Three legs: the fraction of cue phrases that matched, whether the signals the type *needs* are
-    present at all, and the fraction of expected spaCy entity labels seen — that last read off
-    `labels` rather than `counts`, so `MONEY` is credited to it only when spaCy itself found money.
-    The entity leg is dropped and its weight redistributed when spaCy is absent, which keeps scores
-    on a machine without it comparable to scores on one with it."""
+    present at all, and the fraction of expected entity labels seen — that last read off `labels`
+    rather than `counts`, so a label is credited to it only when spaCy itself produced one. The
+    entity leg is dropped and its weight redistributed when there is no spaCy model, keeping scores
+    on a machine without one comparable to scores on a machine with it; yake keyphrases carry no
+    labels, so they cannot stand in for it."""
     sig = sig if sig is not None else signals(text)
-    ner, out = sig.method != 'regex', {}
+    ner, out = sig.method.startswith('spacy'), {}
     for lbl, d in DOCTYPES.items():
         cues = [p for p in _CUES[lbl] if p.search(text or '')]
         need = [s for s in d['needs'] if sig.counts.get(s)]
@@ -302,15 +306,24 @@ def of_type(self:Vault, doctype:str, kind:str=None) -> L:
     return self.sources(kind).filter(lambda r: (r['meta'] or {}).get('doctype') == doctype)
 
 @patch
-def ner(self:Vault, ref:str, model:str='en_core_web_sm', limit:int=40, max_chars:int=20000) -> AttrDict:
-    """Named entities in one document, through spaCy — who, where, how much, when.
+def ner(self:Vault,
+        ref:str,              # doc_id, source, title substring, or a path on disk
+        model:str='en_core_web_sm',
+        terms:bool=True,      # keep noun chunks too, not only the labelled entities
+        limit:int=40,         # entities returned
+        max_chars:int=20000,
+) -> AttrDict:
+    """What one document names: organisations, people, places, products — and the terms around them.
 
-    Not the same thing as `connect()`, and not a replacement for it: that builds one graph over the
-    whole corpus so sections can reach each other, while this reads a single document and labels
-    what it names. Without spaCy the labels come from the regex signals instead, and `method` says so."""
+    The same extractor the vault's entity graph runs on, pointed at a single document. Not a
+    replacement for `connect()`, which builds one graph over the whole corpus so that sections can
+    reach each other; this answers the narrower question of what *this* document talks about, with
+    no index to rebuild. `counts` carries the regex signals beside the labels, and `method` says
+    whether the labels came from spaCy or from yake keyphrases standing in for it."""
     d = self.document(ref, max_chars=max_chars)
-    sig = signals(d.text, model=model, limit=limit)
-    return AttrDict(doc_id=d.doc_id, title=d.title, method=sig.method, counts=sig.counts, ents=sig.ents)
+    sig = signals(d.text, model=model, terms=terms, limit=limit)
+    return AttrDict(doc_id=d.doc_id, title=d.title, method=sig.method, counts=sig.counts,
+                    labels=sig.labels, ents=sig.ents)
 
 # %% ../nbs/06_extract.ipynb #8d1c6a35
 @dataclass

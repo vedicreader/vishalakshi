@@ -12,10 +12,13 @@ import json, sys
 from functools import wraps
 from .cli import cmd, jsonable, vault
 
-try: from mcp.server.fastmcp import FastMCP
-except ImportError as e:
-    raise ImportError("vishalakshi-mcp needs the `mcp` package — install with "
-                      "`pip install 'vishalakshi[mcp]'`") from e
+# mcp 2.0 renamed FastMCP to MCPServer and moved it; the constructor, the `tool` decorator and the
+# `run` transports are unchanged, so one alias covers both SDKs rather than pinning either.
+try: from mcp.server.mcpserver import MCPServer
+except ImportError:
+    try: from mcp.server.fastmcp import FastMCP as MCPServer
+    except ImportError as e:
+        raise ImportError('vishalakshi-mcp needs the `mcp` package — `pip install mcp`') from e
 
 # %% ../nbs/05_mcp.ipynb #fad2b047
 TOOLS = ('stats find sections context ask read related toc map sources document grab url web arxiv '
@@ -23,7 +26,7 @@ TOOLS = ('stats find sections context ask read related toc map sources document 
          'index_code code_search symbol where_to_add grep federate categorize categorize_all '
          'doctypes of_type ner extract extract_all ask_doc').split()
 
-mcp = FastMCP('vishalakshi', instructions=(
+mcp = MCPServer('vishalakshi', instructions=(
     'A personal research vault: web pages, papers, transcripts, files, code and notes in one '
     'searchable corpus. `context` is the main tool — it returns whole sections plus what they '
     'connect to, which is what you want before answering a question. `find` locates things, '

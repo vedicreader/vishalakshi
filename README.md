@@ -280,7 +280,7 @@ r.scores        # every type scored against the document, best first
      'quote': 0.52,
      'purchase_order': 0.5,
      'receipt': 0.4,
-     'catalogue': 0.325}
+     'documentation': 0.294}
 
 `categorize_all` types everything in the vault that is not typed yet, and `doctypes` is then the
 shape of what you have collected — the same question `map()` answers about topics, asked about kinds
@@ -291,22 +291,22 @@ v.categorize_all(llm=False)     # everything not typed yet; a failure is recorde
 v.doctypes()                    # the shape of the corpus
 ```
 
-    {'code': 7, 'documentation': 4, 'invoice': 1}
+    {'code': 7, 'documentation': 3, 'invoice': 1, 'other': 1}
 
 Notebooks read as code, the README as documentation, the invoice as an invoice — and no model was
 loaded to say so. `force=False` makes that cheap to re-run after an ingest: only what arrived since
 is looked at.
 
-With [spaCy](https://spacy.io) installed — `pip install 'vishalakshi[nlp]'` and
-`python -m spacy download en_core_web_sm` — the same pass also reaches the entity labels a regex
-cannot, and `ner` reads them off one document. Without it, the labels come from the regex signals
-instead, and `method` says which you got.
+The entity leg is litesearch's own: `text_entities` — the extractor the vault's entity graph runs
+on — reaches the labels a regex cannot, and `ner` reads them off one document. [spaCy](https://spacy.io)
+arrives with litesearch and its model is fetched on first use, so there is nothing to install; when
+neither can be had the labels degrade to yake keyphrases, and `method` says which you got.
 
 ``` python
 v.ner('/inbox/acme-0117.md').ents.map(lambda e: (e.label, e.text))[:6]
 ```
 
-    [('DATE', '2024-03-01'), ('PERSON', 'Bill'), ('PERSON', 'Contoso GmbH'), ('GPE', 'Berlin'), ('ORG', 'Acme Supplies Ltd'), ('PERSON', 'Description | Qty')]
+    [('PERSON', 'Bill'), ('PERSON', 'Contoso GmbH'), ('GPE', 'Berlin'), ('ORG', 'Acme Supplies Ltd'), ('PERSON', 'Description | Qty'), ('GPE', 'Gasket')]
 
 ## Fields, not prose
 
