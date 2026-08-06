@@ -430,15 +430,22 @@ SHELVES = {
     'data':       'retrieval', # API harvests and record dumps: short, keyword-shaped text
 }
 
-# Where acquisition puts things. Only the certain cases: a PDF is as likely an invoice as a paper,
-# and `categorize` is what knows the difference — after the fact, which is too late for a route.
-KIND_SHELF = {'arxiv': 'papers', 'code': 'code', 'data': 'data'}
+# Where acquisition routes, and it is deliberately one entry. A route is only safe where the
+# destination is strictly better and nothing reads the old shelf expecting to still find it: `find`
+# and `sections` are single-shelf, so a write that quietly moves is a read that quietly comes back
+# empty. A PDF is as likely an invoice as a paper anyway — `DOCTYPE_SHELF` and `reshelf` are the
+# route for what only becomes clear once a document has been read.
+KIND_SHELF = {'arxiv': 'papers'}
 
 @patch
 def route(self:Vault, kind:str) -> Vault:
-    "The shelf a `kind` belongs on: `self`, unless `KIND_SHELF` sends it elsewhere."
+    """The shelf a `kind` belongs on: `self`, unless `KIND_SHELF` sends it elsewhere.
+
+    Only the main shelf routes. Any other is a choice already made, and a route must never overturn
+    one — `shelf('sanskrit').arxiv(id)` files that paper in Sanskrit, because that is what was
+    asked for."""
     nm = KIND_SHELF.get(kind)
-    return self.shelf(nm) if nm and nm != self.store else self
+    return self.shelf(nm) if nm and self.store == 'store' and nm != self.store else self
 
 @patch
 def elsewhere(self:Vault,
@@ -455,7 +462,9 @@ def elsewhere(self:Vault,
     out, want = L(), (None if shelves is True else set(L(shelves)))
     for s in self.shelves():
         nm = s['store']
-        if nm == self.store or (want is not None and nm not in want): continue
+        # an empty shelf is skipped rather than opened: a route can create one before anything is
+        # filed on it, and opening it would load an encoder to search nothing
+        if nm == self.store or not s['docs'] or (want is not None and nm not in want): continue
         for r in self.shelf(nm).sections(q, limit=limit):
             out.append(AttrDict(node_id=r['node_id'], doc_id=r['node_id'].split('#')[0], store=nm,
                                 title=r['title'], breadcrumb=f"{nm} › {r['breadcrumb']}", filename=None,

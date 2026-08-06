@@ -24,7 +24,7 @@ except ImportError:
 TOOLS = ('stats find sections context ask read related toc map sources document shelves elsewhere grab url '
          'web arxiv youtube add_file add_dir add_tree note connect forget apis harvest watch watches '
          'poll unwatch index_code code_search symbol where_to_add grep federate categorize '
-         'categorize_all doctypes of_type ner extract extract_all ask_doc').split()
+         'categorize_all doctypes of_type ner reshelf extract extract_all ask_doc').split()
 
 mcp = MCPServer('vishalakshi', instructions=(
     'A personal research vault: web pages, papers, transcripts, files, code and notes in one '

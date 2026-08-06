@@ -84,7 +84,12 @@ def web(self:Vault,
 # %% ../nbs/01_acquire.ipynb #0f3e4c14
 @patch
 def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False, verify=False, **kw) -> dict:
-    'Read an arXiv paper (metadata + full text) into the vault as `kind="arxiv"`.'
+    """Read an arXiv paper (metadata + full text) into the vault as `kind="arxiv"`.
+
+    Files itself on the shelf `KIND_SHELF` names for a paper. A method whose *name* fixes the kind
+    can route on its own; `pdf` and `add_file` cannot, because there the argument decides."""
+    if (v := self.route('arxiv')) is not self:
+        return v.arxiv(id_or_url, save_dir=save_dir, force=force, verify=verify, **kw)
     from fossick import read_arxiv
     p = read_arxiv(id_or_url, save_dir=save_dir or str(self.assets('pdfs')), force=force, verify=verify, **kw)
     md = f"# {p['title']}\n\n{p.get('summary','')}\n\n{p.get('source') or ''}"

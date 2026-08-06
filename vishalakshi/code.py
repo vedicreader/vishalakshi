@@ -151,7 +151,7 @@ def federate(self:Vault,
         try: legs[nm] = f()
         except Exception as e: legs[f'{nm}_error'] = f'{type(e).__name__}: {str(e)[:120]}'
     if prose: leg('prose', lambda: _prose(self, q, n, kind=kind))
-    names = (self.shelves().attrgot('store').filter(lambda s: s != self.store)
+    names = (self.shelves().filter(lambda s: s['store'] != self.store and s['docs']).attrgot('store')
              if shelves is True else L(shelves))
     for sh in names:
         s = sh if isinstance(sh, Vault) else self.shelf(sh)

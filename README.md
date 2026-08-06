@@ -19618,7 +19618,7 @@ SHELVES, KIND_SHELF
       'sanskrit': 'gemma',
       'code': 'code',
       'data': 'retrieval'},
-     {'arxiv': 'papers', 'code': 'code', 'data': 'data'})
+     {'arxiv': 'papers'})
 
 ``` python
 papers = v.shelf('papers')        # no encoder named: the registry knows it is a science model
@@ -19630,16 +19630,43 @@ papers.add('# Late chunking\n\nWe evaluate contextual chunk embeddings on BEIR.'
     [('store', 'minishlab/potion-multilingual-128M', 2),
      ('papers', 'minishlab/potion-science-32M', 1)]
 
-`KIND_SHELF` is where acquisition looks, so a paper files itself: `v.grab('2404.12345')` detects an
-arXiv id, `route` sends it to the science shelf, and nothing had to be told twice. Only the certain
-kinds are routed — a PDF is as likely an invoice as a paper, and `categorize` is what knows the
-difference, which it only learns after the document is already somewhere.
+`KIND_SHELF` is where acquisition routes, and it is deliberately one entry. `v.grab('2404.12345')`
+detects an arXiv id and files it on the science shelf; so does `v.arxiv(id)`, because the method name
+fixes the kind. Nothing else routes, and that restraint is the design: `find` and `sections` read one
+shelf, so a write that quietly moves is a read that quietly comes back empty. An explicit shelf is
+never overruled either — `shelf('sanskrit').arxiv(id)` files that paper in Sanskrit.
 
 ``` python
 v.route('arxiv').store, v.route('web').store
 ```
 
     ('papers', 'store')
+
+Which leaves the interesting half. A PDF is as likely an invoice as a paper, and nothing at the door
+can tell — only `categorize` can, and only once the document is already somewhere. So the cheap route
+runs at ingest, and `reshelf` runs afterwards, on what the document turned out to be:
+
+``` python
+v.add('# Attention is all you need\n\n## Abstract\n\nWe propose the Transformer.\n\n'
+      '## Introduction\n\nRelated work [1] et al.\n\n## References\n\ndoi:10.1/x',
+      'attention', source='/inbox/attention.pdf')
+
+r = v.reshelf('/inbox/attention.pdf', llm='never')
+r.doctype, r.was, r.store, r.moved
+```
+
+    ('paper', 'store', 'papers', True)
+
+``` python
+v.doc('/inbox/attention.pdf'), v.shelf('papers').doc('/inbox/attention.pdf')['title']
+```
+
+    (None, 'attention')
+
+A move is a re-ingest — the other shelf has a different encoder, so the vectors have to be made again
+— and it carries the reassembled document rather than the original file, so a PDF's page boundaries
+do not survive it. Re-`grab` the source when the pages matter. `DOCTYPE_SHELF` is the mapping, and
+like `SHELVES` it is meant to be edited.
 
 Reading spans the library two ways. `federate` fuses the shelves by rank alongside kosha and
 ripgrep — every shelf in the file, by default:
@@ -19648,7 +19675,7 @@ ripgrep — every shelf in the file, by default:
 v.federate('contextual chunk embeddings', repo=False, grep=False).legs
 ```
 
-    {'prose': 5, 'shelf:papers': 1}
+    {'prose': 5, 'shelf:papers': 4}
 
 …and `context` — so `ask` — appends a couple of sections from each *other* shelf to what it
 retrieved here, tagged with where they came from. A shelf's scores are not comparable with this
@@ -19660,7 +19687,8 @@ e = v.elsewhere('contextual chunk embeddings')
 [(r.store, r.breadcrumb) for r in e]
 ```
 
-    [('papers', 'papers › a paper')]
+    [('papers', 'papers › a paper'),
+     ('papers', 'papers › attention › Attention is all you need › Abstract')]
 
 ``` python
 v.read(e[0].node_id, store=e[0].store)['text'][:80]

@@ -21,7 +21,8 @@ CMDS = ('stats find sections context ask explain read related toc map sources do
         'elsewhere '
         'grab url web crawl arxiv pdf youtube add_file add_dir add_tree note code connect forget '
         'apis harvest add_records watch watches unwatch pause poll index_code code_search symbol '
-        'where_to_add grep federate categorize categorize_all doctypes of_type ner extract '
+        'where_to_add grep federate categorize categorize_all doctypes of_type ner reshelf '
+        'extract '
         'extract_all ask_doc').split()
 
 @cache
