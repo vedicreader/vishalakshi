@@ -7,14 +7,14 @@ Docs: https://vedicreader.github.io/vishalakshi/acquire.html.md"""
 # %% auto #0
 __all__ = ['ACTIONS', 'clip', 'md_title', 'records', 'records_md', 'secs']
 
-# %% ../nbs/01_acquire.ipynb #9d4937ef
+# %% ../nbs/01_acquire.ipynb #903dae85
 import json, re, time, uuid
 from urllib.parse import urlparse
 from fastcore.all import AttrDict, L, Path, patch
 from litesearch import code_exts, pdf_parse
 from .core import Vault, KINDS
 
-# %% ../nbs/01_acquire.ipynb #83a0c75a
+# %% ../nbs/01_acquire.ipynb #39b87feb
 def clip(s:str, n:int=120) -> str:
     'Collapse whitespace and clip a scraped title to something a breadcrumb can carry.'
     return re.sub(r'\s+', ' ', (s or '').strip())[:n] or 'untitled'
@@ -24,7 +24,7 @@ def md_title(md:str, fallback:str='') -> str:
     m = re.search(r'^#{1,2} +(.+)$', md or '', flags=re.M)
     return clip(m.group(1) if m else fallback)
 
-# %% ../nbs/01_acquire.ipynb #b9cd9364
+# %% ../nbs/01_acquire.ipynb #6fe95626
 @patch
 def url(self:Vault,
         url:str,            # page to read
@@ -34,6 +34,7 @@ def url(self:Vault,
         auto:bool=True,     # escalate plain -> heavy -> stealthy -> logged-in Chrome past bot walls
         meta:dict=None,
         force:bool=False,
+        verify=False,
         **kw                # forwarded to fossick.fetch
 ) -> dict:
     """Fetch one URL, convert it to markdown and file it in the vault.
@@ -41,7 +42,7 @@ def url(self:Vault,
     `auto=True` is the default because a bot wall returns HTTP 200 with a challenge page, which
     would otherwise be indexed as if it were the article."""
     from fossick import fetch, to_md
-    pg = fetch(url, sel=sel, auto=auto, **kw)
+    pg = fetch(url, sel=sel, auto=auto, verify=verify, **kw)
     md, st = (to_md(pg, sel=sel) if pg is not None else ''), getattr(pg, 'status', None)
     if not md.strip() or (st or 200) >= 400:            # a failed fetch is None, and a bot wall is a 4xx
         return dict(url=url, skipped=f'could not read the page (status {st})', status=st)
@@ -50,10 +51,10 @@ def url(self:Vault,
                          source=url, kind=kind, meta=m, force=force), url=url)
 
 @patch
-def crawl(self:Vault, start_url:str, max_pages:int=10, sel:str=None, **kw) -> L:
+def crawl(self:Vault, start_url:str, max_pages:int=10, sel:str=None, verify=False, **kw) -> L:
     'Crawl a docs site or blog from a start URL and file every page in the vault.'
     from fossick import crawl as _crawl, to_md
-    pgs = L((pg['url'], to_md(pg, sel=sel)) for pg in _crawl(start_url, sel=sel, max_pages=max_pages, **kw))
+    pgs = L((pg.url, to_md(pg, sel=sel)) for pg in _crawl(start_url, sel=sel, max_pages=max_pages, verify=verify,**kw))
     return L(self.add(md, md_title(md, u), source=u, kind='web',
                       meta=dict(url=u, via='crawl', root=start_url, fetched_at=time.time()))
              for u, md in pgs if md.strip())
@@ -64,6 +65,7 @@ def web(self:Vault,
         n:int=5,            # top results to read
         google:bool=False,  # real Google ranking via a stealth browser (slower)
         chars:int=60000,    # max markdown chars kept per source
+        verify=False,
         **kw                # forwarded to fossick.research
 ) -> AttrDict:
     """Search the web, read the top `n` results, and file all of them in the vault.
@@ -72,31 +74,31 @@ def web(self:Vault,
     months later `sources()` still says *why* a document is in your corpus. Results already present
     are skipped rather than duplicated, so re-running an overlapping search is cheap."""
     from fossick import research
-    res = research(query, n=n, engine='google' if google else 'search', chars=chars, **kw)
+    res = research(query, n=n, engine='google' if google else 'search', chars=chars, verify=verify, **kw)
     srcs = L(res['sources']).filter(lambda s: s['md'].strip() and s['href'])
     added = srcs.map(lambda s: dict(self.add(s['md'], clip(s['title']), source=s['href'], kind='web',
                                              meta=dict(url=s['href'], query=query, fetched_at=time.time())),
                                     url=s['href']))
     return AttrDict(query=query, n_found=len(res['sources']), added=added)
 
-# %% ../nbs/01_acquire.ipynb #c34291c3
+# %% ../nbs/01_acquire.ipynb #0f3e4c14
 @patch
-def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False, **kw) -> dict:
+def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False, verify=False, **kw) -> dict:
     'Read an arXiv paper (metadata + full text) into the vault as `kind="arxiv"`.'
     from fossick import read_arxiv
-    p = read_arxiv(id_or_url, save_dir=save_dir or str(self.assets('pdfs')), force=force, **kw)
+    p = read_arxiv(id_or_url, save_dir=save_dir or str(self.assets('pdfs')), force=force, verify=verify, **kw)
     md = f"# {p['title']}\n\n{p.get('summary','')}\n\n{p.get('source') or ''}"
     return self.add(md, clip(p['title']), source=p.get('link') or id_or_url, kind='arxiv', force=force,
                     meta=dict(authors=list(p.get('authors') or []), published=p.get('published'),
                               pdf_path=p.get('pdf_path'), fetched_at=time.time()))
 
 @patch
-def pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False, **kw) -> dict:
+def pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False, verify=False, **kw) -> dict:
     'Read a PDF (local path or URL) into the vault, one tree node per heading.'
     from fossick import get_pdf
     p = Path(path_or_url)
     if p.exists(): return self.add_file(p, title=title, kind='pdf', force=force)
-    doc = get_pdf(path_or_url, **kw)
+    doc = get_pdf(path_or_url, verify=verify, **kw)
     if doc is None: return dict(source=path_or_url, skipped='not a PDF or could not be fetched')
     stem = path_or_url.rsplit('/', 1)[-1].split('?')[0]
     return self.add(list(enumerate(pdf_parse(doc, out_path=self.assets(stem or 'pdf')))),
@@ -135,16 +137,14 @@ def grab(self:Vault,
 @patch
 def code(self:Vault, dir:str, types:str=code_exts, **kw) -> L:
     """File a source tree into the vault as `kind='code'`, so code and prose answer one query.
-
     This is deliberately the shallow path: files as documents, headings from the text. For call
     graphs, PageRank over symbols and `where_to_add`, use `index_code` — kosha builds an
     AST-derived index that this cannot, and `federate` searches both."""
     return self.add_dir(dir, types=types, kind='code', **kw)
 
-# %% ../nbs/01_acquire.ipynb #5e941247
+# %% ../nbs/01_acquire.ipynb #bd035852
 def records(data, min_len:int=2) -> list:
     """The longest list of dicts inside an arbitrary JSON response.
-
     APIs bury their payload at different depths (`results`, `data.products.items`, a bare array),
     so this walks for the longest list of dicts rather than guessing a key name."""
     best = []
@@ -167,7 +167,7 @@ def records_md(recs, title_keys=('name', 'title', 'displayName', 'productName', 
     return '\n\n'.join(f'## {ttl(r)}\n\n```json\n{json.dumps(r, indent=1, default=str)}\n```'
                        for r in L(recs).map(lambda r: r if isinstance(r, dict) else dict(value=r)))
 
-# %% ../nbs/01_acquire.ipynb #e20a981d
+# %% ../nbs/01_acquire.ipynb #9e0bfdda
 @patch
 def apis(self:Vault,
          url:str,             # page to watch
@@ -197,7 +197,6 @@ def harvest(self:Vault,
             **kw
 ) -> dict:
     """Sniff a page's JSON API, pull the records, and file them in the vault as `kind='data'`.
-
     Re-harvesting the same source replaces rather than duplicates when `force=True`; otherwise it
     is a no-op, which is what makes this safe to put behind a `watch`."""
     from fossick import replay_xhr, paginate_api
@@ -216,9 +215,8 @@ def harvest(self:Vault,
         except Exception as e: return dict(url=url, endpoint=ep, skipped=f'{type(e).__name__}: {e}')
     if not items: return dict(url=url, endpoint=ep, skipped='no records found in the response')
     ttl = title or f'{urlparse(url).netloc}{urlparse(url).path}'.strip('/')
-    return dict(self.add_records(items, ttl, source=ep, force=force,
-                                 meta=dict(page=url, endpoint=ep, harvested_at=time.time())),
-                endpoint=ep, records=len(items))
+    return dict(self.add_records(items, ttl, source=ep, force=force, meta=dict(page=url, endpoint=ep,
+           harvested_at=time.time())), endpoint=ep, records=len(items))
 
 @patch
 def add_records(self:Vault, recs:list, title:str, source:str=None, kind:str='data', force:bool=False,
@@ -227,7 +225,7 @@ def add_records(self:Vault, recs:list, title:str, source:str=None, kind:str='dat
     return self.add(f'# {title}\n\n{records_md(recs)}', title, source=source or f'records:{title}',
                     kind=kind, force=force, meta=dict(meta or {}, records=len(L(recs))))
 
-# %% ../nbs/01_acquire.ipynb #df0dcfa7
+# %% ../nbs/01_acquire.ipynb #b900ff0a
 ACTIONS = ('url', 'web', 'harvest', 'arxiv', 'youtube', 'crawl', 'remind')
 
 def secs(every) -> float:

@@ -7,3 +7,8 @@ website:
   description: "one vault for everything you read: web, papers, video, files and code, searchable together and answerable by a local or hosted model"
   repo-branch: main
   repo-url: "https://github.com/vedicreader/vishalakshi"
+
+format-links:
+  - html
+  - format: commonmark
+    text: Markdown

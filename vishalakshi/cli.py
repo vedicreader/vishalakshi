@@ -7,7 +7,7 @@ Docs: https://vedicreader.github.io/vishalakshi/cli.html.md"""
 # %% auto #0
 __all__ = ['CMDS', 'vault', 'cmd', 'jsonable', 'show', 'main']
 
-# %% ../nbs/04_cli.ipynb #e3178c89
+# %% ../nbs/04_cli.ipynb #9c8e8aa7
 import json, os, sys
 from functools import cache, wraps
 from inspect import Parameter, Signature, signature
@@ -16,7 +16,7 @@ from fastcore.script import anno_parser
 from .core import Vault
 from . import acquire, ask, code   # noqa: F401 — these patch the Vault methods the CLI exposes
 
-# %% ../nbs/04_cli.ipynb #060f3b2f
+# %% ../nbs/04_cli.ipynb #11ed4c4a
 CMDS = ('stats find sections context ask explain read related toc map sources grab url web crawl '
         'arxiv pdf youtube add_file add_dir note code connect forget apis harvest add_records '
         'watch watches unwatch pause poll index_code code_search symbol where_to_add grep federate').split()
@@ -40,7 +40,7 @@ def cmd(name:str, vault_fn=vault):
     g.__annotations__ = {p.name: p.annotation for p in ps if p.annotation is not Parameter.empty}
     return g
 
-# %% ../nbs/04_cli.ipynb #e5b5913d
+# %% ../nbs/04_cli.ipynb #f0a650d6
 def jsonable(o):
     "`json.dumps` fallback: `L` and friends become lists, numpy scalars numbers, the rest strings."
     if hasattr(o, '__iter__') and not isinstance(o, (str, bytes, dict)): return list(o)

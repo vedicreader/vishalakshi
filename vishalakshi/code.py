@@ -7,12 +7,12 @@ Docs: https://vedicreader.github.io/vishalakshi/code.html.md"""
 # %% auto #0
 __all__ = []
 
-# %% ../nbs/03_code.ipynb #18232da2
+# %% ../nbs/03_code.ipynb #8262fd09
 from fastcore.all import AttrDict, L, Path, patch
 from litesearch import rrf_all
 from .core import Vault
 
-# %% ../nbs/03_code.ipynb #5875c481
+# %% ../nbs/03_code.ipynb #85effdc0
 @patch
 def kosha(self:Vault,
           dir:str=None,              # repo root; defaults to the cwd repo
@@ -45,17 +45,16 @@ def index_code(self:Vault,
     `Vault.code()`, which files source files into the vault as ordinary documents. Both can
     coexist, and `federate()` searches whichever exist."""
     k = self.kosha(dir)
-    if env: k.sync(dir=dir, force=force, verbose=verbose, sync_graph=graph, in_parallel=False, **kw)
+    if env: k.sync(dir=dir, force=force, verbose=verbose, sync_graph=graph, in_parallel=True, **kw)
     else:
         k.update_repo(dir, force=force, verbose=verbose, **kw)
         if graph: k.graph.sync(dir=str(dir or k.root), force=force)
     return k.status()
 
-# %% ../nbs/03_code.ipynb #ad23186f
+# %% ../nbs/03_code.ipynb #798d0458
 @patch
 def code_search(self:Vault, q:str, limit:int=10, dir:str=None, **kw) -> L:
     """Search code through kosha: FTS + ANN over repo and environment, fused and rank-boosted.
-
     Supports kosha's `key:value` filters, so `'retry package:httpx'` and `'lang:py chunker'` work."""
     return self.kosha(dir).context(q, limit=limit, **kw)
 
@@ -85,7 +84,7 @@ def grep(self:Vault,
     from rgapi import rg
     return _rg(rg(pattern, root=dir, max_results=limit, smart_case=True, **kw))
 
-# %% ../nbs/03_code.ipynb #9c3425af
+# %% ../nbs/03_code.ipynb #c89161e3
 def _prose(v, q, n, kind=None) -> L:
     'Vault sections, normalised to the federated row shape.'
     return L(v.sections(q, limit=n, kind=kind)).map(

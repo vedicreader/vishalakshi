@@ -7,7 +7,7 @@ Docs: https://vedicreader.github.io/vishalakshi/mcp.html.md"""
 # %% auto #0
 __all__ = ['TOOLS', 'mcp', 'as_tool', 'main']
 
-# %% ../nbs/05_mcp.ipynb #6e08a534
+# %% ../nbs/05_mcp.ipynb #154261c1
 import json, sys
 from functools import wraps
 from .cli import cmd, jsonable, vault
@@ -17,7 +17,7 @@ except ImportError as e:
     raise ImportError("vishalakshi-mcp needs the `mcp` package — install with "
                       "`pip install 'vishalakshi[mcp]'`") from e
 
-# %% ../nbs/05_mcp.ipynb #0a5066d5
+# %% ../nbs/05_mcp.ipynb #fad2b047
 TOOLS = ('stats find sections context ask read related toc map sources grab url web arxiv youtube '
          'add_file add_dir note connect forget apis harvest watch watches poll unwatch '
          'index_code code_search symbol where_to_add grep federate').split()

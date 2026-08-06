@@ -7,19 +7,17 @@ Docs: https://vedicreader.github.io/vishalakshi/core.html.md"""
 # %% auto #0
 __all__ = ['KINDS', 'DFLT_ENC', 'tidy_bc', 'kinds', 'mk_encoder', 'Vault']
 
-# %% ../nbs/00_core.ipynb #f9e5e32c
+# %% ../nbs/00_core.ipynb #57dc1d31
 import json, re, uuid, warnings
 from functools import partial
 import numpy as np
 from fastcore.all import AttrDict, L, Path, ifnone, patch
 from litesearch import (database, dir2files, doc_encoder, query_encoder, hash_embed, static_embedder,
-                        pdf_parse, build_graph, resolve_entities, DOC_EXTS)
+        pdf_parse, build_graph, resolve_entities, DOC_EXTS)
 
-# %% ../nbs/00_core.ipynb #458f9f6a
+# %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note')
-DFLT_ENC = 'minishlab/potion-retrieval-32M'
-
-_window = re.compile(r'^Pages \d+(?:–\d+)?: ')
+_window, DFLT_ENC = re.compile(r'^Pages \d+(?:–\d+)?: '), 'minishlab/potion-multilingual-128M'
 
 def tidy_bc(bc:str) -> str:
     "Drop `build_tree`'s `Pages n–m:` window placeholders from a breadcrumb: real nodes, noise in a citation."
@@ -29,32 +27,40 @@ def kinds(kind) -> L:
     "A kind filter as a list — `'note'`, `'note,web'` and `['note','web']` all work."
     return L(kind.split(',') if isinstance(kind, str) else kind).filter()
 
-# %% ../nbs/00_core.ipynb #46ddd648
+# %% ../nbs/00_core.ipynb #6c733f86
 def mk_encoder(model:str=None,      # model2vec/HF id; None -> the retrieval default
                dims:int=256,        # dims for the hashing fallback only
                offline:bool=False,  # skip the download attempt entirely
+               dtype=np.float16,    # stored width; litesearch's default everywhere
 ) -> AttrDict:
     """The best encoder available as `AttrDict(model, doc, query, dtype, dims, method, note)`.
 
     Degrades to litesearch's `hash_embed` rather than failing, and always says which answered: the
     gap between the two is the gap between a vault that answers questions and one that can only
-    keyword-match. `model` is the embedder object itself, so kosha can share it (see `code`)."""
+    keyword-match. `model` is the embedder object itself, so kosha can share it (see `code`).
+
+    Both encoders are cast to `dtype` because litesearch's own default is float16 and not every
+    entry point takes a `dtype=`: `Database.context` does not thread one down to its section search,
+    so a float32 store would be read back as float16 there — the vectors survive, the *distances*
+    do not, and `context()` silently degrades to keyword ranking. Half precision costs nothing at
+    these magnitudes; a mismatched width costs the whole semantic leg."""
     if not offline:
         try:
             m = static_embedder(model or DFLT_ENC)
             v = m.encode(['probe'])
-            return AttrDict(model=m, doc=doc_encoder(m), query=query_encoder(m), dtype=v.dtype.type,
+            cast = lambda f: lambda xs: np.asarray(f(xs), dtype=dtype)
+            return AttrDict(model=m, doc=cast(doc_encoder(m)), query=cast(query_encoder(m)), dtype=dtype,
                             dims=int(v.shape[-1]), method='model2vec',
-                            note=f'{model or DFLT_ENC} ({v.shape[-1]}d, {v.dtype})')
+                            note=f'{model or DFLT_ENC} ({v.shape[-1]}d, {np.dtype(dtype)})')
         except Exception as e:
             warnings.warn(f'could not load {model or DFLT_ENC} ({type(e).__name__}: {str(e)[:100]}); '
                           f'falling back to hash_embed — retrieval will be lexical, not semantic')
-    f = partial(hash_embed, ndim=dims, dtype=np.float16)
-    return AttrDict(model=None, doc=f, query=f, dtype=np.float16, dims=dims, method='hash',
+    f = partial(hash_embed, ndim=dims, dtype=dtype)
+    return AttrDict(model=None, doc=f, query=f, dtype=dtype, dims=dims, method='hash',
                     note=f'char-n-gram hashing ({dims}d) — lexical only; pass encoder= or restore '
                          f'network access for real semantics')
 
-# %% ../nbs/00_core.ipynb #ade8998a
+# %% ../nbs/00_core.ipynb #c648b521
 class Vault:
     """Everything you have read, in one SQLite file, searchable as one corpus.
 
@@ -92,7 +98,7 @@ class Vault:
 
 def _kw(kind) -> str: return 'kind IN (%s)' % ','.join(map(repr, kinds(kind)))
 
-# %% ../nbs/00_core.ipynb #aa5e7785
+# %% ../nbs/00_core.ipynb #f07669ec
 @patch
 def add(self:Vault,
         pages,                # markdown/text, or [(page_no, text)]
@@ -154,7 +160,7 @@ def note(self:Vault,
     return self.add(text.strip(), ttl, source=f'note:{uuid.uuid4().hex[:12]}', kind='note',
                     meta=dict(tags=list(tags or [])))
 
-# %% ../nbs/00_core.ipynb #e839db18
+# %% ../nbs/00_core.ipynb #2bd1071c
 @patch
 def find(self:Vault,
          q:str,              # query
@@ -229,16 +235,13 @@ def toc(self:Vault, **kw) -> list:
     'The table of contents across every document in the vault.'
     return self.db.toc(store=self.store, **kw)
 
-# %% ../nbs/00_core.ipynb #bbdfef4a
+# %% ../nbs/00_core.ipynb #36eaae10
 @patch
 def connect(self:Vault, resolve:bool=True, **kw) -> dict:
-    """(Re)build the entity graph over everything in the vault.
-
-    This is what makes `context()`'s `via='graph'` leg work: sections that share no vocabulary with
-    the query but are reachable along an entity path. Run it after a batch of ingests rather than
-    per document — it reads the whole store."""
+    '(Re)build the entity graph over everything in the vault.'
     chunks = list(self.g.store())
     if not chunks: return dict(entities=0, mentions=0, edges=0, windows=0)
+    self.db.get_graph(self.store, ndim=self.enc.dims, dtype=self.dtype)
     res = build_graph(self.db, chunks, store=self.store, emb_fn=self.enc.doc, **kw)
     if resolve: res = dict(res, resolved=resolve_entities(self.db, store=self.store, dtype=self.dtype))
     return res
@@ -265,6 +268,6 @@ def stats(self:Vault) -> dict:
     p, t = self.g.prefix, self.db.t
     return dict(docs=self.g.docs.count, nodes=self.g.nodes.count, chunks=self.g.store.count,
                 entities=t[f'{p}entities'].count if f'{p}entities' in t else 0,
-                by_kind={r['kind']: r['n'] for r in self.db.q(
-                    f'select kind, count(*) as n from {p}docs group by kind order by n desc')},
+                by_kind={r['kind']: r['n'] for r in
+                         self.db.q(f'select kind, count(*) as n from {p}docs group by kind order by n desc')},
                 encoder=self.enc.method, path=self.path)

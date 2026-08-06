@@ -7,7 +7,7 @@ name = "vishalakshi"
 dynamic = ["version"]
 description = "one vault for everything you read: web, papers, video, files and code, searchable together and answerable by a local or hosted model"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = {text = "Apache-2.0"}
 authors = [{name = "Karthik", email = "karthik.rajgopal@hotmail.com"}]
 keywords = ['nbdev', 'rag', 'research', 'memory', 'semantic search', 'knowledge base']
@@ -20,13 +20,11 @@ dependencies = [
     "fossick>=0.1.0",
     "fastcore>=1.12.31",
     "numpy>=1.26",
+    "mcp",
+    "koshas",
+    "rgapi",
+    "rishi",
 ]
-
-[project.optional-dependencies]
-ask = ["rishi>=0.0.2"]
-mcp = ["mcp>=1.2.0,<2"]
-code = ["kosha>=0.0.9", "rgapi>=0.1.18"]
-all = ["rishi>=0.0.2", "mcp>=1.2.0,<2", "kosha>=0.0.9", "rgapi>=0.1.18"]
 
 [project.scripts]
 vishalakshi = "vishalakshi.cli:main"
@@ -49,3 +47,10 @@ include = ["/vishalakshi", "/README.md", "/pyproject.toml"]
 
 [tool.hatch.version]
 path = "vishalakshi/__init__.py"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.3.0",
+    "nbdev>=3.3.4",
+    "notebook>=7.6.1",
+]
