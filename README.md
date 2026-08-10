@@ -34,7 +34,7 @@ v.note('federate fuses the legs by rank because they share no vector space: the 
        'prose, kosha embeds identifiers, ripgrep embeds nothing.', tags=['retrieval', 'design'])
 ```
 
-    {'doc_id': 'c877c961c68d8fd4',
+    {'doc_id': '9e871c1d0740c471',
      'title': 'federate fuses the legs by rank because they share no vector space: the vault em',
      'kind': 'note',
      'nodes': 2,
@@ -49,7 +49,6 @@ v.pdf('https://arxiv.org/pdf/1706.03762',                  # and the full paper,
       title='Attention Is All You Need')
 ```
 
-    [2026-08-11 09:11:32] INFO: Fetched (200) <GET https://arxiv.org/pdf/1706.03762> (referer: https://www.google.com/)
     Dictionary used where Stream expected, treating as empty stream
     Dictionary used where Stream expected, treating as empty stream
     Dictionary used where Stream expected, treating as empty stream
@@ -79,7 +78,7 @@ print(r.answer)
 ```
 
     litert-community/gemma-4-E2B-it-litert-lm · litert
-    The vault fuses rankings instead of distances because the legs (different embedding types) share no vector space [2]. Specifically, the vault embeds prose, kosha embeds identifiers, and ripgrep embeds nothing, so these legs cannot be merged by distance [2]. Reciprocal Rank Fusion (RRF) is used because it only needs each leg's ordering, which is what survives a change in encoder [2]. This mechanism is the same one LiteRT already uses to combine FTS with vectors [2]. Each leg is evaluated independently to report what it contributed or why it did not [2].
+    Reciprocal Rank Fusion (RRF) is used because the vault embeds prose, kosha embeds identifiers, and ripgrep embeds nothing, meaning the legs cannot be merged by distance [3]. RRF only requires each leg's ordering, which is what survives a change in encoder, and it is the same mechanism LiteSearch uses to combine FTS with vectors [3]. Each leg is tested independently to report what it contributed or why it did not [3].
 
 Every `[n]` in the answer resolves to a `node_id` you can read. That round trip is the point: a claim you can check against the text it came from.
 
@@ -89,7 +88,7 @@ print()
 print(v.read(r.cited[0]['node_id'])['text'][:400])   # the exact text behind the claim
 ```
 
-    2 03 code › Fusing legs that share no vector space
+    3 03 code › Fusing legs that share no vector space
 
     The vault embeds prose, kosha embeds identifiers, ripgrep embeds nothing, so the legs cannot be
     merged by distance. Reciprocal Rank Fusion needs only each leg's *ordering* — which is exactly
@@ -140,19 +139,13 @@ or whatever litesearch’s parser called the file. Filter when you want to, don�
 v.stats()
 ```
 
-    {'docs': 17,
-     'nodes': 131,
-     'chunks': 755,
+    {'docs': 16,
+     'nodes': 135,
+     'chunks': 694,
      'encoder': 'model2vec',
      'entities': 0,
-     'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmprx1nkjya/vault.db',
-     'by_kind': {'notebook': 10,
-      'md': 2,
-      'xml': 1,
-      'txt': 1,
-      'pdf': 1,
-      'note': 1,
-      'html': 1}}
+     'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmp4x7z5g_l/vault.db',
+     'by_kind': {'notebook': 10, 'md': 3, 'txt': 1, 'pdf': 1, 'note': 1}}
 
 ``` python
 len(v.search('rank fusion')), len(v.search('rank fusion', kind='note')), len(v.search('rank fusion', kind='md,notebook'))
@@ -170,7 +163,7 @@ free, so what you concluded about a corpus comes back next to the evidence you c
 L(v.sources()).map(lambda d: (d['kind'], d['title'], d['source']))[:6]
 ```
 
-    [('pdf', 'Attention Is All You Need', 'https://arxiv.org/pdf/1706.03762'), ('md', 'CHANGELOG', '../CHANGELOG.md'), ('md', 'README', '../README.md'), ('html', 'index', '../_proc/_docs/index.html'), ('txt', 'robots', '../_proc/_docs/robots.txt'), ('xml', 'sitemap', '../_proc/_docs/sitemap.xml')]
+    [('pdf', 'Attention Is All You Need', 'https://arxiv.org/pdf/1706.03762'), ('md', 'CHANGELOG', '../CHANGELOG.md'), ('md', 'README', '../README.md'), ('notebook', '00 core', '../nbs/00_core.ipynb'), ('notebook', '01 acquire', '../nbs/01_acquire.ipynb'), ('notebook', '02 ask', '../nbs/02_ask.ipynb')]
 
 ## When the graph and the clusters pay off
 
@@ -189,18 +182,18 @@ inside each one, since it rebuilds over the whole vault.
 v.connect()
 ```
 
-    {'entities': 3922,
-     'mentions': 8093,
-     'edges': 2377,
-     'windows': 2342,
-     'resolved': {'merged': 1074,
-      'by_ann': 598,
-      'by_lexical': 476,
-      'edges': 1954,
-      'entities': 3922,
-      'resolvable': 3922,
-      'canonical': 2848},
-     'topics': 138,
+    {'entities': 3881,
+     'mentions': 7362,
+     'edges': 2133,
+     'windows': 2328,
+     'resolved': {'merged': 1056,
+      'by_ann': 596,
+      'by_lexical': 460,
+      'edges': 1788,
+      'entities': 3881,
+      'resolvable': 3881,
+      'canonical': 2825},
+     'topics': 139,
      'method': 'knn'}
 
 ``` python
@@ -208,7 +201,40 @@ L(v.map().clusters).attrgot('label')
 # as you can see sometimes it's not useful with the wrong content
 ```
 
-    ['ents, cues, needs, money', 'test_eq, dims, simplefilter, catch_warnings', 'test_eq, node_id, doc_id, text', 'save, schema, chat_kw, max_chars', 'split_reasoning, weighing, res, think', 'ast, loading, indexes, splits', 'doctype, doc_id, attrdict, type', 'watch, params, target, watches', 'ipynb, html, github, plumbing', 'persisted, neither, clustering, fast', 'llm, audited, selectively, thousand', 'ripgrep, embeds, identifiers, badly', 'unanswerable, contract, chosen, retrieves', 'recs, ttl, endpoint, records', 'youtube, ghfile, github, url', 'failed, _boom, retry, less', 'constructor, rest, rankings, gemma4_e2b', 'use_chat, chat, getenv, settings', 'shelves, mode, dot, product', 'meta, order_by, doc_id, forget', 'parts, content, select, doc_id', 'owed_to, due, turns, whom', 'field, spec, type, dataclass', 'ripgrep, rankings, gitignore, minute', '_ask, _chat, prompt, classify', 'glosses, changing, beat, sanskrit', 'steel, gasket, widget, nitrile', 'progress, border, background, bar', 'owed_to, ask_doc, acme, inbox', '_caps, capture, data, replay_xhr', 'as_schema, common, shapes, dataclasses', '_stores, dims, enc, reopened', 'openai_api_key, struggles, nano, gpt', 'spring, doctype, test_eq, hide', 'internal, pagination, retrievable, apis', '_json_reply, json, funccall, get_schema', 'tidy_bc, nid, breadcrumb, snippet', 'normalised, federated, hits, mod', 'layers, decoder, layer, position', 'select, entities, mentions, prefix', 'assets, get_pdf, id_or_url, pdf_path', 'secs, test_eq, watch, whenever', 'meta, filename, text, tier', 'encode, model2vec, mk_encoder, dims', 'vishalakshi_model, takes, temp, anything', 'sanskrit, test_eq, embeddings, skipped', 'graph_search, weighted, mrr, bridge', 'means, imports, correctly, neither', 'scored, cue, phrases, matched', 'ingested, gemma4_e4b, ever, refs', 'education, findings, dataclass, year', 'throwaway, reproducible, repository, ingestion', 'concluded, clusters, next, comes', 'gnmt, posunk, base, deep', 'berlin, contoso, gmbh, terms', 'computation, sequential, input, performance', 'preprint, http, abs, machine', 'email, bparticipants, bthanks, bfollow', 'pagination, products, _cap, _seen', 'verdict, sig, margin, min_score', 'doc_context, _dc, fusion, mk_prompt', 'checked, next_run, status, ran', '_saved, _gc, pkg, read_gh_file', 'const, var, let, compile', '_fs, add_files, fusion, stats', 'meaningless, warns, drop_shelf, drop', 'attempt, download, offline, skip', 'fetched_at, md_title, meta, time', 'loop, dead, involved, failure', 'ctx, prompt, mk_prompt, max_chars', 'spec, sub, paragraph, tes', 'unknown, ones, fields, field', 'assets, reusable, fusion_notes, symlink', 'trip, resolves, print, check', 'hashembed, _model_map, onnx, isinstance', 'degrades, stored, ranking, registry', 'thought, rel, sec, resp_text', 'rolled, rerank, repo, hits', 'constrains, parsed, grammar, forced', 'sanskrit, sanskrit_facets, taken, happen', 'action, filling, asarray, flo', 'called, parser, sql, afterwards', 'noun, kws, ner, keyphrase', 'vishalakshi_record_chat, raises, replay, miss', 'dir2files, fastcore, uuid, doc_exts', 'entry, paid_with, currency, dataclass', 'eggs, range, add_records, dairy', 'wash, devanagari, iast, fold', 'inherit, speedup, sized, ladder', 'confidently, characters, front, describe', 'forces, mcpservers, vishalakshi_vault, vishalakshi_of', 'server, rgapi, pip, install', 'prepare, generated, notebooks, pip', 'abstract, metadata, need, full', 'transduction, entirely, sequence, decoder', 'ensembles, wmt, german, task', 'single, whole, replacement, narrower', 'person, bapplication, bfor, office', 'invo, sourc, spot, docty', 'src, non, _first_line, filesystem', 'add_dir, ann, treated, with_heading', 'emb_fn, emb, embed_batch, n_workers', 'elsewhere, named, tuple, blows', '_dur, typeerror, _mult, past', 'code_search, unwatch, where_to_add, reshelf', 'carry, genres, configuration, tied', 'kind_hint, kind_bonus, cue_scores, sig', 'jobs, lak, profile_for, outp', 'notebook, need, stub, outside', 'required, tools, renamed, inputschema', 'css, selector, sel, conversion', 'sqlite, karthik777, march, talk', 'whichever, dir, looking, max_pages', 'gh_clone, globs, init, subprocess', 'embedding, nodes, long, c6ced91d1d', 'said, mid, auto, weights', 'outgrown, pickles, streamed, sends', 'reshelf, interesting, nrelated, ndoi', 'end, add_tree, verbose, extensions', 'shells, lone, downloads, copies', 'depth, symbol, callers, described', 'www, referer, info, google', 'weaviate, medium, blog, contextual', 'grep, hits, fusion, per_leg', 'answerdotai, basics, greps, material', 'drive, showdoc, cmd, default_exp', 'loaded, looked, cheap, extractor', 'application, applicationbe, eos, opinion', 'root, share_encoder, creates, presence', 'keyphrase, ents, label, contoso', 'corr, yoshua, kyunghyun, bengio', 'scaling, additive, dot, using', 'fastllm, litertlm, gguf, cpp', 'enc_spec, static, micro, mean', 'edited, meant, contextual, embeddings', 'modeling, recurrent, sequence, various', 'heads, figure, many, layer', 'image, png, images, page4_2']
+    ['ents, cues, needs, org', 'meta, doc_id, replace, is_file', '_caps, capture, replay_xhr, data', 'index_code, add_file, owner, ordinary', 'path_or_url, title, get, normalised', 'doctype, schema, save, errs', 'hash, dims, mk_encoder, test_eq', 'loading, ast, appends, looking', 'next_run, target, action, watch', 'sanskrit, contoso, dot, neither', 'ordinary, queries, graph_search, costs', 'contract, citation, chosen, keeps', 'owed_to, inbox, currency, acme', 'select, prefix, delete_where, entities', 'added_at, _stores, dims, enc', 'test_eq, handle, assert, snippet', 'chunking, late, test_eq, secs', '_fs, add_files, offline, fusion', 'min_score, min_margin, sig, cues', 'failed, retry, less, _boom', 'background, progress, border, bar', 'use_chat, chat, dflt_model, fresh', 'labels, regex, signals, scored', 'layers, decoder, position, attention', 'recs, records_md, request, urls', 'blob, gh_file, github, com', '__doc__, get_origin, field, is_dataclass', 'saved, doctype, categorised, many', 'filename, sec, parts, results', 'called, parser, carries, trusted', 'doctype, test_eq, spring, acme', 'tidy_bc, nid, breadcrumb, handle', 'dtype, dims, encode, mk_encoder', 'object, _json_reply, json, prompt', 'spending, totals, optimisation, llm', 'subtotal, unit, nitrile, widget', 'constructor, prefix, chat, thinking', 'preprint, http, abs, org', 'chunk_id, by_topic, cid_doc, removeprefix', 'fetched_at, strip, meta, force', 'of_type, code_search, categorize_all, where_to_add', 'remind, action, watch_id, target', 'paper, due_date, contract, python', 'internal, apis, api, retrievable', 'cwd, rolled, repo, restrict', 'ipynb, decision, _core, concepts', 'corpora, keyword, character, mrr', 'separate, pivots, topic_tree, twice', 'findings, experience, education, dataclass', 'vishalakshi_vault, vishalakshi_offline, command, mcps', 'att, transformer, bleu, convs2s', 'transduction, sequence, entirely, recurrent', 'answerable, video, searchable, hosted', 'computation, sequential, output, input', 'indented, topic_tree, lines, fmt_topics', 'shapes, schemas, as_schema, schema', 'meta, hashed, page_no, remember', 'doc_context, _dc, fusion, rank', 'routes, grab, link, directory', 'clusters, _map_from_graph, min_count, cid_topic', 'citations, ranked, full, breadcrumb', 'budget, named, shared, window', 'meaningless, change, warns, drop', 'sanskrit, elsewhere, embeddings, nowhere', 'unknown, fields, field, ones', 'means, window, correctly, tokens', 'thought, vault_sp, rel, sec', 'ranking, litesearch, materialised, scratch', 'lbls, mid, auto, labels', 'throwaway, reproducible, repository, clone', 'ever, gemma4_e4b, ingested, core', 'unit_price, qty, amount, description', 'contextual, explained, visrow, rag', 'vishalakshi_record_chat, miss, replay, raises', 'currency, entry, paid_with, dataclass', 'grep, legs, repo, leg', 'sys, wraps, cli, signature', 'changing, english, glosses, putting', 'ordering, combine, mechanism, reciprocal', 'ensembles, wmt, task, german', 'berlin, bill, net, supplies', 'single, whole, replacement, narrower', 'person, ents, complete, bdecided', 'sac, quantity, nos, hsn', 'index_code, add_dir, orphan, directory', 'forwarded, chat_kw, vault_sp, ref', 'sku, records, walk, eggs', 'embed_batch, emb_fn, emb, n_workers', 'created, typeerror, enabled, opaque', '_prose, _error, shaped, shelves', '_tt, topic_tree, honoured, storage', 'vendor, fields, dynamic, paid', 'nheads, quick, nscaled, download', 'mk_prompt, doc_chars, ctx, prompt', 'inbox, vendor, shadow, flat', 'keyword, character, measured, partitions', 'ago, aware, rrf_all, minute', 'notebook, need, stub, chatcache', 'tag, closing, split_reasoning, mlx', 'rebuilds, tenth, incremental, nine', 'exact, trip, claim, check', '_noun_ents, sub, zero, _law_inst', 'css, selector, sel, overlapping', 'tools, required, list_tools, await', 'dead, loop, involved, failure', 'karthik777, sqlite, week, watched', 'reshelf, attention, references, introduction', 'dir, whichever, what_is, looking', 'gh_clone, read_gh_repo, happened, subprocess', '_paged, is_sanskrit, sanskrit_terms, sanskrit', 'depth, symbol, appears, boosted', 'grammar, backends, constrains, forced', 'end, add_tree, graph, n_code', '_model_map, onnx, encoders, faithful', 'dispatches, overrides, seventh, unrouted', 'design, embeds, identifiers, routes', 'labels, counts, regex, ents', 'dir2files, mixes, dotfiles, editions', 'confidently, difference, describe, guess', 'wider, blindness, badly, trained', 'doc_exts, uuid, dir2files, fastcore', 'answerdotai, com, github, basics', 'tokenizer, token, wash, recall', 'server, rgapi, pip, install', 'referer, www, fetched, info', 'prepare, generated, pip, modules', 'laptop, bear, retrieving, paragraphs', 'application, applicationbe, opinion, eos', 'sandboxed, ingesting, switches, lemmas', 'root, constructing, repo_root, share_encoder', 'connects, know, prints, ingests', 'keyphrase, ents, label, term', 'cho, yoshua, corr, learning', 'additive, scaling, dot, using', 'gguf, fastllm, litertlm, community', 'edited, meant, contextual, embeddings', 'heads, figure, many, layer', 'png, image, images, page4_1', 'keyerror, raise, _missing, markers']
+
+A label on its own is thin, and sometimes wrong. What makes it readable is where the topic *lives*:
+`topic_tree` puts the documents under each label, with the number of chunks each contributes.
+
+That second number is the one worth reading. A topic carried by a single document is usually that
+document talking to itself, and a label to distrust. A topic spread across five is a thread actually
+running through the corpus, and the place to start reading. It is also how you notice that two
+labels you thought were separate subjects are the same source seen twice.
+
+Three queries and no clustering: `connect()` already persisted the topic nodes, so this only pivots
+the mentions back onto documents.
+
+``` python
+v.show_topics(limit=5, docs=3)      # v.topic_tree() returns the same thing as data
+```
+
+    ents, cues, needs, org                       (8 chunks, 1 docs)
+      `- 06 extract                                  8
+    meta, doc_id, replace, is_file               (8 chunks, 3 docs)
+      |- 00 core                                     4
+      |- 06 extract                                  3
+      `- 02 ask                                      1
+    _caps, capture, replay_xhr, data             (8 chunks, 2 docs)
+      |- 01 acquire                                  7
+      `- README                                      1
+    index_code, add_file, owner, ordinary        (8 chunks, 3 docs)
+      |- 01 acquire                                  5
+      |- 00 core                                     2
+      `- 03 code                                     1
+    path_or_url, title, get, normalised          (8 chunks, 3 docs)
+      |- 03 code                                     4
+      |- 01 acquire                                  2
+      `- 00 core                                     2
 
 ## What each document is, and what is inside it
 
@@ -258,12 +284,7 @@ v.categorize_all(llm='never')   # everything not typed yet; a failure is recorde
 v.doctypes()                    # the shape of the corpus
 ```
 
-    {'code': 8,
-     'invoice': 4,
-     'other': 3,
-     'documentation': 2,
-     'paper': 1,
-     'transcript': 1}
+    {'code': 10, 'documentation': 4, 'invoice': 1, 'paper': 1, 'other': 1}
 
 Notebooks read as code, the README as documentation, the invoice as an invoice, and no model was
 loaded to say so. `force=False` makes that cheap to re-run after an ingest: only what arrived since
@@ -354,17 +375,16 @@ e = v.extract(r['doc_id'], schema='invoice', model='gpt-4.1-nano')   # needs OPE
 ```
 
     {'vendor': 'Acme Supplies Ltd',
-     'total': 849.6,
+     'total': 180,
      'payment_terms': 'Net 30',
-     'items': [{'description': 'A4 Copier Paper',
+     'items': [{'description': 'Widget, steel',
        'qty': 12,
-       'unit_price': 24.5,
-       'amount': 294},
-      {'description': 'Toner Cartridge XL',
-       'qty': 3,
-       'unit_price': 86,
-       'amount': 258},
-      {'description': 'Desk Lamp', 'qty': 5, 'unit_price': 31.2, 'amount': 156}]}
+       'unit_price': 8.5,
+       'amount': 102},
+      {'description': 'Gasket, nitrile',
+       'qty': 40,
+       'unit_price': 1.2,
+       'amount': 48}]}
 
 ## Asking about one document, with the vault as context
 
@@ -398,9 +418,7 @@ print(a.answer)
 # v.ask_doc(REFS, Q, doc_chars=60000, model='gpt-5.6-luna')
 ```
 
-    `extract.py` is a file that defines what a document is, the fields inside it, and an answer over the whole of it [1]. It contains definitions for various document types such as `Invoice`, `Receipt`, `Catalogue`, `Contract`, `Resume`, `Paper`, `MeetingNotes`, and `Summary` [1].
-
-    `core.py` is a file that contains the vault, which is one SQLite file holding everything you have read, and the retrieval over it [2]. It also contains definitions for
+    `extract.py` defines what a document is, the fields inside it, and an answer over the whole of it [1]. It contains definitions for various document types such as `Invoice`, `Receipt`, `Catalogue`, `Contract`,`,`, `Resume`, `Paper`, `MeetingNotes`, and `Summary` [1].
 
 And the same question answered as data instead of prose. `schema=` turns any question into a structured response, built at the moment you ask it.
 
@@ -415,7 +433,7 @@ v.ask_doc('/inbox/acme-0117.md', 'what is owed, to whom, and by when?', model=ge
     {'amount': 180.0,
      'currency': 'USD',
      'owed_to': 'Acme Supplies Ltd',
-     'due': '2024-03-01'}
+     'due': 'Net 30'}
 
 ## Code, and the two indexes over one tree
 
@@ -431,45 +449,9 @@ question about late chunking pays nothing for a leg it has no use for.
 m=v.index_code('..')                              # this repo; env=True also indexes installed packages
 ```
 
-    parse files from ..: 100%|██████████| 7/7 [00:00<00:00, 211.58it/s]
+    █ |----------------------------------------| 0.00% [0/3 00:00<?]█ |----------------------------------------| 0.00% [0/1 00:00<?] |█████████████---------------------------| 33.33% [1/3 00:00<00:00] |██████████████████████████--------------| 66.67% [2/3 00:00<00:00] |████████████████████████████████████████| 100.00% [1/1 00:00<00:00]                                                                      |████████████████████████████████████████| 100.00% [3/3 00:00<00:00]                                                                     
 
-<style>
-    progress { appearance: none; border: none; border-radius: 4px; width: 300px;
-        height: 20px; vertical-align: middle; background: #e0e0e0; }
-&#10;    progress::-webkit-progress-bar { background: #e0e0e0; border-radius: 4px; }
-    progress::-webkit-progress-value { background: #2196F3; border-radius: 4px; }
-    progress::-moz-progress-bar { background: #2196F3; border-radius: 4px; }
-&#10;    progress:not([value]) {
-        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px); }
-&#10;    progress.progress-bar-interrupted::-webkit-progress-value { background: #F44336; }
-    progress.progress-bar-interrupted::-moz-progress-value { background: #F44336; }
-    progress.progress-bar-interrupted::-webkit-progress-bar { background: #F44336; }
-    progress.progress-bar-interrupted::-moz-progress-bar { background: #F44336; }
-    progress.progress-bar-interrupted { background: #F44336; }    
-&#10;    table.fastprogress { border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
-    table.fastprogress th, table.fastprogress td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
-    table.fastprogress thead tr { background: #f8f9fa; font-weight: bold; }
-    table.fastprogress tbody tr:nth-of-type(even) { background: #f8f9fa; }
-</style>
-
-<style>
-    progress { appearance: none; border: none; border-radius: 4px; width: 300px;
-        height: 20px; vertical-align: middle; background: #e0e0e0; }
-&#10;    progress::-webkit-progress-bar { background: #e0e0e0; border-radius: 4px; }
-    progress::-webkit-progress-value { background: #2196F3; border-radius: 4px; }
-    progress::-moz-progress-bar { background: #2196F3; border-radius: 4px; }
-&#10;    progress:not([value]) {
-        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px); }
-&#10;    progress.progress-bar-interrupted::-webkit-progress-value { background: #F44336; }
-    progress.progress-bar-interrupted::-moz-progress-value { background: #F44336; }
-    progress.progress-bar-interrupted::-webkit-progress-bar { background: #F44336; }
-    progress.progress-bar-interrupted::-moz-progress-bar { background: #F44336; }
-    progress.progress-bar-interrupted { background: #F44336; }    
-&#10;    table.fastprogress { border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
-    table.fastprogress th, table.fastprogress td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
-    table.fastprogress thead tr { background: #f8f9fa; font-weight: bold; }
-    table.fastprogress tbody tr:nth-of-type(even) { background: #f8f9fa; }
-</style>
+    parse files from ..:   0%|          | 0/8 [00:00<?, ?it/s]parse files from ..: 100%|##########| 8/8 [00:00<00:00, 298.64it/s]
 
 ``` python
 c = v.context('where does the entity graph get rebuilt?', sections=3, related=0, code=3, dir='..')
@@ -478,8 +460,8 @@ c.code, [r.breadcrumb for r in c.results if r.node_id is None]
 
     (3,
      ['shelf:papers › Attention Is All You Need',
-      'shelf:sanskrit_fast › Vālmīki Rāmāyaṇa, Bālakāṇḍa',
-      'repo › ../vishalakshi/core.py:397'])
+      'repo › ../vishalakshi/core.py:483',
+      'grep › README.md:490'])
 
 Those sections are numbered alongside the prose ones and cite like them, so `ask` needed no changes
 at all. A code citation just has no `node_id`, because its handle is a `path:line` on disk rather
@@ -496,7 +478,7 @@ their distances. `symbol`, `where_to_add` and `grep` are on the [code page](03_c
 L(v.grep('rrf_all', '..', limit=4)).attrgot('where')   # ripgrep, gitignore-aware
 ```
 
-    ['README.md:501', 'README.md:809', 'README.md:822', 'README.md:832']
+    ['README.md:511', 'nbs/index.ipynb:1048', 'vishalakshi/code.py:12', 'vishalakshi/code.py:128']
 
 ## Watches: keeping it current
 
@@ -520,17 +502,10 @@ L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['para
 v.poll()      # run everything due; failures are recorded on the row, never raised
 ```
 
-    [2026-08-11 07:27:54] INFO: Fetched (404) <GET https://example.com/changelog> (referer: https://www.google.com/)
-    [2026-08-11 07:27:57] INFO: Fetched (200) <GET https://weaviate.io/blog/late-chunking> (referer: https://www.google.com/)
-    [2026-08-11 07:27:57] INFO: Fetched (200) <GET https://arxiv.org/abs/2409.04701> (referer: https://www.google.com/)
-    [2026-08-11 07:27:57] INFO: Fetched (200) <GET https://jina.ai/news/late-chunking-in-long-context-embedding-models/> (referer: https://www.google.com/)
-    [2026-08-11 07:27:57] INFO: Fetched (200) <GET https://github.com/jina-ai/late-chunking> (referer: https://www.google.com/)
-    [2026-08-11 07:27:57] INFO: Fetched (200) <GET https://medium.com/@visrow/chunking-strategies-for-rag-early-late-and-contextual-chunking-explained-with-code-71b88e4709f9> (referer: https://www.google.com/)
-
     {'checked': 3,
      'ran': 3,
-     'results': [{'watch_id': 'd8d164b41ec4', 'action': 'url', 'target': 'https://example.com/changelog', 'status': 'skipped', 'took': 0.09, 'result': {'url': 'https://example.com/changelog', 'skipped': 'could not read the page (status 404)', 'status': 404}}, {'watch_id': 'e701ece6eb0d', 'action': 'web', 'target': 'late chunking retrieval', 'status': 'ok', 'took': 3.92, 'result': {'query': 'late chunking retrieval', 'n_found': 5, 'added': [{'doc_id': '5ff9f204a961b1d1', 'title': 'arxiv.org › abs › 2409[2409.04701] Late Chunking: Contextual Chunk Embeddings Using...arxiv.org › html › 2409Late Chunki', 'kind': 'web', 'nodes': 3, 'chunks': 6, 'url': 'https://arxiv.org/abs/2409.04701'}, {'doc_id': '504a7c1f1326cc02', 'title': 'weaviate.io › blog › late-chunkingLate Chunking: Balancing Precision and Cost in Long Context...medium.com › @visrow › c', 'kind': 'web', 'nodes': 13, 'chunks': 39, 'url': 'https://weaviate.io/blog/late-chunking'}, {'doc_id': 'd33cd761db418314', 'title': 'Chunking Strategies for RAG: Early, Late, and Contextual Chunking Explained (With Code) | by Vishal Mysore | Medium', 'kind': 'web', 'nodes': 27, 'chunks': 38, 'url': 'https://medium.com/@visrow/chunking-strategies-for-rag-early-late-and-contextual-chunking-explained-with-code-71b88e4709f9'}, {'doc_id': 'b1a6b84b6491cce9', 'title': 'GitHub - jina-ai/late-chunking: Code for explaining and evaluating late ...', 'kind': 'web', 'nodes': 6, 'chunks': 19, 'url': 'https://github.com/jina-ai/late-chunking'}, {'doc_id': '184c1b13d8f41da3', 'title': 'Late Chunking in Long-Context Embedding Models', 'kind': 'web', 'nodes': 2, 'chunks': 29, 'url': 'https://jina.ai/news/late-chunking-in-long-context-embedding-models/'}], 'dropped': []}}, {'watch_id': '51c6ced91d1d', 'action': 'remind', 'target': 'Re-read the eval numbers', 'status': 'ok', 'took': 0.0, 'result': {'doc_id': '18f38fd176761b4e', 'title': 'Re-read the eval numbers', 'kind': 'note', 'nodes': 2, 'chunks': 1}}],
-     'next_due': 1786418874.2080588}
+     'results': [{'watch_id': '2876ccbba6a7', 'action': 'url', 'target': 'https://example.com/changelog', 'status': 'skipped', 'took': 0.12, 'result': {'url': 'https://example.com/changelog', 'skipped': 'could not read the page (status 404)', 'status': 404}}, {'watch_id': '25bb7c262042', 'action': 'web', 'target': 'late chunking retrieval', 'status': 'ok', 'took': 3.96, 'result': {'query': 'late chunking retrieval', 'n_found': 5, 'added': [{'doc_id': '5ff9f204a961b1d1', 'title': 'arxiv.org › abs › 2409[2409.04701] Late Chunking: Contextual Chunk Embeddings Using...arxiv.org › html › 2409Late Chunki', 'kind': 'web', 'nodes': 3, 'chunks': 6, 'url': 'https://arxiv.org/abs/2409.04701'}, {'doc_id': '504a7c1f1326cc02', 'title': 'weaviate.io › blog › late-chunkingLate Chunking: Balancing Precision and Cost in Long Context...medium.com › @visrow › c', 'kind': 'web', 'nodes': 13, 'chunks': 39, 'url': 'https://weaviate.io/blog/late-chunking'}, {'doc_id': 'd33cd761db418314', 'title': 'Chunking Strategies for RAG: Early, Late, and Contextual Chunking Explained (With Code) | by Vishal Mysore | Medium', 'kind': 'web', 'nodes': 27, 'chunks': 38, 'url': 'https://medium.com/@visrow/chunking-strategies-for-rag-early-late-and-contextual-chunking-explained-with-code-71b88e4709f9'}, {'doc_id': 'b1a6b84b6491cce9', 'title': 'GitHub - jina-ai/late-chunking: Code for explaining and evaluating late ...', 'kind': 'web', 'nodes': 6, 'chunks': 19, 'url': 'https://github.com/jina-ai/late-chunking'}, {'doc_id': '094cc044d2ec521b', 'title': 'What is Late Chunking in RAG? How can you improve your RAG with Late Chunking! | by Vishal Mysore | Medium', 'kind': 'web', 'nodes': 5, 'chunks': 10, 'url': 'https://medium.com/@visrow/what-is-late-chunking-in-rag-how-can-you-improve-your-rag-with-late-chunking-f981a0cb39bb'}], 'dropped': []}}, {'watch_id': 'e49257aaf260', 'action': 'remind', 'target': 'Re-read the eval numbers', 'status': 'ok', 'took': 0.0, 'result': {'doc_id': '5c0f324f5c972636', 'title': 'Re-read the eval numbers', 'kind': 'note', 'nodes': 2, 'chunks': 1}}],
+     'next_due': 1786427162.86988}
 
 `poll()` is the tick. Call it from cron, a scheduler, or a frontend button. `remind` writes a note
 with no network involved, and one dead URL never stops the loop, because a failure is recorded on the
