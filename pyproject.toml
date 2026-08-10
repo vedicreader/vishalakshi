@@ -25,7 +25,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "litesearch[sanskrit]>=0.1.24",
+    "litesearch[sanskrit]>=0.1.25",
     "fossick>=0.1.7",
     "fastcore>=1.12.31",
     "numpy>=1.26",
