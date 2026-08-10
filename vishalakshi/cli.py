@@ -17,7 +17,7 @@ from .core import Vault
 from . import acquire, ask, code, extract   # noqa: F401 — these patch the Vault methods the CLI exposes
 
 # %% ../nbs/04_cli.ipynb #11ed4c4a
-CMDS = ('stats search sections context ask explain read related toc map sources doc document shelves '
+CMDS = ('stats search sections context ask explain read related toc map topic_tree show_topics sources doc document shelves '
         'elsewhere '
         'grab url web crawl arxiv pdf youtube github gh_file add_file add_dir add_tree note code connect forget '
         'apis harvest add_records watch watches unwatch pause poll index_code code_search symbol '

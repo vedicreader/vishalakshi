@@ -83,7 +83,9 @@ material stop diluting each other. `llm=` decides how hard `categorize` and `ext
 `db.graph_search` is the entity-graph leg, by name, for queries whose answer shares no word with the
 question; it is off everywhere else because it costs 0.070 to 0.160 weighted MRR on ordinary ones.
 
-`v.connect()` builds that graph, and `v.map()` reads the topics out of it. Neither is a ranking leg.
+`v.connect()` builds that graph. `v.map()` reads the topics out of it and `v.topic_tree()` says
+which documents each topic runs through, which is how you tell a subject that is one source talking
+to itself from a thread running through six. `v.show_topics()` prints it. Neither is a ranking leg.
 They answer the question you ask before you know what to search for: what is in here, and what
 connects to what. Run `connect()` after a batch of ingests rather than inside each one.
 
@@ -113,7 +115,7 @@ from .cli import vault
 # (`forget`, `drop_shelf`, `unwatch`, `pause`) are left out on purpose — an agent filling a vault it
 # shares with you should not be able to empty it.
 READ = ('search sections context related read toc doc document sources stats shelves elsewhere map '
-        'doctypes of_type ner categorize extract extract_all ask ask_doc explain doc_context '
+        'doctypes of_type ner categorize extract extract_all ask ask_doc explain doc_context topic_tree show_topics '
         'code_search symbol where_to_add grep federate watches apis assets').split()
 WRITE = ('add add_file add_files add_dir add_tree add_records add_code note grab url web crawl arxiv '
          'pdf youtube github gh_file code connect index_code harvest watch poll run_watch '

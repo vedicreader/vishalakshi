@@ -6,10 +6,11 @@ Docs: https://vedicreader.github.io/vishalakshi/core.html.md"""
 
 # %% auto #0
 __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'KIND_SHELF', 'tidy_bc', 'kinds', 'enc_spec', 'HashEmbed', 'mk_encoder',
-           'Vault', 'is_sanskrit_file', 'sanskrit_facets']
+           'Vault', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
 
 # %% ../nbs/00_core.ipynb #57dc1d31
 import json, re, time, uuid, warnings
+from collections import Counter
 import numpy as np
 from fastcore.all import AttrDict, L, Path, first, ifnone, patch
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, build_graph,
@@ -539,6 +540,65 @@ def map(self:Vault, min_count:int=2, force:bool=False, **kw) -> AttrDict:
         cached = _map_from_graph(self.db, self.name, self.store)
         if cached is not None: return cached
     return self.store.clusters(min_count=min_count, dtype=DTYPE, columns=['content', 'doc_id'], **kw)
+
+def _sql_in(col, xs, batch:int=2000):
+    "`col IN (...)` clauses over `xs`, split so no one statement grows unbounded."
+    xs = list(xs)
+    for i in range(0, len(xs), batch):
+        yield f"{col} IN ({','.join(repr(x) for x in xs[i:i+batch])})"
+
+@patch
+def topic_tree(self:Vault,
+               limit:int=20,      # topics returned, largest first
+               docs:int=8,        # documents listed under each topic
+               min_chunks:int=2,  # skip a topic carried by fewer chunks than this
+) -> L:
+    '''Topics, and which documents each one runs through. The shape of the corpus, two levels deep.
+
+    `map()` says what the subjects are; this says where each one lives, which is the half that tells
+    you whether a subject is one source talking to itself or a thread running through six. Reads the
+    topic nodes `connect()` persisted, so it costs three queries and no clustering.'''
+    try: g = self.db.get_graph(self.name)
+    except Exception: return L()
+    try: ents = L(g.entities(where="kind='topic'", order_by='freq desc'))
+    except Exception: return L()
+    if not ents: return L()
+    by_topic = {}
+    for w in _sql_in('entity_id', [e['id'] for e in ents]):
+        for m in g.mentions(select='chunk_id, entity_id', where=w):
+            by_topic.setdefault(m['entity_id'], []).append(m['chunk_id'])
+    cid_doc = {}
+    for w in _sql_in('id', {c for cs in by_topic.values() for c in cs}):
+        for r in self.store(select='id, doc_id', where=w): cid_doc[r['id']] = r['doc_id']
+    titles = {r['id']: r['title'] for r in self.t.docs(select='id, title')}
+    out = L()
+    for e in ents:
+        cs = by_topic.get(e['id'], [])
+        if len(cs) < min_chunks: continue
+        n = Counter(d for c in cs if (d := cid_doc.get(c)))
+        out.append(AttrDict(label=(e['content'] or '').removeprefix('topic: '), topic_id=e['id'],
+                            size=e['freq'], chunks=len(cs), docs=len(n),
+                            sources=L(AttrDict(doc_id=d, title=titles.get(d) or d, chunks=k)
+                                      for d, k in n.most_common(docs))))
+        if len(out) >= limit: break
+    return out
+
+def fmt_topics(tree, width:int=44) -> str:
+    "A `topic_tree` as an indented listing. Plain ASCII, so it survives a terminal, a notebook and a prompt."
+    if not tree: return 'no topics — run connect() first'
+    lines = []
+    for t in tree:
+        lines.append(f"{t['label'][:width]:<{width}} ({t['chunks']} chunks, {t['docs']} docs)")
+        srcs = t['sources']
+        for i, s in enumerate(srcs):
+            stem = '`- ' if i == len(srcs)-1 else '|- '
+            lines.append(f"  {stem}{str(s['title'])[:width-4]:<{width-4}} {s['chunks']:>4}")
+    return '\n'.join(lines)
+
+@patch
+def show_topics(self:Vault, limit:int=20, docs:int=8, **kw):
+    "Print `topic_tree` as an indented listing."
+    print(fmt_topics(self.topic_tree(limit=limit, docs=docs, **kw)))
 
 @patch
 def sources(self:Vault, kind:str=None) -> L:
