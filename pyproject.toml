@@ -13,19 +13,30 @@ authors = [{name = "Karthik", email = "karthik.rajgopal@hotmail.com"}]
 keywords = ['nbdev', 'rag', 'research', 'memory', 'semantic search', 'knowledge base',
             'document classification', 'information extraction', 'structured output', 'ner']
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Indexing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "litesearch>=0.1.0",
-    "fossick>=0.1.0",
+    "litesearch[sanskrit]>=0.1.24",
+    "fossick>=0.1.7",
     "fastcore>=1.12.31",
     "numpy>=1.26",
     "mcp",
-    "koshas",
+    "koshas>=0.0.36",
     "rgapi",
-    "rishi",
+    "rishi[litert,remote]>=0.1.2",
 ]
+
+[project.optional-dependencies]
+test = ["diskcache"]
 
 [project.scripts]
 vishalakshi = "vishalakshi.cli:main"
@@ -51,7 +62,9 @@ path = "vishalakshi/__init__.py"
 
 [dependency-groups]
 dev = [
+    "diskcache>=5.6.3",
     "ipykernel>=7.3.0",
     "nbdev>=3.3.4",
     "notebook>=7.6.1",
+    "rishi[all]>=0.1.2",
 ]
