@@ -21,19 +21,19 @@ except ImportError:
         raise ImportError('vishalakshi-mcp needs the `mcp` package — `pip install mcp`') from e
 
 # %% ../nbs/05_mcp.ipynb #fad2b047
-TOOLS = ('stats find sections context ask read related toc map sources document shelves elsewhere grab url '
-         'web arxiv youtube add_file add_dir add_tree note connect forget apis harvest watch watches '
+TOOLS = ('stats search sections context ask read related toc map sources document shelves elsewhere grab url '
+         'web arxiv youtube github gh_file add_file add_dir add_tree note connect forget apis harvest watch watches '
          'poll unwatch index_code code_search symbol where_to_add grep federate categorize '
          'categorize_all doctypes of_type ner reshelf extract extract_all ask_doc').split()
 
 mcp = MCPServer('vishalakshi', instructions=(
     'A personal research vault: web pages, papers, transcripts, files, code and notes in one '
     'searchable corpus. `context` is the main tool — it returns whole sections plus what they '
-    'connect to, which is what you want before answering a question. `find` locates things, '
+    'connect to, which is what you want before answering a question. `search` locates things, '
     '`read` pulls one section in full, `related` answers "what else reads like this". `grab` '
     'files anything you point it at; `note` writes your own conclusions back so they are searched '
     'alongside the sources. `add_tree` points at a directory and splits it: documents into the '
-    'vault, source files into kosha, entity graph rebuilt once at the end. When kosha has indexed '
+    'vault, source files into kosha. When kosha has indexed '
     'the repo, `context` and `ask` add code sections to what they retrieve on their own, so a '
     'question about the user\'s own system is answered from the source rather than from prose about '
     'it.\n\n'

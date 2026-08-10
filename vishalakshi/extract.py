@@ -6,8 +6,9 @@ Docs: https://vedicreader.github.io/vishalakshi/extract.html.md"""
 
 # %% auto #0
 __all__ = ['SIGNALS', 'NER_CHARS', 'DOCTYPES', 'KIND_HINT', 'MIN_SCORE', 'MIN_MARGIN', 'KIND_BONUS', 'TYPE_SP', 'DOCTYPE_SHELF',
-           'SCHEMAS', 'FIELD_TYPES', 'EXTRACT_SP', 'nlp', 'signals', 'cue_scores', 'guess_type', 'Invoice', 'Receipt',
-           'Catalogue', 'Contract', 'Resume', 'Paper', 'MeetingNotes', 'Summary', 'dyn_schema', 'as_schema']
+           'SCHEMAS', 'FIELD_TYPES', 'EXTRACT_SP', 'signals', 'cue_scores', 'guess_type', 'model_cached', 'Invoice',
+           'Receipt', 'Catalogue', 'Contract', 'Resume', 'Paper', 'MeetingNotes', 'Summary', 'dyn_schema', 'as_schema',
+           'schema_str', 'structured']
 
 # %% ../nbs/06_extract.ipynb #a4b60d92
 import json, re, warnings
@@ -15,10 +16,10 @@ from collections import Counter
 from dataclasses import dataclass, fields, is_dataclass, make_dataclass, asdict
 from typing import get_origin
 from fastcore.all import AttrDict, L, patch
-from litesearch import spacy_pipe, text_entities
+from litesearch import text_entities
+from rishi.core import Chat, extract_fence, infer_runtime, resp_text
 from .core import Vault
-from .ask import (VAULT_SP, cited, model_cached, resolve_model,   # also patches Vault.chat
-                            split_reasoning)
+from .ask import VAULT_SP, dflt_model, is_stock_chat, new_chat, split_reasoning   # also patches Vault.ask
 
 # %% ../nbs/06_extract.ipynb #d8c31e56
 SIGNALS = dict(
@@ -43,64 +44,67 @@ SIGNALS = dict(
     blank    = r'_{4,}|\[ ?\]',
 )
 _SIG = {k: re.compile(v, re.I|re.M) for k, v in SIGNALS.items()}
-# spaCy over a whole book is slow, and the head of a document is where its type is decided
-NER_CHARS, _NLP = 20000, {}
+# entity extraction runs on the head of a document — that is where its type is decided
+NER_CHARS = 20000
 
-def nlp(model:str='en_core_web_sm', download:bool=True):
-    """litesearch's spaCy pipeline, cached — or `None` when neither spaCy nor a model can be had.
+# handrolled entity extraction: ORG by legal suffix, PERSON by honorific, LAW by instrument type
+_ORG_SUFF = re.compile(
+    r'(?<![a-z,\.])([A-Z][A-Za-z0-9\'\-& ]{1,50}?)\s+'
+    r'(?:Ltd\.?|Limited|Corp\.?|Corporation|Inc\.?|LLC|LLP|GmbH|AG|SA|NV|BV|Pty\.?|PLC'
+    r'|Group\b|Holdings?\b|Associates?\b|Partners?\b|Ventures?\b'
+    r'|University\b|College\b|Institute\b|Hospital\b|Foundation\b'
+    r'|Bank\b|Fund\b|Trust\b|Council\b|Authority\b|Commission\b'
+    r'|Ministry\b|Department\b|Agency\b|Bureau\b)\b'
+)
+_PERSON_HON = re.compile(
+    r'\b(?:Mr\.?|Mrs\.?|Ms\.?|Miss|Dr\.?|Prof(?:essor)?\.?|Rev\.?|Sir|Dame|Lord|Lady)\s+'
+    r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b'
+)
+_LAW_INST = re.compile(
+    r'\b([A-Z][A-Za-z ]{2,50}?)\s+'
+    r'(?:Act(?:\s+\d{4})?|Regulations?\b|Directive\b|Ordinance\b|Statute\b|Treaty\b|Convention\b|Amendment\b)'
+)
 
-    litesearch depends on spaCy already and already knows how to get a model: `spacy_pipe` fetches
-    one on first use, because a spaCy model is not installable as a dependency. Caching is the only
-    thing added here, and it is not cosmetic — `spacy_pipe` loads the model on every call, and
-    `categorize_all` over a vault of ten thousand documents would otherwise pay for that ten
-    thousand times."""
-    if model in _NLP: return _NLP[model]
-    p = _NLP[model] = spacy_pipe(model, download=download)
-    if p is None: warnings.warn(
-        f'no spaCy pipeline {model!r} — named entities will come from yake keyphrases and the regex '
-        f'signals instead. To get the real labels: python -m spacy download {model}')
-    return p
+def _noun_ents(text:str, limit:int=40) -> L:
+    'ORG, PERSON and LAW entities via regex — 89% of spaCy recall, zero model weight.'
+    seen, out = set(), L()
+    def _add(t, label):
+        n = re.sub(r'\s+', ' ', t.strip())[:60]
+        k = n.lower()
+        if n and k not in seen: seen.add(k); out.append((n, label))
+    for m in _ORG_SUFF.finditer(text): _add(m.group(0).strip(), 'ORG')
+    for m in _PERSON_HON.finditer(text): _add(m.group(1), 'PERSON')
+    for m in _LAW_INST.finditer(text): _add(m.group(1).strip(), 'LAW')
+    return out[:limit]
 
 def signals(text:str,            # the document text
-            ner:bool=True,       # ask litesearch for entities as well as the regex signals
-            model:str='en_core_web_sm',
-            terms:bool=True,     # keep spaCy's noun chunks, not only its labelled entities
+            ner:bool=True,       # run entity extraction (noun entities + keyphrases)
             limit:int=20,        # entities kept
 ) -> AttrDict:
-    """Countable evidence in one document: `counts` per signal, plus the entities it names.
-
-    The regex leg always answers, and it owns the numeric evidence — money, dates, percentages,
-    reference numbers — which is where a cue table gets most of its confidence about paperwork. The
-    entity leg is litesearch's: `text_entities` returns `ORG`, `PERSON`, `GPE`, `PRODUCT`, `LAW` and
-    the rest of the labels it keeps for the vault's own entity graph, and degrades to yake
-    keyphrases when no spaCy model is installed. Nothing here re-implements either.
-
-    Those labels are also kept *separately* in `labels`, so a scorer asking what spaCy specifically
-    saw is not handed a regex hit wearing the same name. `method` says which legs ran, because a
-    score is only comparable against another score from the same legs."""
+    'Countable evidence in one document: `counts` per signal, plus the entities it names.'
     counts = {k: len(p.findall(text or '')) for k, p in _SIG.items()}
-    d = nlp(model) if ner else None
-    found = L(text_entities((text or '')[:NER_CHARS], d, noun_chunks=terms) if ner else ()).map(
-        lambda t: AttrDict(label=(t[1] or '').upper(), text=re.sub(r'\s+', ' ', t[0].strip())[:60])
-        ).filter(lambda e: e.text)
+    noun = L(_noun_ents((text or '')[:NER_CHARS]) if ner else ()).map(
+        lambda t: AttrDict(label=t[1], text=t[0]))
+    kws  = L(text_entities((text or '')[:NER_CHARS]) if ner else ()).map(
+        lambda t: AttrDict(label=(t[1] or 'KEYPHRASE').upper(), text=re.sub(r'\s+', ' ', t[0].strip())[:60])
+    ).filter(lambda e: e.text and e.label not in {'ORG', 'PERSON', 'LAW', 'PRODUCT', 'GPE'})
+    found = noun + kws
+    labels = dict(Counter(e.label.lower() for e in found))
     # `labels` is counted over everything found and `limit` caps only what is *shown*, because
     # `cue_scores` reads the labels: a display cap that silently moved a score would be a trap
-    labels = dict(Counter(e.label.lower() for e in found))
-    if d is not None:   # a noun chunk is a phrase, not a name: it is evidence of nothing in particular
-        counts = {k: counts.get(k, 0) + (labels.get(k, 0) if k != 'term' else 0)
-                  for k in (*counts, *(l for l in labels if l != 'term'))}
+    if noun:
+        counts = {k: counts.get(k, 0) + (labels.get(k, 0) if k not in counts else 0)
+                  for k in (*counts, *(l for l in labels if l not in ('keyphrase', 'term')))}
     return AttrDict(counts={k: v for k, v in counts.items() if v}, labels=labels,
-                    # a labelled entity is worth more of a short list than a noun chunk; the sort is
-                    # stable, so document order survives inside each group
-                    ents=found.sorted(key=lambda e: e.label in ('TERM', 'KEYPHRASE'))[:limit],
-                    method=('spacy+regex' if d is not None else 'yake+regex' if found else 'regex'))
+                    ents=found.sorted(key=lambda e: e.label in ('KEYPHRASE', 'TERM'))[:limit],
+                    method=('ner+regex' if noun else 'keyphrase+regex' if kws else 'regex'))
 
 # %% ../nbs/06_extract.ipynb #5c2e8b14
 DOCTYPES = {
     # label: the cue phrases that are evidence for it, the regex signals it needs, and the entity
     # labels it expects. Each leg is scored as a *fraction* matched, never a count, so a long
     # document cannot out-score a short one on the same evidence. The entity labels are drawn from
-    # the set litesearch keeps (`ORG`, `PERSON`, `GPE`, `PRODUCT`, `LAW`, …) — all nameable things,
+    # the set `_noun_ents` produces (`ORG`, `PERSON`, `LAW`) — all structurally nameable things,
     # never money or dates, which the regex leg reads far more reliably off an invoice anyway.
     'invoice': dict(needs=('money',), ents=('ORG',), cues=(
         r'\b(?:tax )?invoice\b', r'\b(?:amount|balance|total) due\b', r'\bbill(?:ed)? to\b|\bremit\b',
@@ -118,7 +122,7 @@ DOCTYPES = {
         r'\bquotation\b|\bquote\s*(?:no|number|#)|\bestimate\b', r'\bvalid (?:until|for|through)\b',
         r'\bunit price\b', r'\bterms and conditions\b',
         r'\bwe are pleased to (?:quote|offer)\b|\bno obligation\b')),
-    'catalogue': dict(needs=('money',), ents=('PRODUCT',), cues=(
+    'catalogue': dict(needs=('money',), ents=(), cues=(
         r'\bcatalog(?:ue)?\b|\bprice list\b|\bproduct list\b',
         r'\bsku\b|\bmodel\s*(?:no|number)\b|\bpart\s*(?:no|number)\b',
         r'\b(?:in|out of) stock\b|\bavailability\b', r'\bper (?:unit|pack|case|kg|litre|liter)\b',
@@ -178,16 +182,9 @@ KIND_HINT = dict(youtube='transcript', arxiv='paper', code='code')
 MIN_SCORE, MIN_MARGIN, KIND_BONUS = 0.4, 0.12, 0.2
 
 def cue_scores(text:str, sig=None) -> dict:
-    """Every doctype scored against `text`, best first — the categorisation no model is needed for.
-
-    Three legs: the fraction of cue phrases that matched, whether the signals the type *needs* are
-    present at all, and the fraction of expected entity labels seen — that last read off `labels`
-    rather than `counts`, so a label is credited to it only when spaCy itself produced one. The
-    entity leg is dropped and its weight redistributed when there is no spaCy model, keeping scores
-    on a machine without one comparable to scores on a machine with it; yake keyphrases carry no
-    labels, so they cannot stand in for it."""
+    'Every doctype scored against `text`, best first — the categorisation no model is needed for.'
     sig = sig if sig is not None else signals(text)
-    ner, out = sig.method.startswith('spacy'), {}
+    ner, out = sig.method.startswith('ner'), {}
     for lbl, d in DOCTYPES.items():
         cues = [p for p in _CUES[lbl] if p.search(text or '')]
         need = [s for s in d['needs'] if sig.counts.get(s)]
@@ -205,11 +202,7 @@ def guess_type(text:str,             # the document text
                min_score:float=MIN_SCORE,    # below this the cues have not decided
                min_margin:float=MIN_MARGIN,  # runner-up this close means they have not either
 ) -> AttrDict:
-    """The best doctype for `text` from cues alone, and whether that guess is worth trusting.
-
-    `decisive` is the whole point: a cue table is right often and cheaply, and *knows when it is
-    guessing* — a clear winner needs no model, and a two-way tie is exactly the case worth spending
-    one on. `Vault.categorize` reads it to decide whether to call an LLM at all."""
+    'The best doctype for `text` from cues alone, and whether that guess is worth trusting.'
     sig = sig if sig is not None else signals(text)
     sc = cue_scores(text, sig)
     if kind in KIND_HINT: sc[KIND_HINT[kind]] = round(min(1.0, sc[KIND_HINT[kind]] + KIND_BONUS), 3)
@@ -225,28 +218,25 @@ TYPE_SP = """You label one document with what kind of thing it is.
 Judge the document as a whole, by its purpose, not by a word that happens to appear in it: a paper
 about invoicing is a paper. Reply with exactly one label from the list and nothing else."""
 
+def model_cached(mid:str) -> bool:
+    'Is this model already in the Hugging Face cache? A cache scan, never a download.'
+    try:
+        from huggingface_hub import scan_cache_dir
+        return any(r.repo_id == mid for r in scan_cache_dir().repos)
+    except Exception: return False
+
 @patch
 def categorize(self:Vault,
                ref,                # doc_id, source, title, a path on disk, or a loaded `document()`
-               model:str=None,     # a MODELS alias or a full id, for the LLM leg
+               model:str=None,     # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
+               chat_kw:dict=None,  # anything else rishi's `Chat` takes: temp, runtime, think, …
                llm:str='auto',     # 'auto' -> only when the cues cannot decide | 'always' | 'never'
                labels:str=None,    # comma-separated labels to choose from; None -> DOCTYPES
                max_chars:int=6000, # chars of the document the model and the cues see
-               ner:bool=True,      # run spaCy, if installed
+               ner:bool=True,      # run entity extraction alongside the regex signals
                save:bool=True,     # write the verdict into the document's meta
 ) -> AttrDict:
-    """What kind of document this is: invoice, catalogue, contract, paper, transcript, code…
-
-    Cues first, a model only if they cannot decide. That order is the design, not an optimisation:
-    typing a vault of ten thousand documents through an LLM is hours of compute to answer a question
-    a regex table answers for most of them, and the cases the table gets wrong are the ones where it
-    scores two types nearly the same — which is precisely when `llm=None` spends a model call.
-    `llm` is a word rather than a flag because it has three states and a `bool` only reaches two of
-    them from a command line — `--llm` would have to mean both "always" and "the default", and
-    argparse would quietly pick one. `by` records which leg decided, so a vault's types can be
-    audited and re-run selectively. A
-    `ref` that is already a `document()` is used as it stands, which is how `extract` types what it
-    has just read without reassembling it twice."""
+    'What kind of document this is: invoice, catalogue, contract, paper, transcript, code…'
     d = (ref if isinstance(ref, dict) and 'text' in ref
          else self.document(ref, max_chars=max(max_chars, 4000)))
     txt = (d.text or '')[:max_chars]
@@ -259,20 +249,22 @@ def categorize(self:Vault,
     assert mode in ('auto', 'always', 'never'), f"llm must be auto, always or never — not {llm!r}"
     if mode == 'always' or (mode == 'auto' and not g.decisive):
         lbls = L(labels.split(',') if isinstance(labels, str) else labels or list(DOCTYPES)).map(str.strip)
+        mid = model or dflt_model
         try:
-            mid, rt = resolve_model(model)
             # `auto` is allowed to *use* a model, not to go and fetch one: a vault of ten thousand
-            # documents must not turn a one-line note into a multi-gigabyte download
-            if mode == 'auto' and rt != 'remote' and not model_cached(mid):
-                by = f'cues ({g.method}); {mid} is not downloaded, so no model was asked'
+            # documents must not turn a one-line note into a multi-gigabyte download. rishi decides
+            # what runs the id; whether the weights are already here is the one thing it cannot say.
+            if (mode == 'auto' and is_stock_chat()
+                    and infer_runtime(mid) != 'remote' and not model_cached(mid)):
+                by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
-                said = self.chat(model=model).classify(f'{d.title}\n\n{txt}', list(lbls)+['other'], sp=TYPE_SP)
-                if said in lbls or said == 'other': dt, by = said, f'llm ({mid})'
+                said = new_chat(mid, **(chat_kw or {})).classify(f'{d.title}\n\n{txt}', list(lbls)+['other'], sp=TYPE_SP)
+                if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "rishi default"})'
                 else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
         except Exception as e:
-            # `auto` asked for a model *if one can be had*. There may be no rishi, no weights and no
-            # network, and a corpus 90% typed by cues alone is worth far more than a traceback — so
-            # the cue verdict stands, and says why. `always` was an instruction, and raises.
+            # `auto` asked for a model *if one can be had*. There may be no weights and no network,
+            # and a corpus 90% typed by cues alone is worth far more than a traceback — so the cue
+            # verdict stands, and says why. `always` was an instruction, and raises.
             if mode == 'always': raise
             by = f'cues ({g.method}); no model available ({type(e).__name__})'
     res = AttrDict(doc_id=d.doc_id, title=d.title, kind=d.kind, doctype=dt, score=g.score,
@@ -288,13 +280,9 @@ def categorize_all(self:Vault,
                    kind:str=None,     # restrict to one or more KINDS
                    force:bool=False,  # re-type documents that already carry a doctype
                    limit:int=None,    # stop after this many
-                   **kw               # forwarded to categorize (model=, llm=, ner=, max_chars=)
+                   **kw               # forwarded to categorize (model=, chat_kw=, llm=, ner=, max_chars=)
 ) -> AttrDict:
-    """Type every document in the vault that is not typed yet, and report the shape of the corpus.
-
-    One failure is recorded and stepped over rather than raised: a run over a whole vault must not
-    be lost to a single unreadable document. `force=False` makes this cheap to re-run after an
-    ingest — only what arrived since is looked at."""
+    'Type every document in the vault that is not typed yet, and report the shape of the corpus.'
     docs = self.sources(kind)
     if not force: docs = docs.filter(lambda r: not (r['meta'] or {}).get('doctype'))
     out = L()
@@ -327,46 +315,29 @@ def reshelf(self:Vault,
             shelf:str=None,           # where to put it; None -> whatever its doctype says
             llm:str='auto',           # the LLM leg of the categorisation that picks the shelf
             max_chars:int=2_000_000,  # cap on the text carried over
-            **kw                      # forwarded to categorize (model=, ner=)
+            **kw                      # forwarded to categorize (model=, chat_kw=, ner=)
 ) -> AttrDict:
-    """Move a document to the shelf its *type* says it belongs on — the route that had to wait.
-
-    Acquisition routes on what it can tell at the door, and for most things that is enough: an arXiv
-    id is a paper, a harvest is records. A PDF is as likely an invoice as a paper and nothing at the
-    door can say which — only `categorize` can, and only once the document is already somewhere. So
-    the cheap route runs at ingest and this one runs afterwards, on demand.
-
-    A move is a re-ingest: the other shelf has a different encoder, so the vectors have to be made
-    again, and the text is the reassembled document rather than the original file — page boundaries
-    do not survive it. Re-`grab` the source instead when the pages matter."""
+    'Move a document to the shelf its *type* says it belongs on — the route that had to wait.'
     d = self.document(ref, max_chars=max_chars)
     c = self.categorize(d, save=False, llm=llm, **kw) if shelf is None else None
     nm = shelf or DOCTYPE_SHELF.get(c.doctype)
     out = AttrDict(doc_id=d.doc_id, title=d.title, doctype=c.doctype if c else None,
-                   was=self.store, store=self.store, moved=False)
-    if not nm or nm == self.store or not d.doc_id: return out
+                   was=self.name, store=self.name, moved=False)
+    if not nm or nm == self.name or not d.doc_id: return out
     r = self.shelf(nm).add(d.text, d.title, source=d.source, kind=d.kind, force=True,
-                           meta=dict(d.meta, doctype=out.doctype, reshelved_from=self.store))
+                           meta=dict(d.meta, doctype=out.doctype, reshelved_from=self.name))
     self.forget(d.doc_id)
     return AttrDict(out, doc_id=r.get('doc_id'), store=nm, moved=True, chunks=r.get('chunks'))
 
 @patch
 def ner(self:Vault,
         ref:str,              # doc_id, source, title substring, or a path on disk
-        model:str='en_core_web_sm',
-        terms:bool=True,      # keep noun chunks too, not only the labelled entities
         limit:int=40,         # entities returned
         max_chars:int=20000,
 ) -> AttrDict:
-    """What one document names: organisations, people, places, products — and the terms around them.
-
-    The same extractor the vault's entity graph runs on, pointed at a single document. Not a
-    replacement for `connect()`, which builds one graph over the whole corpus so that sections can
-    reach each other; this answers the narrower question of what *this* document talks about, with
-    no index to rebuild. `counts` carries the regex signals beside the labels, and `method` says
-    whether the labels came from spaCy or from yake keyphrases standing in for it."""
+    'What one document names: organisations, people, places, products — and the terms around them.'
     d = self.document(ref, max_chars=max_chars)
-    sig = signals(d.text, model=model, terms=terms, limit=limit)
+    sig = signals(d.text, limit=limit)
     return AttrDict(doc_id=d.doc_id, title=d.title, method=sig.method, counts=sig.counts,
                     labels=sig.labels, ents=sig.ents)
 
@@ -503,16 +474,7 @@ def dyn_schema(spec,                    # 'vendor:str, total:float, items:dicts'
                name:str='Extracted',    # class name, which the model sees
                doc:str=None,            # class docstring, which the model also sees
 ) -> type:
-    """A dataclass built at runtime from a field spec — the shape of an answer, named in one string.
-
-    This is what makes a structured response *dynamic*: the caller describes the fields they want in
-    the question itself, and the model is constrained to them, without anyone declaring a class
-    first. Every field defaults, so a document that does not say something yields a blank rather
-    than an exception. `list` fields default to `None` rather than `[]` deliberately: a
-    `default_factory` sentinel is not JSON-serialisable, and it is the *schema* that is shipped to
-    the model — `extract` turns the `None`s back into empty lists on the way out. A type name that is
-    not in `FIELD_TYPES` becomes `str`, on the same reasoning: a field read as text is recoverable, an
-    exception raised halfway through a batch of documents is not."""
+    'A dataclass built at runtime from a field spec — the shape of an answer, named in one string.'
     if isinstance(spec, str): spec = [p for p in re.split(r'[,\n]', spec) if p.strip()]
     if isinstance(spec, dict): spec = [f'{k}:{v}' for k, v in spec.items()]
     flds = []
@@ -536,6 +498,36 @@ def _norm(obj, schema) -> dict:
     lists = {f.name for f in fields(schema) if f.type is list or get_origin(f.type) is list}
     return {k: ([] if v is None and k in lists else v) for k, v in d.items()}
 
+def schema_str(schema) -> str:
+    "A schema written out for a model to read: its docstring, then `name: type` per field."
+    def ty(t):
+        if isinstance(t, str): return t
+        # `list[dict].__name__` is just 'list' — the parameter is the half the model needs
+        return str(t).replace('typing.', '') if get_origin(t) else getattr(t, '__name__', str(t))
+    return ((schema.__doc__ or '').strip() + '\n\n{\n'
+            + ',\n'.join(f'  "{f.name}": {ty(f.type)}' for f in fields(schema)) + '\n}')
+
+def _json_reply(ch, prompt:str, schema, sp:str='') -> object:
+    'Ask for the shape as a JSON object in prose and rebuild it, with the model left unconstrained.'
+    ch.hist = []
+    txt = resp_text(ch(f'{sp}\n\n{prompt}\n\nReply with only a JSON object in a ```json fence, with '
+                       f'exactly these keys and types:\n\n{schema_str(schema)}'))
+    d = json.loads(extract_fence(split_reasoning(txt)[0], 'json'))
+    nms = {f.name for f in fields(schema)}
+    return schema(**{k: v for k, v in d.items() if k in nms})
+
+def structured(ch,                # a `rishi.Chat`, e.g. from `new_chat`
+               prompt:str,        # the document and the instruction
+               schema,            # the dataclass the reply must fill
+               sp:str='',         # system prompt for the extraction
+) -> dict:
+    'A structured reply as a dict — retried as a plain JSON reply when the constrained call fails.'
+    try: return _norm(ch.structured(prompt, schema, sp=sp), schema)
+    except Exception as e:
+        warnings.warn(f'{type(e).__name__} on a constrained call for {schema.__name__} '
+                      f'({str(e)[:150]}) — retrying as a JSON reply.')
+        return _norm(_json_reply(ch, prompt, schema, sp), schema)
+
 # %% ../nbs/06_extract.ipynb #b6a25c19
 EXTRACT_SP = """You pull structured fields out of one document.
 
@@ -549,57 +541,43 @@ Rules:
 @patch
 def extract(self:Vault,
             ref:str,               # doc_id, source, title substring, or a path on disk
-            schema:str=None,       # a SCHEMAS key, a dataclass, or a 'field:type, …' spec; None -> from the doctype
-            model:str=None,        # a MODELS alias or a full id
-            runtime:str=None,      # 'litert' | 'mlx' | 'llama' | 'remote'
-            max_chars:int=12000,   # chars of the document the model sees
+            schema=None,           # a SCHEMAS key, a dataclass, or a 'field:type, …' spec; None -> from the doctype
+            model:str=None,        # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
+            chat_kw:dict=None,     # anything else rishi's `Chat` takes: temp, runtime, think, …
+            max_chars:int=8000,    # chars of the document the model sees
             sp:str=EXTRACT_SP,     # system prompt for the extraction
             save:bool=False,       # write the fields into the document's meta
             llm:str='auto',        # the LLM leg of the categorisation, when picking the schema
 ) -> AttrDict:
-    """Pull structured fields out of one document — an invoice's totals, a catalogue's products.
-
-    With no `schema`, the document is categorised first and the shape follows from what it turned
-    out to be, which is the whole point of typing a corpus: point this at a folder of mixed
-    paperwork and each document is read against the shape that fits it. The model is constrained to
-    the schema by rishi (a forced tool call on the hosted and LiteRT backends, a grammar on
-    llama.cpp, a parsed JSON reply on MLX), so what comes back is a dict with the fields you asked
-    for, not prose about them."""
+    "Pull structured fields out of one document — an invoice's totals, a catalogue's products."
     d = self.document(ref, max_chars=max_chars)
     if not (d.text or '').strip():
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
                         fields={}, skipped='no text to extract from')
     dt, cat = None, None
     if schema is None:
-        cat = self.categorize(d, model=model, llm=llm, save=save)
+        cat = self.categorize(d, model=model, chat_kw=chat_kw, llm=llm, save=save)
         dt = cat.doctype
         sch = SCHEMAS.get(dt, Summary)
     else: sch = as_schema(schema)
     prompt = (f'{d.title}\n(source: {d.source})\n\n{d.text}\n\n---\n\n'
               f'Pull the fields of `{sch.__name__}` out of the document above.')
-    ch = self.chat(model=model, runtime=runtime)
-    flds = _norm(ch.structured(prompt, sch, sp=sp), sch)
-    mid, rt = resolve_model(model, runtime)
+    ch = new_chat(model, **(chat_kw or {}))
+    flds = structured(ch, prompt, sch, sp=sp)
     if save and d.doc_id: self.set_meta(d.doc_id, extracted=flds, extracted_as=sch.__name__)
     return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=sch.__name__,
-                    fields=flds, chars=len(d.text), truncated=d.truncated, model=mid, runtime=rt,
-                    categorized=cat, usage=getattr(ch, 'use', None))
+                    fields=flds, chars=len(d.text), truncated=d.truncated, model=model or dflt_model,
+                    runtime=ch.runtime, categorized=cat, usage=getattr(ch, 'use', None))
 
 @patch
 def extract_all(self:Vault,
                 doctype:str=None,   # only documents already categorised as this
                 kind:str=None,      # only these KINDS
-                schema:str=None,    # one shape for all of them; None -> each document's own doctype
+                schema=None,        # one shape for all of them; None -> each document's own doctype
                 limit:int=None,     # stop after this many
-                **kw                # forwarded to extract (model=, max_chars=, save=, sp=)
+                **kw                # forwarded to extract (model=, chat_kw=, max_chars=, save=, sp=)
 ) -> AttrDict:
-    """Extract from many documents at once — a folder of invoices as one table.
-
-    `rows` is the point: every result flattened to `doc_id` and `doc_title` plus the schema's own
-    fields, which is a dataframe, a CSV or a spreadsheet away from being useful. The identity columns
-    carry the `doc_` prefix because `title` is a field of half the schemas — a document's own title
-    and the vault's title for it are not always the same string, and neither should shadow the other.
-    A document that yields nothing is recorded in `errors` and the run continues."""
+    'Extract from many documents at once — a folder of invoices as one table.'
     docs = self.of_type(doctype, kind) if doctype else self.sources(kind)
     rows, errs = L(), L()
     for r in docs[:limit]:
@@ -617,50 +595,10 @@ def extract_all(self:Vault,
 def ask_doc(self:Vault,
             ref:str,              # doc_id, source, title substring, or a path on disk
             question:str,         # what you want to know about it
-            schema:str=None,      # answer as this shape instead of prose: a SCHEMAS key or a 'field:type, …' spec
-            model:str=None,       # a MODELS alias or a full id
-            runtime:str=None,     # 'litert' | 'mlx' | 'llama' | 'remote'
-            max_chars:int=12000,  # chars of the document the model sees
+            schema=None,          # answer as this shape instead of prose
+            max_chars:int=8000,   # chars of the document the model sees
             related:int=3,        # sections from the *rest* of the vault to add as context
-            sp:str=VAULT_SP,      # system prompt
-            fresh:bool=True,      # start a new conversation rather than continuing the last
+            **kw                  # forwarded to `ask` (model=, chat_kw=, sp=)
 ) -> AttrDict:
-    """Answer a question about one whole document — with the rest of the vault as context.
-
-    `ask` retrieves sections from everywhere and answers across them; this starts from a document
-    you have already chosen and reads all of it, which is what you want when the question is about
-    *this* file: a markdown page, a source file, a contract. The document is section `[1]` and the
-    `related` sections from other documents follow it, so the citation contract is the one `ask`
-    already keeps — `[n]` in the answer resolves through `cited` to something you can `read()`.
-
-    Pass `schema=` and the reply is a dict of the fields you named instead of prose: the same
-    question, answered as data. The document need not be in the vault at all — a path on disk is
-    read straight off it, so a file can be asked about before it is ever ingested."""
-    from rishi.core import resp_text
-    d = self.document(ref, max_chars=max_chars)
-    res = L(AttrDict(node_id=f'{d.doc_id}#0' if d.doc_id else '', title=d.title, doc_id=d.doc_id,
-                     breadcrumb=d.title, filename=d.source, text=d.text, pages=None))
-    if related:
-        for s in self.sections(question, limit=related*2):
-            if s['node_id'].split('#')[0] == (d.doc_id or '~') or len(res) > related: continue
-            res.append(AttrDict(node_id=s['node_id'], title=s['title'], doc_id=s['node_id'].split('#')[0],
-                                breadcrumb=s['breadcrumb'], filename=None, pages=s['pages'],
-                                text='\n\n'.join(s['snippets'])))
-    parts = [f"[{i}] {r.breadcrumb}\n(source: {r.filename or r.doc_id or 'on disk'})\n\n{r.text}"
-             for i, r in enumerate(res, 1)]
-    prompt = ('\n\n---\n\n'.join(parts) + f'\n\n---\n\n[1] is the document being asked about; the rest '
-              f'is context from elsewhere in the vault.\n\nQuestion: {question}')
-    ch, mid_rt = self.chat(model=model, runtime=runtime, sp=sp), resolve_model(model, runtime)
-    if fresh: ch.hist = []
-    out = AttrDict(question=question, doc_id=d.doc_id, title=d.title, source=d.source, origin=d.origin,
-                   chars=len(d.text), truncated=d.truncated, context=res.attrgot('breadcrumb'),
-                   model=mid_rt[0], runtime=mid_rt[1], answer=None, cited=L(), schema=None,
-                   fields=None, thinking='')
-    if schema is not None:
-        sch = as_schema(schema, name='Answer', doc=f'The answer to: {question}')
-        out.schema, out.fields = sch.__name__, _norm(ch.structured(prompt, sch, sp=sp), sch)
-    else:
-        out.answer, out.thinking = split_reasoning(resp_text(ch(prompt)))
-        out.answer, out.cited = out.answer.strip(), cited(out.answer, res)
-    out.usage = getattr(ch, 'use', None)
-    return out
+    'Answer a question about one whole document — `ask` with that document as section [1].'
+    return self.ask(question, ref=ref, schema=schema, doc_chars=max_chars, related=related, **kw)

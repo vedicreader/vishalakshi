@@ -17,11 +17,11 @@ from .core import Vault
 from . import acquire, ask, code, extract   # noqa: F401 — these patch the Vault methods the CLI exposes
 
 # %% ../nbs/04_cli.ipynb #11ed4c4a
-CMDS = ('stats find sections context ask explain read related toc map sources doc document shelves '
+CMDS = ('stats search sections context ask explain read related toc map sources doc document shelves '
         'elsewhere '
-        'grab url web crawl arxiv pdf youtube add_file add_dir add_tree note code connect forget '
+        'grab url web crawl arxiv pdf youtube github gh_file add_file add_dir add_tree note code connect forget '
         'apis harvest add_records watch watches unwatch pause poll index_code code_search symbol '
-        'where_to_add grep federate categorize categorize_all doctypes of_type ner reshelf '
+        'where_to_add grep federate drop_shelf categorize categorize_all doctypes of_type ner reshelf '
         'extract '
         'extract_all ask_doc').split()
 
@@ -31,15 +31,19 @@ def vault(path:str=None) -> Vault:
     return Vault(path or os.getenv('VISHALAKSHI_VAULT') or None,
                  offline=bool(os.getenv('VISHALAKSHI_OFFLINE')))
 
-def cmd(name:str, vault_fn=vault):
-    """A `Vault` method as a plain function: `self` and `**kw` dropped, docments kept.
+def _spellable(p) -> bool:
+    'Can this parameter be written on a command line? `self`, `**kw` and callable defaults cannot.'
+    return (p.name != 'self' and p.kind is not Parameter.VAR_KEYWORD
+            and not (p.default is not Parameter.empty and callable(p.default)))
 
-    `__delwrap__` is what makes the second half work — `docments` walks it to find the comments in
-    the original source, so `anno_parser` and MCP both get help text for free."""
+def cmd(name:str, vault_fn=vault):
+    'A `Vault` method as a plain function: `self`, `**kw` and callable arguments dropped, docments kept.'
     f = getattr(Vault, name)
     g = wraps(f)(lambda **kw: getattr(vault_fn(), name)(**kw))
-    ps = [p for p in signature(f).parameters.values()
-          if p.name != 'self' and p.kind is not Parameter.VAR_KEYWORD]
+    # nothing takes a callable default any more — `chat=Chat` was the last, and it is now the
+    # plain `chat_kw` dict. The filter stays as a guard: a callable has no spelling on a command
+    # line or in a JSON tool schema, so one added later must drop off both surfaces, not crash.
+    ps = [p for p in signature(f).parameters.values() if _spellable(p)]
     g.__signature__, g.__delwrap__ = Signature(ps), f
     g.__annotations__ = {p.name: p.annotation for p in ps if p.annotation is not Parameter.empty}
     return g
