@@ -142,4 +142,5 @@ d = { 'settings': { 'branch': 'main',
                                      'vishalakshi.extract.signals': ('extract.html#signals', 'vishalakshi/extract.py'),
                                      'vishalakshi.extract.structured': ('extract.html#structured', 'vishalakshi/extract.py')},
             'vishalakshi.mcp': { 'vishalakshi.mcp.as_tool': ('mcp.html#as_tool', 'vishalakshi/mcp.py'),
-                                 'vishalakshi.mcp.main': ('mcp.html#main', 'vishalakshi/mcp.py')}}}
+                                 'vishalakshi.mcp.main': ('mcp.html#main', 'vishalakshi/mcp.py')},
+            'vishalakshi.skill': {}}}
