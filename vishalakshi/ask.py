@@ -49,7 +49,12 @@ def use_chat(f):
     """Build chats with `f` for the duration, instead of `rishi.Chat`.
 
     The seam the recording harness needs, now that there is no `chat=` argument to swap: the
-    notebooks replay `CachedChat`'s recorded replies through it, with no weights and no network."""
+    notebooks replay `CachedChat`'s recorded replies through it, with no weights and no network.
+
+    Process-global and scoped to a block, which is right for a notebook and wrong for anything
+    long-lived or threaded. A caller that is not a script passes `mk_chat=` to `ask` instead --
+    the same factory contract, one call at a time.
+    """
     global CHAT
     old, CHAT = CHAT, f
     try: yield
@@ -134,10 +139,23 @@ def ask(self:Vault,
         max_chars:int=1500,    # chars of each retrieved section shown to the model
         doc_chars:int=8000,    # chars of `ref`'s documents shown to the model, shared between them
         sp:str=VAULT_SP,       # system prompt
+        mk_chat=None,          # build chats with this instead of `new_chat`; same signature
         **kw                   # forwarded to Vault.context
 ) -> AttrDict:
-    'Answer with citations back into the vault — about the documents `ref` names, when it names any.'
-    mk = lambda: new_chat(model, sp=sp, **(chat_kw or {}))
+    """Answer with citations back into the vault — about the documents `ref` names, when it names any.
+
+    `mk_chat` is how a host that already has a model running lends it to the vault. A chat is
+    built from `model` on every call, and again from scratch if the first prompt overflows the
+    window, so what can be injected is a *factory* and not a chat -- a passed-in conversation
+    would carry the last question's history into this one, and the overflow retry could not
+    rebuild it. The factory takes what `new_chat` takes, so `rishi.Chat`'s own `engine=` is the
+    whole trick: a fresh conversation, on weights that are already in memory, rather than a
+    second copy of the same model loaded underneath the first.
+
+    `use_chat` does the same thing process-wide for the duration of a block, which is what a
+    notebook wants. This is the one an agent wants: per call, and safe from another thread.
+    """
+    mk = lambda: (mk_chat or new_chat)(model, sp=sp, **(chat_kw or {}))
     if ref is None:
         ctx, note, mc = self.context(question, sections=sections, related=related, kind=kind, code=code,
                                      dir=dir, **kw), '', max_chars
@@ -192,10 +210,10 @@ def ask(self:Vault,
 
 @patch
 def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_chars:int=6000,
-            sp:str=VAULT_SP) -> AttrDict:
+            sp:str=VAULT_SP, mk_chat=None) -> AttrDict:
     'Have a model explain one section in the context of what the vault connects it to.'
     sec, rel = self.read(node_id, max_chars=max_chars), self.related(node_id, limit=6)
-    ch = new_chat(model, sp=sp, **(chat_kw or {}))
+    ch = (mk_chat or new_chat)(model, sp=sp, **(chat_kw or {}))
     prompt = (f"Section: {sec.get('title','')}\n\n{sec.get('text','')}\n\nOther sections in the vault "
               f"that read like it:\n" + '\n'.join(f"- {r['breadcrumb']}" for r in rel) +
               "\n\nExplain this section, then say what the related sections add or contradict.")
