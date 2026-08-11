@@ -154,6 +154,11 @@ checklink/cookies.txt
 # local vault + extracted assets
 *.db
 *.usearch
+# ...except the recorded model replies the notebook tests replay in CI. The sqlite side files are
+# transient, so they stay ignored.
+!nbs/chatcache/cache.db
+nbs/chatcache/*.db-wal
+nbs/chatcache/*.db-shm
 pdfs/
 assets/
 .venv/
