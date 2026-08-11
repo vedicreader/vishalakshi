@@ -9,7 +9,7 @@ __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'KIND_SHELF', 'tidy_bc', 
            'Vault', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
 
 # %% ../nbs/00_core.ipynb #57dc1d31
-import json, re, time, uuid, warnings
+import json, os, re, time, uuid, warnings
 from collections import Counter
 import numpy as np
 from fastcore.all import AttrDict, L, Path, first, ifnone, patch
@@ -94,9 +94,12 @@ class Vault(Index):
                  path:str=None,       # vault file; None -> ~/.vishalakshi/vault.db
                  encoder=None,        # an ENCODERS alias, a model id, an mk_encoder() result, or None
                  store:str='store',   # chunk store name
-                 offline:bool=False,  # never attempt a model download
+                 offline:bool=None,   # never attempt a model download; None -> $VISHALAKSHI_OFFLINE
                  dims:int=256,        # dims for the hashing fallback
                  db=None):            # an open litesearch Database to share; shelves pass the vault's
+        # The env var is read here rather than only in the CLI, because a library caller on a
+        # machine with no network is the case it exists for -- and `Vault()` was ignoring it.
+        offline = bool(os.getenv('VISHALAKSHI_OFFLINE')) if offline is None else offline
         self.enc = encoder if _is_enc(encoder) else mk_encoder(encoder, dims=dims, offline=offline)
         super().__init__(ifnone(path, Path.home()/'.vishalakshi'/'vault.db'),
                          encoder=self.enc.model, name=store, db=db)
@@ -366,6 +369,12 @@ def shelf(self:Vault, name:str, encoder:str=None, **kw) -> Vault:
     will warn if it disagrees with what is already on disk.'''
     was = first(self._stores()(where=f'store={name!r}')) or {}
     enc = encoder or was.get('encoder')
+    # Reuse the parent's *live* encoder when the shelf wants the one already loaded -- either
+    # nothing is registered yet, or what is registered is what the parent is holding. Building
+    # it again costs a full model load per shelf, and an application with a shelf per project
+    # pays that for every one of them. It is also what keeps `offline=True` offline: a brand
+    # new shelf used to fall through to the default here and quietly load a real model.
+    if enc is None or enc == self.enc.name: enc = self.enc
     if enc == 'hash': enc, kw = None, dict(kw, offline=True)   # nothing to load; do not try
     return Vault(self.path, encoder=enc, store=name, db=self.db, **kw)
 
