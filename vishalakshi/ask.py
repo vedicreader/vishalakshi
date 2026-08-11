@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from fastcore.all import AttrDict, L, patch
 from rishi.core import Chat, is_ctx_error, resp_text, split_think, thought
 from .core import Vault, tidy_bc
-from .pii import pii_ctx, redact
+from .pii import pii_ctx, pii_report, redact
 
 # %% ../nbs/02_ask.ipynb #1378424c
 VAULT_SP = """You answer questions from a personal research vault.
@@ -153,7 +153,7 @@ def doc_context(self:Vault,
                             breadcrumb=s['breadcrumb'], filename=None, pages=s['pages'],
                             text='\n\n'.join(s['snippets'])))
     return AttrDict(results=res, related=L(), encoder=self.enc.note, doc=docs[0], docs=docs,
-                    note=doc_note(len(docs)))
+                    n_docs=len(docs), note=doc_note(len(docs)))
 
 @patch
 def ask(self:Vault,
@@ -214,7 +214,18 @@ def ask(self:Vault,
     else:
         ctx = self.doc_context(ref, question, related=related, max_chars=doc_chars)
         note, mc = ctx.note, doc_chars
-    report = pii_ctx(ctx) if pii != 'off' else None
+    report = None
+    if pii != 'off':
+        # Filler goes before the gate does. The associative leg, and the sections `doc_context`
+        # puts *behind* the documents actually asked about, are there to suggest somewhere else
+        # to look -- so a private one among them should be dropped, not allowed to make a
+        # question about a perfectly ordinary document into a private question. Nothing that was
+        # asked for is lost this way; only what was volunteered.
+        _priv = lambda r: pii_report(str(getattr(r, 'text', '') or '')).has_pii
+        keep = int(ctx.get('n_docs') or 0)
+        ctx.related = L(r for r in ctx.related if not _priv(r))
+        if keep: ctx.results = L(ctx.results[:keep]) + L(r for r in ctx.results[keep:] if not _priv(r))
+        report = pii_ctx(ctx)
     private = bool(report and report.has_pii)
     if private:
         note = (f"{note}These sections hold personal information ({', '.join(sorted(report.identifying))}). "

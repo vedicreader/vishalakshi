@@ -7,11 +7,11 @@ Docs: https://vedicreader.github.io/vishalakshi/pii.html.md"""
 # %% auto #0
 __all__ = ['MAX_SCAN', 'DENSE', 'PATTERNS', 'IDENTIFYING', 'luhn', 'pii_spans', 'pii_report', 'redact', 'pii_ctx']
 
-# %% ../nbs/09_pii.ipynb #415d50e3
+# %% ../nbs/09_pii.ipynb #d2947634
 import re
 from fastcore.all import AttrDict, L
 
-# %% ../nbs/09_pii.ipynb #19bb0b49
+# %% ../nbs/09_pii.ipynb #f6e67e8b
 #: Bytes of a document worth scanning. PII is not evenly distributed -- a statement's account
 #: number is in its header -- but a scan is linear and a vault holds whole books, so a long
 #: document is sampled at both ends rather than read entire.
@@ -22,7 +22,7 @@ MAX_SCAN = 200_000
 #: tell a signature block apart from a customer list.
 DENSE = 1.0
 
-# %% ../nbs/09_pii.ipynb #0837bbe5
+# %% ../nbs/09_pii.ipynb #372845f0
 def luhn(s:str) -> bool:
     "The check digit every payment card carries. Sixteen digits that fail it are not a card."
     ds = [int(c) for c in s if c.isdigit()]
@@ -60,7 +60,7 @@ def _ssn_ok(s:str) -> bool:
     a, b, c = ds[:3], ds[3:5], ds[5:]
     return a not in ('000', '666') and a[0] != '9' and b != '00' and c != '0000'
 
-# %% ../nbs/09_pii.ipynb #93496e0e
+# %% ../nbs/09_pii.ipynb #42e59a18
 #: kind -> (pattern, validator or None). Order matters only for reporting; spans are
 #: de-overlapped afterwards, longest first, so a card inside a longer digit run wins.
 PATTERNS = {
@@ -97,7 +97,7 @@ IDENTIFYING = frozenset({'email', 'card', 'iban', 'ssn', 'nhs', 'phone', 'dob', 
 
 _COMPILED = {k: (re.compile(p, re.I), v) for k, (p, v) in PATTERNS.items()}
 
-# %% ../nbs/09_pii.ipynb #a8207330
+# %% ../nbs/09_pii.ipynb #d1ff54dc
 def _scan_text(text:str, mx:int=MAX_SCAN) -> str:
     "The part of a long document worth scanning: both ends, since headers and footers carry the identity."
     text = str(text or '')
@@ -132,7 +132,7 @@ def pii_spans(text:str,          # what to scan
         out.append((s, e, kind, val))
     return L(sorted(out))
 
-# %% ../nbs/09_pii.ipynb #4b5e89b5
+# %% ../nbs/09_pii.ipynb #1f8b0234
 def pii_report(text:str,          # what to scan
                kinds=None,        # restrict to these kinds; None -> every pattern
                mx:int=MAX_SCAN,   # chars scanned before a long document is sampled at both ends
@@ -151,7 +151,7 @@ def pii_report(text:str,          # what to scan
     return AttrDict(has_pii=bool(ident), kinds=counts, identifying=ident, n=len(spans),
                     scanned=n, density=round(1000 * len(spans) / max(n, 1), 3), spans=spans)
 
-# %% ../nbs/09_pii.ipynb #f55c8eb5
+# %% ../nbs/09_pii.ipynb #bb39f244
 def redact(text:str,       # the text to mask
            spans=None,     # spans from `pii_spans`; recomputed when None
            kinds=None,     # restrict to these kinds
@@ -168,7 +168,7 @@ def redact(text:str,       # the text to mask
         out = out[:s] + (mask if mask is not None else f'[{kind.upper()}]') + out[e:]
     return out
 
-# %% ../nbs/09_pii.ipynb #e43df094
+# %% ../nbs/09_pii.ipynb #e7e2b7b9
 from .core import Vault
 from fastcore.all import patch
 
