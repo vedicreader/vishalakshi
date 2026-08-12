@@ -75,7 +75,7 @@ FILLER = ("The committee met on Tuesday and reviewed the outstanding items. "
 
 
 def corpus(n=400, seed=0):
-    "`[(text, kinds_present)]` — half carrying real identity, half carrying lookalikes."
+    "`[(text, kinds_present)]`: half carrying real identity, half carrying lookalikes."
     rng, out = random.Random(seed), []
     kinds = list(POSITIVE)
     for i in range(n // 2):

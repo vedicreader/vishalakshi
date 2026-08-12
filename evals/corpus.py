@@ -3,18 +3,18 @@
 Synthetic rather than borrowed, because the labels these questions need are ones no public corpus
 carries: *which documents are noise*, and *which section answers this query*. A generated corpus
 states both by construction, so the generator is the specification of what the noise score is
-meant to find — and getting the generator wrong is the easiest way to prove something false.
+meant to find, and getting the generator wrong is the easiest way to prove something false.
 
 Three populations, and the third exists to catch a specific mistake:
 
-- **content** — prose on one topic, in that topic's vocabulary, each document carrying a handful of
+- **content**: prose on one topic, in that topic's vocabulary, each document carrying a handful of
   rare terms of its own. The rare terms matter: a corpus in which every document draws from the
   same fifteen words has no IDF structure, and any feature that reads term specificity will come
   out of such a corpus looking dead when it is only unexercised.
-- **boiler** — cookie banners, licence blocks, mail footers. Near-identical to one another, present
+- **boiler**: cookie banners, licence blocks, mail footers. Near-identical to one another, present
   both as whole documents and as a tail glued onto content documents, which is how boilerplate
   actually arrives in a vault. Ground truth: noise.
-- **survey** — documents that range across every topic. **Each paragraph is about one topic**, and
+- **survey**: documents that range across every topic. **Each paragraph is about one topic**, and
   that is the whole point of them: a real survey is broad at the document level and specific at
   the paragraph level. Generating them as an even blend of all vocabularies would make them
   generic rather than broad, which is a different object and would rig the experiment they exist
@@ -95,7 +95,7 @@ def _boiler(rng, n=5):
     return ' '.join(ls[:n])
 
 def make(n_content=60, n_boiler=8, n_survey=4, glued=0.4, seed=0):
-    """`[(title, text, is_noise, topic)]` — a corpus that knows which of its documents are noise.
+    """`[(title, text, is_noise, topic)]`: a corpus that knows which of its documents are noise.
 
     `glued` is the fraction of content documents carrying a boilerplate tail. Those are *not*
     labelled noise: the document is good and only part of it is junk. That is the case a
@@ -128,7 +128,7 @@ def build(vault, seed=0, **kw):
     return truth
 
 def queries(n=90, seed=1):
-    """`[(question, topic)]` — known-item queries phrased in one topic's language.
+    """`[(question, topic)]`: known-item queries phrased in one topic's language.
 
     A retrieved section counts as relevant when its document is on the query's topic. Coarse, but
     true by construction, which is exactly what a citation log is not.
@@ -143,10 +143,10 @@ def queries(n=90, seed=1):
 
 
 def known_item(n=90, seed=1, **kw):
-    """`[(query, gold_doc_title, topic)]` — each query is answerable by exactly one document.
+    """`[(query, gold_doc_title, topic)]`: each query is answerable by exactly one document.
 
     The other query set, `queries`, marks a whole topic relevant. That measures the regime where
-    you keep coming back to the same material, and it is the regime the Beta prior is built for —
+    you keep coming back to the same material, and it is the regime the Beta prior is built for:
     but it is also a regime in which a model can score well by memorising which six topics exist.
     Known-item is the opposite case and the harder one: the gold document is different for every
     query, so nothing document-level transfers from training to test, and a ranker has to have

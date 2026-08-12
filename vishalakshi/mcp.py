@@ -18,7 +18,7 @@ try: from mcp.server.mcpserver import MCPServer
 except ImportError:
     try: from mcp.server.fastmcp import FastMCP as MCPServer
     except ImportError as e:
-        raise ImportError('vishalakshi-mcp needs the `mcp` package — `pip install mcp`') from e
+        raise ImportError('vishalakshi-mcp needs the `mcp` package: `pip install mcp`') from e
 
 # %% ../nbs/05_mcp.ipynb #fad2b047
 TOOLS = ('stats search sections context ask read related toc map topic_tree sources document shelves elsewhere grab url '
@@ -30,7 +30,7 @@ TOOLS = ('stats search sections context ask read related toc map topic_tree sour
 
 mcp = MCPServer('vishalakshi', instructions=(
     'A personal research vault: web pages, papers, transcripts, files, code and notes in one '
-    'searchable corpus. `context` is the main tool — it returns whole sections plus what they '
+    'searchable corpus. `context` is the main tool: it returns whole sections plus what they '
     'connect to, which is what you want before answering a question. `search` locates things, '
     '`read` pulls one section in full, `related` answers "what else reads like this". `grab` '
     'files anything you point it at; `note` writes your own conclusions back so they are searched '
@@ -41,8 +41,8 @@ mcp = MCPServer('vishalakshi', instructions=(
     'it.\n\n'
     'For one document rather than the corpus: `document` returns the whole of it, `categorize` says '
     'what kind of thing it is (invoice, catalogue, contract, paper, …), `extract` pulls its fields '
-    'out against a schema — a name like `invoice`, or a spec like `vendor:str, total:float` you '
-    'make up on the spot — and `ask_doc` answers a question about that document with the rest of '
+    'out against a schema (a name like `invoice`, or a spec like `vendor:str, total:float` you '
+    'make up on the spot), and `ask_doc` answers a question about that document with the rest of '
     'the vault as context, as prose or as a shape you name. `extract_all` does it across every '
     'document of one type, which is how a folder of invoices becomes a table.\n\n'
     'Judgement loop: `suggest_noisy` ranks junk and `mark_noisy` / `accept_noisy` exclude it from '

@@ -145,7 +145,7 @@ def redact_obj(o, kinds=None):
 
 @patch
 def pii(self:Vault,
-        ref,                 # a doc_id, source, title or path -- whatever `document` takes
+        ref,                 # a doc_id, source, title or path: whatever `document` takes
         max_chars:int=MAX_SCAN,
 ) -> AttrDict:
     "Whether one whole document is somebody's business, and what in it says so."
@@ -171,7 +171,7 @@ def mark_pii(self:Vault, ref, force:bool=True, reason:str='') -> dict:
                      pii_reason=(reason or None) if force else None)
 
 def pii_ctx(ctx) -> AttrDict:
-    "The report for an assembled context -- which is what a policy has to gate on."
+    "The report for an assembled context, which is what a policy has to gate on."
     parts = [str(getattr(r, 'text', None) or (r.get('text') if isinstance(r, dict) else '') or '')
              for r in (list(ctx.get('results') or []) + list(ctx.get('related') or []))]
     return pii_report('\n\n'.join(parts))

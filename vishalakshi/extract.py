@@ -25,7 +25,7 @@ from .pii import pii_report, redact, redact_obj
 
 # %% ../nbs/06_extract.ipynb #d8c31e56
 SIGNALS = dict(
-    # what a document *contains*, as cheaply as a regex can tell — the evidence a type is scored on
+    # what a document *contains*, as cheaply as a regex can tell: the evidence a type is scored on
     money    = r'[$€£¥₹]\s?\d[\d,]*(?:\.\d+)?|\b\d[\d,]*\.\d{2}\s?(?:usd|eur|gbp|inr|jpy|cad|aud)\b'
                r'|\b(?:usd|eur|gbp|inr|jpy|cad|aud)\s?\d[\d,]*',
     date     = r'\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b'
@@ -46,7 +46,7 @@ SIGNALS = dict(
     blank    = r'_{4,}|\[ ?\]',
 )
 _SIG = {k: re.compile(v, re.I|re.M) for k, v in SIGNALS.items()}
-# entity extraction runs on the head of a document — that is where its type is decided
+# entity extraction runs on the head of a document: that is where its type is decided
 NER_CHARS = 20000
 
 # handrolled entity extraction: ORG by legal suffix, PERSON by honorific, LAW by instrument type
@@ -68,7 +68,7 @@ _LAW_INST = re.compile(
 )
 
 def _noun_ents(text:str, limit:int=40) -> L:
-    'ORG, PERSON and LAW entities via regex — 89% of spaCy recall, zero model weight.'
+    'ORG, PERSON and LAW entities via regex: 89% of spaCy recall, zero model weight.'
     seen, out = set(), L()
     def _add(t, label):
         n = re.sub(r'\s+', ' ', t.strip())[:60]
@@ -237,7 +237,7 @@ KIND_HINT = dict(youtube='transcript', arxiv='paper', code='code')
 MIN_SCORE, MIN_MARGIN, KIND_BONUS = 0.4, 0.12, 0.2
 
 def cue_scores(text:str, sig=None) -> dict:
-    'Every doctype scored against `text`, best first — the categorisation no model is needed for.'
+    'Every doctype scored against `text`, best first: the categorisation no model is needed for.'
     sig = sig if sig is not None else signals(text)
     ner, out = sig.method.startswith('ner'), {}
     for lbl, d in DOCTYPES.items():
@@ -301,7 +301,7 @@ def categorize(self:Vault,
     g = guess_type(txt, sig, kind=d.kind)
     dt, by = g.doctype, f'cues ({g.method})'
     mode = {True: 'always', False: 'never', None: 'auto'}.get(llm, str(llm).lower())
-    assert mode in ('auto', 'always', 'never'), f"llm must be auto, always or never — not {llm!r}"
+    assert mode in ('auto', 'always', 'never'), f"llm must be auto, always or never, not {llm!r}"
     if mode == 'always' or (mode == 'auto' and not g.decisive):
         lbls = L(labels.split(',') if isinstance(labels, str) else labels or list(DOCTYPES)).map(str.strip)
         mid = model or dflt_model
@@ -316,7 +316,7 @@ def categorize(self:Vault,
                 else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
         except Exception as e:
             # There may be no weights and no network, and a corpus 90% typed by cues alone is
-            # worth far more than a traceback — so the cue verdict stands, and says why
+            # worth far more than a traceback, so the cue verdict stands, and says why
             if mode == 'always': raise
             by = f'cues ({g.method}); no model available ({type(e).__name__})'
     res = AttrDict(doc_id=d.doc_id, title=d.title, kind=d.kind, doctype=dt, score=g.score,
@@ -348,7 +348,7 @@ def categorize_all(self:Vault,
 
 @patch
 def doctypes(self:Vault, kind:str=None) -> dict:
-    'How many documents of each type the vault holds — `untyped` counts the ones never categorised.'
+    'How many documents of each type the vault holds. `untyped` counts the ones never categorised.'
     c = Counter((r['meta'] or {}).get('doctype') or 'untyped' for r in self.sources(kind))
     return dict(c.most_common())
 
@@ -357,7 +357,7 @@ def of_type(self:Vault, doctype:str, kind:str=None) -> L:
     'Every document categorised as `doctype`, newest first.'
     return self.sources(kind).filter(lambda r: (r['meta'] or {}).get('doctype') == doctype)
 
-# What a document turned out to *be* — as opposed to how it arrived, which is what
+# What a document turned out to *be*, as opposed to how it arrived, which is what
 # `KIND_SHELF` covers
 DOCTYPE_SHELF = {'paper': 'papers', 'code': 'code', 'catalogue': 'data'}
 
@@ -369,7 +369,7 @@ def reshelf(self:Vault,
             max_chars:int=2_000_000,  # cap on the text carried over
             **kw                      # forwarded to categorize (model=, chat_kw=, ner=)
 ) -> AttrDict:
-    'Move a document to the shelf its *type* says it belongs on — the route that had to wait.'
+    'Move a document to the shelf its *type* says it belongs on: the route that had to wait.'
     d = self.document(ref, max_chars=max_chars)
     c = self.categorize(d, save=False, llm=llm, **kw) if shelf is None else None
     nm = shelf or DOCTYPE_SHELF.get(c.doctype)
@@ -387,7 +387,7 @@ def ner(self:Vault,
         limit:int=40,         # entities returned
         max_chars:int=20000,
 ) -> AttrDict:
-    'What one document names: organisations, people, places, products — and the terms around them.'
+    'What one document names: organisations, people, places, products, and the terms around them.'
     d = self.document(ref, max_chars=max_chars)
     sig = signals(d.text, limit=limit)
     return AttrDict(doc_id=d.doc_id, title=d.title, method=sig.method, counts=sig.counts,
@@ -527,7 +527,7 @@ def dyn_schema(spec,                    # 'vendor:str, total:float, items:dicts'
                name:str='Extracted',    # class name, which the model sees
                doc:str=None,            # class docstring, which the model also sees
 ) -> type:
-    'A dataclass built at runtime from a field spec — the shape of an answer, named in one string.'
+    'A dataclass built at runtime from a field spec: the shape of an answer, named in one string.'
     if isinstance(spec, str): spec = [p for p in re.split(r'[,\n]', spec) if p.strip()]
     if isinstance(spec, dict): spec = [f'{k}:{v}' for k, v in spec.items()]
     flds = []
@@ -555,7 +555,7 @@ def schema_str(schema) -> str:
     "A schema written out for a model to read: its docstring, then `name: type` per field."
     def ty(t):
         if isinstance(t, str): return t
-        # `list[dict].__name__` is just 'list' — the parameter is the half the model needs
+        # `list[dict].__name__` is just 'list'; the parameter is the half the model needs
         return str(t).replace('typing.', '') if get_origin(t) else getattr(t, '__name__', str(t))
     return ((schema.__doc__ or '').strip() + '\n\n{\n'
             + ',\n'.join(f'  "{f.name}": {ty(f.type)}' for f in fields(schema)) + '\n}')
@@ -574,11 +574,11 @@ def structured(ch,                # a `rishi.Chat`, e.g. from `new_chat`
                schema,            # the dataclass the reply must fill
                sp:str='',         # system prompt for the extraction
 ) -> dict:
-    'A structured reply as a dict — retried as a plain JSON reply when the constrained call fails.'
+    'A structured reply as a dict, retried as a plain JSON reply when the constrained call fails.'
     try: return _norm(ch.structured(prompt, schema, sp=sp), schema)
     except Exception as e:
         warnings.warn(f'{type(e).__name__} on a constrained call for {schema.__name__} '
-                      f'({str(e)[:150]}) — retrying as a JSON reply.')
+                      f'({str(e)[:150]}); retrying as a JSON reply.')
         return _norm(_json_reply(ch, prompt, schema, sp), schema)
 
 # %% ../nbs/06_extract.ipynb #b6a25c19
@@ -601,10 +601,10 @@ def extract(self:Vault,
             sp:str=EXTRACT_SP,     # system prompt for the extraction
             save:bool=False,       # write the fields into the document's meta
             llm:str='auto',        # the LLM leg of the categorisation, when picking the schema
-            pii:str='local',       # local|redact|refuse|off — same contract as `ask`
+            pii:str='local',       # local|redact|refuse|off; same contract as `ask`
             pii_model:str=None,    # local model when private; None -> $VISHALAKSHI_PII_MODEL
 ) -> AttrDict:
-    "Pull structured fields out of one document — an invoice's totals, a catalogue's products."
+    "Pull structured fields out of one document: an invoice's totals, a catalogue's products."
     d = self.document(ref, max_chars=max_chars)
     if not (d.text or '').strip():
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
@@ -646,7 +646,7 @@ def extract_all(self:Vault,
                 limit:int=None,     # stop after this many
                 **kw                # forwarded to extract (model=, chat_kw=, max_chars=, save=, sp=)
 ) -> AttrDict:
-    'Extract from many documents at once — a folder of invoices as one table.'
+    'Extract from many documents at once: a folder of invoices as one table.'
     docs = self.of_type(doctype, kind) if doctype else self.sources(kind)
     rows, errs = L(), L()
     for r in docs[:limit]:
@@ -669,5 +669,5 @@ def ask_doc(self:Vault,
             related:int=3,        # sections from the *rest* of the vault to add as context
             **kw                  # forwarded to `ask` (model=, chat_kw=, sp=)
 ) -> AttrDict:
-    'Answer a question about one whole document — `ask` with that document as section [1].'
+    'Answer a question about one whole document: `ask` with that document as section [1].'
     return self.ask(question, ref=ref, schema=schema, doc_chars=max_chars, related=related, **kw)

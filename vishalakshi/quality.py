@@ -130,7 +130,7 @@ NOISE_FEATURES = ('hub', 'dup_out', 'off_centre', 'spread_chunk', 'spread_doc', 
                   'redundancy', 'short', 'promiscuity')
 
 #: The default blend, set from the per-feature AUCs in `evals/noise.py` rather than by taste.
-#: `spread_doc` is zero because it was measured at 0.54 -- a coin -- and what little it does say
+#: `spread_doc` is zero because it was measured at 0.54 (a coin) and what little it does say
 #: points at the surveys. Treat all of these as a starting position: the blend swings between
 #: 0.45 and 0.93 AUC across generated corpora, which is the argument for `fit_noise` over any
 #: fixed set of numbers, including these.
@@ -317,14 +317,14 @@ def noise_scores(self:Vault, weights:dict=None, ranker=None, **kw) -> L:
 @patch
 def suggest_noisy(self:Vault, k:int=20, min_score:float=1.0, **kw) -> L:
     "The `k` documents most worth looking at, excluding ones already judged for noise."
-    # only `noisy` judgments count — a `mark_not_pii` row must not hide a footer from review
+    # only `noisy` judgments count: a `mark_not_pii` row must not hide a footer from review
     judged = {r['doc_id'] for r in self._marks()(where=f'store={self.name!r} AND noisy IS NOT NULL')}
     return self.noise_scores(ranker=self._noise_rk(), **kw).filter(
         lambda r: r.score >= min_score and r.doc_id not in judged)[:k]
 
 @patch
 def mark_noisy_many(self:Vault, refs, noisy:bool=True, reason:str='') -> L:
-    "Mark many documents at once — the accept step after `suggest_noisy`."
+    "Mark many documents at once: the accept step after `suggest_noisy`."
     return L(refs).map(lambda r: self.mark_noisy(getattr(r, 'doc_id', r), noisy=noisy, reason=reason))
 
 @patch

@@ -1,4 +1,4 @@
-"""pull the web, papers, video, files, code and JSON APIs into the vault — once, or on a schedule
+"""pull the web, papers, video, files, code and JSON APIs into the vault, once or on a schedule
 
 Docs: https://vedicreader.github.io/vishalakshi/acquire.html.md"""
 
@@ -21,7 +21,7 @@ def clip(s:str, n:int=120) -> str:
     return re.sub(r'\s+', ' ', (s or '').strip())[:n] or 'untitled'
 
 def md_title(md:str, fallback:str='') -> str:
-    "First markdown heading in `md`, else `fallback` — scraped <title>s are often junk."
+    "First markdown heading in `md`, else `fallback`: scraped <title>s are often junk."
     m = re.search(r'^#{1,2} +(.+)$', md or '', flags=re.M)
     return clip(m.group(1) if m else fallback)
 
@@ -152,7 +152,7 @@ def grab(self:Vault,
          max_pages:int=10,  # pages to visit when crawling
          **kw               # forwarded to whichever method the target names
 ):
-    'File anything, by looking at what it is — the one call a CLI or an agent needs.'
+    'File anything, by looking at what it is: the one call a CLI or an agent needs.'
     kind = what_is(target)
     v = self.shelf(shelf) if shelf else self.route(kind)
     if crawl:              return v.crawl(target, max_pages=max_pages, sel=sel, **kw)
@@ -177,7 +177,7 @@ def add_tree(self:Vault,
              types:str=DOC_EXTS,     # extensions filed into the vault as prose
              code:bool=True,         # index source files with kosha, when the tree has any
              kind:str=None,          # override the kind for the prose half
-             connect:bool=False,     # rebuild the entity graph at the end — see below
+             connect:bool=False,     # rebuild the entity graph at the end; see below
              verbose:bool=False,
              **kw                    # forwarded to add_file
 ) -> AttrDict:
@@ -191,7 +191,7 @@ def add_tree(self:Vault,
         try: out.code = self.index_code(p, verbose=verbose)
         except Exception as e:
             warnings.warn(f'could not index {len(srcs)} source files with kosha '
-                          f'({type(e).__name__}: {str(e)[:120]}) — filing them as prose instead, so '
+                          f'({type(e).__name__}: {str(e)[:120]}); filing them as prose instead, so '
                           f'they are at least searchable. Install kosha for symbol search.')
             out.code = dict(error=f'{type(e).__name__}: {str(e)[:200]}', filed_as_prose=len(srcs))
             out.docs = docs + srcs.map(self.add_file, kind='code', **kw)
@@ -285,7 +285,7 @@ def _w(self:Vault):
 @patch
 def watch(self:Vault,
           target:str,         # URL, query, arXiv id, or the text of a reminder
-          action:str='url',   # one of ACTIONS — what to do when it fires
+          action:str='url',   # one of ACTIONS: what to do when it fires
           every:str='1d',     # interval: '30m', '6h', '1d', '1w', or seconds
           note:str=None,      # why you are watching
           start:float=None,   # first run time (epoch); defaults to now

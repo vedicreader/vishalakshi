@@ -232,7 +232,7 @@ CONCLUSION: recommend approving the Line 3 investment case.""", 'report'),
 
 
 def corpus(n_each=12, seed=0):
-    "`[(text, doctype)]` — templated documents with the type known by construction."
+    "`[(text, doctype)]`: templated documents with the type known by construction."
     rng, out = random.Random(seed), []
     for t, body in TEMPLATES.items():
         for i in range(n_each):
