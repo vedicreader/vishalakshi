@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.3
+pii addition
+
 ## Unreleased
 
 **`vishalakshi.pii`** — whether a document is somebody's business, decided by arithmetic. Patterns

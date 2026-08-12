@@ -34,7 +34,7 @@ v.note('federate fuses the legs by rank because they share no vector space: the 
        'prose, kosha embeds identifiers, ripgrep embeds nothing.', tags=['retrieval', 'design'])
 ```
 
-    {'doc_id': '70be58b567298ed0',
+    {'doc_id': '72a08ba6ff19470a',
      'title': 'federate fuses the legs by rank because they share no vector space: the vault em',
      'kind': 'note',
      'nodes': 2,
@@ -49,8 +49,7 @@ v.pdf('https://arxiv.org/pdf/1706.03762',                  # and the full paper,
       title='Attention Is All You Need')
 ```
 
-    [2026-08-12 10:59:13] INFO: Fetched (200) <GET https://arxiv.org/pdf/1706.03762v7> (referer: https://www.google.com/)
-    [2026-08-12 10:59:14] INFO: Fetched (200) <GET https://arxiv.org/pdf/1706.03762> (referer: https://www.google.com/)
+    [2026-08-12 11:16:48] INFO: Fetched (200) <GET https://arxiv.org/pdf/1706.03762> (referer: https://www.google.com/)
     Dictionary used where Stream expected, treating as empty stream
     Dictionary used where Stream expected, treating as empty stream
     Dictionary used where Stream expected, treating as empty stream
@@ -81,7 +80,7 @@ print(r.answer)
 ```
 
     litert/litert-community/gemma-4-E2B-it-litert-lm · litert
-    The vault fuses rankings instead of distances because the legs share no vector space [3]. Specifically, the vault embeds prose, kosha embeds identifiers, and ripgrep embeds nothing [3]. This mechanism is used in Reciprocal Rank Fusion (RRF) because it only requires each leg's ordering, which is what survives a change in the encoder [2].
+    The provided sections indicate that the reason for fusing rankings instead of distances is that the legs share no vector space [2]. This is because the vault embeds prose, kosha embeds identifiers, and ripgrep embeds nothing [2]. Reciprocal Rank Fusion needs only each leg's ordering, which is what survives a change of encoder [2].
 
 Every `[n]` in the answer resolves to a `node_id` you can read. That round trip is the point: a claim you can check against the text it came from.
 
@@ -91,20 +90,13 @@ print()
 print(v.read(r.cited[0]['node_id'])['text'][:400])   # the exact text behind the claim
 ```
 
-    3 index › The loop
     2 03 code › Fusing legs that share no vector space
 
-    Everything in this section runs. The corpus is this repository's own documentation and source, so
-    the page is reproducible from a clone, and the vault is a throwaway file rather than your real one.
-    `Vault()` with no argument uses `~/.vishalakshi/vault.db`.
-
-    from tempfile import mkdtemp
-    from vishalakshi import Vault
-
-    v = Vault(Path(mkdtemp())/'vault.db')
-    v.enc.note
-
-    Ingestion is one call. `add` tak
+    The vault embeds prose, kosha embeds identifiers, ripgrep embeds nothing, so the legs cannot be
+    merged by distance. Reciprocal Rank Fusion needs only each leg's *ordering* — which is exactly
+    what survives a change of encoder — and it is the same mechanism litesearch already uses to
+    combine FTS with vectors. Each leg is tried independently: `legs` reports what each contributed,
+    or why it did not.
 
 ## When the answer would leave the machine
 
@@ -145,8 +137,8 @@ print(r.answer)
 ```
 
     litert · litert/litert-community/gemma-4-E2B-it-litert-lm
-    I am holding back the specific personal details found in the documents.
-    The documents contain information related to an invoice details.
+    I am holding back the specific personal details because I cannot reproduce them.
+    The document is an invoice.
 
 The check is on the chat object after it is built, so a caller that *lends* a hosted chat — by
 mistake, by a stale config — is refused rather than trusted, and nothing is sent. The other three
@@ -201,10 +193,10 @@ v.stats()
 
     {'docs': 18,
      'nodes': 161,
-     'chunks': 816,
+     'chunks': 817,
      'encoder': 'model2vec',
      'entities': 0,
-     'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmpg78t1dvo/vault.db',
+     'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmpv1o2urwb/vault.db',
      'by_kind': {'notebook': 11,
       'md': 3,
       'txt': 1,
@@ -228,7 +220,7 @@ free, so what you concluded about a corpus comes back next to the evidence you c
 L(v.sources()).map(lambda d: (d['kind'], d['title'], d['source']))[:6]
 ```
 
-    [('file', 'invoice 4471', '/inbox/4471.md'), ('pdf', 'Attention Is All You Need', 'https://arxiv.org/pdf/1706.03762'), ('md', 'CHANGELOG', '../CHANGELOG.md'), ('md', 'README', '../README.md'), ('notebook', '00 core', '../nbs/00_core.ipynb'), ('notebook', '01 acquire', '../nbs/01_acquire.ipynb')]
+    [('file', 'invoice 4471', '/inbox/4471.md'), ('pdf', 'Attention Is All You Need', 'https://arxiv.org/pdf/1706.03762'), ('note', 'federate fuses the legs by rank because they share no vector space: the vault em', 'note:c63bff170d37'), ('md', 'CHANGELOG', '../CHANGELOG.md'), ('md', 'README', '../README.md'), ('notebook', '00 core', '../nbs/00_core.ipynb')]
 
 ## When the graph and the clusters pay off
 
@@ -253,43 +245,42 @@ Three queries and no clustering: `connect()` already persisted the topic nodes, 
 the mentions back onto documents.
 
 ``` python
-# n_workers=0 keeps this serial. The pool forks, and forking a notebook kernel on macOS fails
-# intermittently — as a swallowed BrokenProcessPool, surfacing as a TypeError from `zip`. Over a
-# vault this size it is ~2s either way; pass `n_workers=None` to let it decide.
 v.connect(n_workers=0)
 ```
 
-    {'entities': 4508,
-     'mentions': 8661,
-     'edges': 2252,
+    {'entities': 4513,
+     'mentions': 8676,
+     'edges': 2264,
      'windows': 2753,
-     'resolved': {'merged': 1239,
-      'by_ann': 676,
-      'by_lexical': 563,
-      'edges': 1901,
-      'entities': 4508,
-      'resolvable': 4508,
+     'resolved': {'merged': 1244,
+      'by_ann': 678,
+      'by_lexical': 566,
+      'edges': 1912,
+      'entities': 4513,
+      'resolvable': 4513,
       'canonical': 3269},
-     'topics': 167,
+     'topics': 161,
      'method': 'knn'}
 
 ``` python
 v.show_topics(limit=5, docs=3)      # v.topic_tree() returns the same thing as data
 ```
 
-    ents, cues, needs, org                       (8 chunks, 1 docs)
+    cues, ents, needs, org                       (8 chunks, 1 docs)
       `- 06 extract                                  8
-    cited, node_id, breadcrumb, exact            (8 chunks, 5 docs)
-      |- 02 ask                                      4
-      |- index                                       1
-      `- README                                      1
-    save, doctype, schema, doc_id                (8 chunks, 1 docs)
+    blob, github, https, url                     (8 chunks, 3 docs)
+      |- 01 acquire                                  6
+      |- README                                      1
+      `- SKILL                                       1
+    schema, as_schema, dataclass, float          (8 chunks, 2 docs)
+      |- 06 extract                                  6
+      `- 02 ask                                      2
+    ast, loading, appends, index_code            (8 chunks, 5 docs)
+      |- SKILL                                       3
+      |- 01 acquire                                  2
+      `- index                                       1
+    doctype, save, schema, doc_id                (8 chunks, 1 docs)
       `- 06 extract                                  8
-    desc, delete_where, docs, self               (8 chunks, 1 docs)
-      `- 00 core                                     8
-    youtube, ghfile, url, target                 (8 chunks, 2 docs)
-      |- 01 acquire                                  7
-      `- 08 skill                                    1
 
 ## What each document is, and what is inside it
 
@@ -470,15 +461,13 @@ markdown page or a source file gets asked about before it is ever ingested.
 REFS = ['../vishalakshi/extract.py', '../vishalakshi/core.py']   # files on disk, never ingested
 Q = 'what does extract.py do that core.py does not?'
 
-a = v.ask_doc(REFS, Q,model=gemma4_e4b,chat_kw=dict(backend=Backend.GPU()))                                   # the default local model: 4000 chars a file
+a = v.ask_doc(REFS, Q,model=gemma4_e4b,chat_kw=dict(backend=Backend.GPU())) # the default local model: 4000 chars a file
 print(a.answer)
 # ...and with room for both files, which is what the comparison actually needs:
 # v.ask_doc(REFS, Q, doc_chars=60000, model='gpt-5.6-luna')
 ```
 
-    `extract.py` defines what a document is, the fields inside it, and an answer over the whole of it [1]. It contains definitions for various document types such as `Invoice`, `Receipt`, `Catalogue`, ` `Contract`, ` ` `Resume`, ` `Paper`, ` `MeetingNotes`, and `Summary` [1].
-
-    The `core.py
+    `extract.py` defines what a document is, the fields inside it, and an answer over the whole of it [1]. It contains definitions for various document types such as `Invoice`, `Receipt`, `Catalogue`,`,`, `Contract`,`, `
 
 And the same question answered as data instead of prose. `schema=` turns any question into a structured response, built at the moment you ask it.
 
@@ -487,13 +476,13 @@ v.ask_doc('/inbox/acme-0117.md', 'what is owed, to whom, and by when?', model=ge
           schema='amount:float, currency:str, owed_to:str, due:str').fields
 ```
 
-    /Users/71293/code/personal/orgs/vishalakshi/vishalakshi/extract.py:527: UserWarning: ValueError on a constrained call for Answer (model neither called the tool nor returned JSON; reply: 'The total amount owed is **$180.00** [1]. This is owed to **Acme Supplies Ltd** [1, 4]. The p) — retrying as a JSON reply.
+    /Users/71293/code/personal/orgs/vishalakshi/vishalakshi/extract.py:584: UserWarning: ValueError on a constrained call for Answer (model neither called the tool nor returned JSON; reply: 'The total due is **$180.00** [1]. It is owed to **Acme Supplies Ltd** [1], and the payment te) — retrying as a JSON reply.
       warnings.warn(f'{type(e).__name__} on a constrained call for {schema.__name__} '
 
     {'amount': 180.0,
      'currency': 'USD',
-     'owed_to': 'Acme Supplies Ltd',
-     'due': 'Net 30'}
+     'owed_to': 'Contoso GmbH',
+     'due': '2024-04-01'}
 
 ## Code, and the two indexes over one tree
 
@@ -509,9 +498,45 @@ question about late chunking pays nothing for a leg it has no use for.
 m=v.index_code('..')                              # this repo; env=True also indexes installed packages
 ```
 
-    █ |----------------------------------------| 0.00% [0/3 00:00<?]█ |----------------------------------------| 0.00% [0/1 00:00<?] |████████████████████████████████████████| 100.00% [1/1 00:00<00:00]                                                                      |█████████████---------------------------| 33.33% [1/3 00:00<00:00] |██████████████████████████--------------| 66.67% [2/3 00:00<00:00] |████████████████████████████████████████| 100.00% [3/3 00:00<00:00]                                                                     
+    parse files from ..: 100%|██████████| 9/9 [00:00<00:00, 50.10it/s]
 
-    parse files from ..:   0%|          | 0/8 [00:00<?, ?it/s]parse files from ..:  25%|##5       | 2/8 [00:00<00:00, 10.76it/s]parse files from ..: 100%|##########| 8/8 [00:00<00:00, 34.50it/s]
+<style>
+    progress { appearance: none; border: none; border-radius: 4px; width: 300px;
+        height: 20px; vertical-align: middle; background: #e0e0e0; }
+&#10;    progress::-webkit-progress-bar { background: #e0e0e0; border-radius: 4px; }
+    progress::-webkit-progress-value { background: #2196F3; border-radius: 4px; }
+    progress::-moz-progress-bar { background: #2196F3; border-radius: 4px; }
+&#10;    progress:not([value]) {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px); }
+&#10;    progress.progress-bar-interrupted::-webkit-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-webkit-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted { background: #F44336; }    
+&#10;    table.fastprogress { border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
+    table.fastprogress th, table.fastprogress td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
+    table.fastprogress thead tr { background: #f8f9fa; font-weight: bold; }
+    table.fastprogress tbody tr:nth-of-type(even) { background: #f8f9fa; }
+</style>
+
+<style>
+    progress { appearance: none; border: none; border-radius: 4px; width: 300px;
+        height: 20px; vertical-align: middle; background: #e0e0e0; }
+&#10;    progress::-webkit-progress-bar { background: #e0e0e0; border-radius: 4px; }
+    progress::-webkit-progress-value { background: #2196F3; border-radius: 4px; }
+    progress::-moz-progress-bar { background: #2196F3; border-radius: 4px; }
+&#10;    progress:not([value]) {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px); }
+&#10;    progress.progress-bar-interrupted::-webkit-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-webkit-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted { background: #F44336; }    
+&#10;    table.fastprogress { border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
+    table.fastprogress th, table.fastprogress td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
+    table.fastprogress thead tr { background: #f8f9fa; font-weight: bold; }
+    table.fastprogress tbody tr:nth-of-type(even) { background: #f8f9fa; }
+</style>
 
 ``` python
 c = v.context('where does the entity graph get rebuilt?', sections=3, related=0, code=3, dir='..')
@@ -521,7 +546,7 @@ c.code, [r.breadcrumb for r in c.results if r.node_id is None]
     (3,
      ['shelf:papers › Attention Is All You Need',
       'repo › ../vishalakshi/core.py:483',
-      'grep › README.md:457'])
+      'grep › README.md:517'])
 
 Those sections are numbered alongside the prose ones and cite like them, so `ask` needed no changes
 at all. A code citation just has no `node_id`, because its handle is a `path:line` on disk rather
@@ -538,7 +563,7 @@ their distances. `symbol`, `where_to_add` and `grep` are on the [code page](03_c
 L(v.grep('rrf_all', '..', limit=4)).attrgot('where')   # ripgrep, gitignore-aware
 ```
 
-    ['README.md:204', 'README.md:478', 'nbs/index.ipynb:443', 'nbs/index.ipynb:1026']
+    ['README.md:538', 'vishalakshi/code.py:12', 'vishalakshi/code.py:128', 'nbs/index.ipynb:1299']
 
 ## Watches: keeping it current
 
@@ -549,23 +574,29 @@ records, follows its pagination, and files each record as its own retrievable se
 [acquire page](01_acquire.ipynb) for `apis`, `harvest` and `add_records`.
 
 ``` python
-v.watch('https://example.com/changelog', action='url',     every='6h')
-v.watch('late chunking retrieval',       action='web',     every='1d', n=5)
-v.watch('Re-read the eval numbers',      action='remind',  every='1w')
-
+v.watch('https://example.com/changelog', action='url', every='6h')
+v.watch('late chunking retrieval', action='web', every='1d', n=5)
+v.watch('Re-read the eval numbers', action='remind', every='1w')
 L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['params']))
 ```
 
     [('url', 'https://example.com/changelog', 21600.0, {}), ('web', 'late chunking retrieval', 86400.0, {'n': 5}), ('remind', 'Re-read the eval numbers', 604800.0, {})]
 
 ``` python
-v.poll()      # run everything due; failures are recorded on the row, never raised
+v.poll() # run everything due; failures are recorded on the row, never raised
 ```
+
+    [2026-08-12 11:23:35] INFO: Fetched (404) <GET https://example.com/changelog> (referer: https://www.google.com/)
+    [2026-08-12 11:23:52] INFO: Fetched (200) <GET https://medium.com/@visrow/what-is-late-chunking-in-rag-how-can-you-improve-your-rag-with-late-chunking-f981a0cb39bb> (referer: https://www.google.com/)
+    [2026-08-12 11:23:52] INFO: Fetched (200) <GET https://arxiv.org/pdf/2409.04701> (referer: https://www.google.com/)
+    [2026-08-12 11:23:52] INFO: Fetched (200) <GET https://jina.ai/news/late-chunking-in-long-context-embedding-models/> (referer: https://www.google.com/)
+    [2026-08-12 11:23:53] INFO: Fetched (200) <GET https://weaviate.io/blog/late-chunking> (referer: https://www.google.com/)
+    [2026-08-12 11:23:53] INFO: Fetched (200) <GET https://medium.com/kx-systems/late-chunking-vs-contextual-retrieval-the-math-behind-rags-context-problem-d5a26b9bbd38> (referer: https://www.google.com/)
 
     {'checked': 3,
      'ran': 3,
-     'results': [{'watch_id': 'cf1fe0a11b21', 'action': 'url', 'target': 'https://example.com/changelog', 'status': 'skipped', 'took': 0.12, 'result': {'url': 'https://example.com/changelog', 'skipped': 'could not read the page (status 404)', 'status': 404}}, {'watch_id': 'ed8c2c2c9c7a', 'action': 'web', 'target': 'late chunking retrieval', 'status': 'ok', 'took': 3.57, 'result': {'query': 'late chunking retrieval', 'n_found': 5, 'added': [{'doc_id': '5ff9f204a961b1d1', 'title': 'arxiv.org › abs › 2409[2409.04701] Late Chunking: Contextual Chunk Embeddings Using...arxiv.org › html › 2409Late Chunki', 'kind': 'web', 'nodes': 3, 'chunks': 6, 'url': 'https://arxiv.org/abs/2409.04701'}, {'doc_id': '504a7c1f1326cc02', 'title': 'weaviate.io › blog › late-chunkingLate Chunking: Balancing Precision and Cost in Long Context...medium.com › @visrow › c', 'kind': 'web', 'nodes': 13, 'chunks': 39, 'url': 'https://weaviate.io/blog/late-chunking'}, {'doc_id': '094cc044d2ec521b', 'title': 'What is Late Chunking in RAG? How can you improve your RAG with Late Chunking! | by Vishal Mysore | Medium', 'kind': 'web', 'nodes': 5, 'chunks': 10, 'url': 'https://medium.com/@visrow/what-is-late-chunking-in-rag-how-can-you-improve-your-rag-with-late-chunking-f981a0cb39bb'}, {'doc_id': '184c1b13d8f41da3', 'title': 'Late Chunking in Long-Context Embedding Models', 'kind': 'web', 'nodes': 2, 'chunks': 29, 'url': 'https://jina.ai/news/late-chunking-in-long-context-embedding-models/'}, {'doc_id': '14bf717429612609', 'title': 'GitHub - jina-ai/late-chunking: Code for explaining and evaluating late chunking (chunked pooling) · GitHub', 'kind': 'web', 'nodes': 6, 'chunks': 19, 'url': 'https://github.com/jina-ai/late-chunking'}], 'dropped': []}}, {'watch_id': '26cad856aaa8', 'action': 'remind', 'target': 'Re-read the eval numbers', 'status': 'ok', 'took': 0.0, 'result': {'doc_id': '71b411b34d0b6973', 'title': 'Re-read the eval numbers', 'kind': 'note', 'nodes': 2, 'chunks': 1}}],
-     'next_due': 1786427811.255703}
+     'results': [{'watch_id': '7bba44189449', 'action': 'url', 'target': 'https://example.com/changelog', 'status': 'skipped', 'took': 0.15, 'result': {'url': 'https://example.com/changelog', 'skipped': 'could not read the page (status 404)', 'status': 404}}, {'watch_id': '182c1aff94a3', 'action': 'web', 'target': 'late chunking retrieval', 'status': 'ok', 'took': 18.17, 'result': {'query': 'late chunking retrieval', 'n_found': 5, 'added': [{'doc_id': '5cbfbfdf58728489', 'title': 'Late Chunking: Balancing Precision and Cost in Long Context Retrieval | Weaviate', 'kind': 'web', 'nodes': 13, 'chunks': 39, 'url': 'https://weaviate.io/blog/late-chunking'}, {'doc_id': 'c48bc8d5f932aa2c', 'title': 'arXiv:2409.04701v3 [cs.CL] 7 Jul 2025 LATE CHUNKING: CONTEXTUAL CHUNK EMBED-', 'kind': 'web', 'nodes': 2, 'chunks': 280, 'url': 'https://arxiv.org/pdf/2409.04701'}, {'doc_id': '184c1b13d8f41da3', 'title': 'Late Chunking in Long-Context Embedding Models', 'kind': 'web', 'nodes': 2, 'chunks': 29, 'url': 'https://jina.ai/news/late-chunking-in-long-context-embedding-models/'}, {'doc_id': '094cc044d2ec521b', 'title': 'What is Late Chunking in RAG? How can you improve your RAG with Late Chunking! | by Vishal Mysore | Medium', 'kind': 'web', 'nodes': 5, 'chunks': 10, 'url': 'https://medium.com/@visrow/what-is-late-chunking-in-rag-how-can-you-improve-your-rag-with-late-chunking-f981a0cb39bb'}, {'doc_id': '16f8501b1a83daed', 'title': 'Late Chunking vs Contextual Retrieval: The Math Behind RAG’s Context Problem | by Michael Ryaboy | KX Systems | Medium', 'kind': 'web', 'nodes': 14, 'chunks': 79, 'url': 'https://medium.com/kx-systems/late-chunking-vs-contextual-retrieval-the-math-behind-rags-context-problem-d5a26b9bbd38'}], 'dropped': []}}, {'watch_id': '25f655475f54', 'action': 'remind', 'target': 'Re-read the eval numbers', 'status': 'ok', 'took': 0.0, 'result': {'doc_id': '0bd0b6ea7fd66c83', 'title': 'Re-read the eval numbers', 'kind': 'note', 'nodes': 2, 'chunks': 1}}],
+     'next_due': 1786519416.002694}
 
 `poll()` is the tick. Call it from cron, a scheduler, or a frontend button. `remind` writes a note
 with no network involved, and one dead URL never stops the loop, because a failure is recorded on the
