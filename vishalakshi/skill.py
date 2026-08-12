@@ -95,16 +95,13 @@ v.suggest_noisy(k=20)                           # ranked candidates, suggestions
 v.learn()                                       # log every ask as feedback
 ```
 
-Marks live in `doc_marks`, so a re-ingest or a watch firing does not erase them. `suggest_noisy`
-ranks documents by how much they behave like boilerplate, 0.988 AUC with no labels. There is also a
-fitted reranker behind `v.fit_ranker()` and `v.use_ranker()`; leave it off unless your own corpus
-says otherwise, because none beat plain RRF reproducibly (`evals/RESULTS.md`).
+Marks live in `doc_marks`, so a re-ingest does not erase them. `suggest_noisy` is 0.988 AUC with no
+labels. Leave `fit_ranker` / `use_ranker` off unless your corpus says otherwise: none beat plain
+RRF reproducibly (`evals/RESULTS.md`).
 
-`v.connect()` builds that graph. `v.map()` reads the topics out of it and `v.topic_tree()` says
-which documents each topic runs through, which is how you tell a subject that is one source talking
-to itself from a thread running through six. `v.show_topics()` prints it. Neither is a ranking leg.
-They answer the question you ask before you know what to search for: what is in here, and what
-connects to what. Run `connect()` after a batch of ingests rather than inside each one.
+`connect()` builds the entity graph; `map` / `topic_tree` / `show_topics` read topics from it.
+Neither is a ranking leg. Run `connect()` after a batch of ingests, not inside each one.
+
 
 ## Notes
 
