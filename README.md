@@ -24,6 +24,8 @@ v = Vault(Path(mkdtemp())/'vault.db')
 v.enc.note
 ```
 
+    'minishlab/potion-multilingual-128M (256d, float16, model2vec)'
+
 `add` takes a directory, a file, or text. `grab` routes an arXiv id, YouTube link, GitHub repo, PDF, file, or directory.
 
 ``` python
@@ -32,6 +34,14 @@ v.note('federate fuses the legs by rank because they share no vector space: the 
        'prose, kosha embeds identifiers, ripgrep embeds nothing.', tags=['retrieval', 'design'])
 v.stats()
 ```
+
+    {'docs': 19,
+     'nodes': 166,
+     'chunks': 672,
+     'encoder': 'model2vec',
+     'entities': 0,
+     'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmp0ufdxnt4/vault.db',
+     'by_kind': {'notebook': 12, 'md': 5, 'txt': 1, 'note': 1}}
 
 Default model: `gemma-4-E2B` on LiteRT GPU, no API key. Name any rishi model id/path; `chat_kw=` reaches its constructor. `$VISHALAKSHI_MODEL` replaces the id; `$VISHALAKSHI_GPU=0` puts LiteRT on CPU. Context budget is `sections=4`, `max_chars=1500`.
 
@@ -43,6 +53,18 @@ print(L(r.cited).map(lambda c: f"{c['n']} {c['breadcrumb']}"))
 if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 ```
 
+    litert/litert-community/gemma-4-E2B-it-litert-lm · litert
+    The provided sections do not explicitly state why rankings are fused instead of distances. However, one section mentions that `federate` fuses rankings with RRF and never distances [2].
+    ['2 03 code › Fusing legs that share no vector space']
+    The vault embeds prose, kosha embeds identifiers, ripgrep embeds nothing. Legs share no vector space, so `federate` fuses rankings with RRF and never distances.
+
+
+    #| export
+    def _prose(v, q, n, kind=None, source:str='prose') -> L:
+        'Vault sections, normalised to the federated row shape. `source` names the shelf they came from.'
+        return L(v.sections(q, limit=n, kind=kind)).map(
+            lambda 
+
 ## PII and noise
 
 `ask`, `extract` and `explain` share one gate, decided by arithmetic: checksums take precision from 0.664 to 0.948 at recall 1.000. API keys count; names do not, so those take `mark_pii`. Junk is the other loop: `suggest_noisy` scores 0.988 AUC with no labels, and `mark_noisy` is what acts on it. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
@@ -53,6 +75,10 @@ from vishalakshi.pii import pii_report
 r = pii_report('Invoice for ada@example.com. Card 4111 1111 1111 1111. KEY=sk-abcdefghijklmnopqrstuvwxyz123456')
 r.has_pii, r.identifying, r.kinds
 ```
+
+    (True,
+     {'email': 1, 'card': 1, 'secret': 1},
+     {'email': 1, 'card': 1, 'secret': 1})
 
 ``` python
 # a person's judgement, over the top of the arithmetic
@@ -99,6 +125,8 @@ v.categorize_all(llm='never')
 v.doctypes()
 ```
 
+    {'code': 13, 'documentation': 4, 'invoice': 1, 'paper': 1, 'other': 1}
+
 ``` python
 from dataclasses import fields
 from vishalakshi.extract import SCHEMAS, as_schema
@@ -109,6 +137,71 @@ a = v.ask_doc('/inbox/acme-0117.md', 'what is owed, to whom, and by when?',
               schema='amount:float, payee:str, due:str')
 e.schema, e.fields, a
 ```
+
+    [{'invoice': <class 'vishalakshi.extract.Invoice'>, 'purchase_order': <class 'vishalakshi.extract.Invoice'>, 'quote': <class 'vishalakshi.extract.Invoice'>, 'receipt': <class 'vishalakshi.extract.Receipt'>, 'catalogue': <class 'vishalakshi.extract.Catalogue'>, 'contract': <class 'vishalakshi.extract.Contract'>, 'resume': <class 'vishalakshi.extract.Resume'>, 'paper': <class 'vishalakshi.extract.Paper'>, 'meeting_notes': <class 'vishalakshi.extract.MeetingNotes'>, 'other': <class 'vishalakshi.extract.Summary'>}] ['number', 'date', 'due_date', 'vendor', 'vendor_tax_id', 'bill_to', 'ship_to', 'currency', 'subtotal', 'tax', 'total', 'payment_terms', 'items']
+
+    /Users/71293/code/personal/orgs/vishalakshi/vishalakshi/extract.py:580: UserWarning: ValueError on a constrained call for Answer (model neither called the tool nor returned JSON; reply: 'The invoice details are as follows:\n*   **Invoice No:** ACM-2024-0117 [1]\n*   **Date:** 202); retrying as a JSON reply.
+      warnings.warn(f'{type(e).__name__} on a constrained call for {schema.__name__} '
+
+    ('Invoice',
+     {'number': 'ACM-2024-0117',
+      'date': '2024-03-01',
+      'due_date': '',
+      'vendor': 'Acme Supplies Ltd',
+      'vendor_tax_id': '',
+      'bill_to': 'Contoso GmbH, Berlin',
+      'ship_to': '',
+      'currency': 'EUR',
+      'subtotal': 1240.0,
+      'tax': 0,
+      'total': 1240.0,
+      'payment_terms': '',
+      'items': ['widgets x10 @ 124.00']},
+     {'question': 'what is owed, to whom, and by when?',
+      'model': 'litert/litert-community/gemma-4-E2B-it-litert-lm',
+      'runtime': 'litert',
+      'context': {'results': [{'node_id': '4c1bdc4b329e3c3d#0', 'title': 'Acme invoice 0117', 'doc_id': '4c1bdc4b329e3c3d', 'breadcrumb': 'Acme invoice 0117', 'filename': '/inbox/acme-0117.md', 'pages': None, 'text': '# INVOICE\nInvoice No: ACM-2024-0117\nDate: 2024-03-01\nBill to: Contoso GmbH, Berlin\nFrom: Acme Supplies Ltd\nTotal due: 1,240.00 EUR\nDue date: 2024-03-31\nItems: widgets x10 @ 124.00'}, {'node_id': 'e8024c5880508178#0', 'title': '05 mcp', 'doc_id': 'e8024c5880508178', 'breadcrumb': '05 mcp', 'filename': None, 'pages': (0, 0), 'text': "    'files anything you point it at; `note` writes your own conclusions back so they are searched '\n    'alongside the sources. `add_tree` points at a directory and splits it: documents into the '\n    'vault, source files into kosha. When kosha has indexed '\n    'the repo, `context` and `ask` add code sections to what they retrieve on their own, so a '\n    'question about the user\\'s own system is\n\n    'For one document rather than the corpus: `document` returns the whole of it, `categorize` says '\n    'what kind of thing it is (invoice, catalogue, contract, paper, …), `extract` pulls its fields '\n    'out against a schema (a name like `invoice`, or a spec like `vendor:str, total:float` you '\n    'make up on the spot), and `ask_doc` answers a question about that document with the rest of '\n "}, {'node_id': 'bd083e908521c339#24', 'title': '`chat_kw` reaches the rest of the constructor: `CachedChat` takes `path`, and pointing it at', 'doc_id': 'bd083e908521c339', 'breadcrumb': '06 extract › `chat_kw` reaches the rest of the constructor: `CachedChat` takes `path`, and pointing it at', 'filename': None, 'pages': (0, 0), 'text': "test_eq(a.cited.attrgot('node_id')[0], f'{a.doc_id}#0')\nassert 'VAT (20%)' in a.prompt, 'the whole document must reach the model, not a retrieved chunk'\nassert a.prompt.endswith('Question: what is the total due?')\n# the same question as data instead of prose, through a schema built at the moment of asking\nd = _x.ask_doc('/inbox/acme-0117.md', 'what is owed and to whom?',\n               schema='amo\n\ntest_eq(_x.document(_p).origin, 'disk')\ntest_eq(_x.categorize(str(_p), llm='never', save=False).doctype, 'meeting_notes')\n\n#| eval:false\n#| hide\n# the route that had to wait: what acquisition could not tell at the door, the doctype can\nv.shelf('papers', offline=True)          # pre-registered, so this test pays for no encoder download\nr = v.reshelf('Acme invoice', llm='never')\ntest_eq((r.doctype, \n\nanswer), ('Answer', ['amount', 'currency', 'owed_to'], None))\ntest_eq(d.fields['amount'], 180.0)\n# and it is `ask` underneath\ntest_eq(_x.ask('what is the total due?', ref='/inbox/acme-0117.md', related=2, **_m).answer, a.answer)\n\n# a file the vault has never seen, straight off disk: no model needed to prove where it came from\nfrom fastcore.all import Path\nfrom tempfile import mkdtemp\n_p = Path(mkd"}, {'node_id': '10bdb7299a36ecf7#0', 'title': '02 ask', 'doc_id': '10bdb7299a36ecf7', 'breadcrumb': '02 ask', 'filename': None, 'pages': (0, 0), 'text': 'transcripts, files and their own notes. Answer only from those sections.\n\nRules:\n- Cite every claim with the bracketed number of the section it came from, like [2]. A sentence\n  drawing on two sections cites both.\n- If the sections do not answer the question, say exactly what is missing rather than filling the\n  gap from memory. A vault that admits a hole is useful; one that guesses is not.\n- Sect\n\n- Say what you are holding back and why, in one line, so the questioner knows something is \\\nthere rather than assuming there is nothing.\n- If the question cannot be answered without a personal detail, do not answer it. Say what \\\ninstruction would let you answer it usefully (a count, a comparison, a yes or no, a total) \\\nand stop. The questioner will send that instruction back and you will get an\n\nwhich must never be shown any of it.\n\nRules, in order of importance:\n- Never reproduce a personal detail. No names, addresses, emails, phone numbers, account or \\\ncard numbers, dates of birth, or medical specifics: not in your answer, not as an example, \\\nnot to show your working, not even partially or obfuscated.\n- Answer at the level of shape and quantity instead: how many, what kind, which peri'}],
+       'related': [],
+       'encoder': 'minishlab/potion-multilingual-128M (256d, float16, model2vec)',
+       'doc': {'doc_id': '4c1bdc4b329e3c3d',
+        'title': 'Acme invoice 0117',
+        'source': '/inbox/acme-0117.md',
+        'kind': 'file',
+        'meta': {'doctype': 'invoice',
+         'doctype_by': 'cues (ner+regex)',
+         'doctype_score': 0.7},
+        'pages': 1,
+        'origin': 'vault',
+        'nodes': 2,
+        'chars': 179,
+        'truncated': False,
+        'text': '# INVOICE\nInvoice No: ACM-2024-0117\nDate: 2024-03-01\nBill to: Contoso GmbH, Berlin\nFrom: Acme Supplies Ltd\nTotal due: 1,240.00 EUR\nDue date: 2024-03-31\nItems: widgets x10 @ 124.00'},
+       'docs': [{'doc_id': '4c1bdc4b329e3c3d', 'title': 'Acme invoice 0117', 'source': '/inbox/acme-0117.md', 'kind': 'file', 'meta': {'doctype': 'invoice', 'doctype_by': 'cues (ner+regex)', 'doctype_score': 0.7}, 'pages': 1, 'origin': 'vault', 'nodes': 2, 'chars': 179, 'truncated': False, 'text': '# INVOICE\nInvoice No: ACM-2024-0117\nDate: 2024-03-01\nBill to: Contoso GmbH, Berlin\nFrom: Acme Supplies Ltd\nTotal due: 1,240.00 EUR\nDue date: 2024-03-31\nItems: widgets x10 @ 124.00'}],
+       'n_docs': 1,
+       'note': '[1] is the document being asked about; the rest is context from elsewhere in the vault.\n\n'},
+      'encoder': 'minishlab/potion-multilingual-128M (256d, float16, model2vec)',
+      'prompt': "[1] Acme invoice 0117\n(source: /inbox/acme-0117.md)\n\n# INVOICE\nInvoice No: ACM-2024-0117\nDate: 2024-03-01\nBill to: Contoso GmbH, Berlin\nFrom: Acme Supplies Ltd\nTotal due: 1,240.00 EUR\nDue date: 2024-03-31\nItems: widgets x10 @ 124.00\n\n---\n\n[2] 05 mcp\n(source: e8024c5880508178, pages 0–0)\n\n    'files anything you point it at; `note` writes your own conclusions back so they are searched '\n    'alongside the sources. `add_tree` points at a directory and splits it: documents into the '\n    'vault, source files into kosha. When kosha has indexed '\n    'the repo, `context` and `ask` add code sections to what they retrieve on their own, so a '\n    'question about the user\\'s own system is\n\n    'For one document rather than the corpus: `document` returns the whole of it, `categorize` says '\n    'what kind of thing it is (invoice, catalogue, contract, paper, …), `extract` pulls its fields '\n    'out against a schema (a name like `invoice`, or a spec like `vendor:str, total:float` you '\n    'make up on the spot), and `ask_doc` answers a question about that document with the rest of '\n \n\n---\n\n[3] 06 extract › `chat_kw` reaches the rest of the constructor: `CachedChat` takes `path`, and pointing it at\n(source: bd083e908521c339, pages 0–0)\n\ntest_eq(a.cited.attrgot('node_id')[0], f'{a.doc_id}#0')\nassert 'VAT (20%)' in a.prompt, 'the whole document must reach the model, not a retrieved chunk'\nassert a.prompt.endswith('Question: what is the total due?')\n# the same question as data instead of prose, through a schema built at the moment of asking\nd = _x.ask_doc('/inbox/acme-0117.md', 'what is owed and to whom?',\n               schema='amo\n\ntest_eq(_x.document(_p).origin, 'disk')\ntest_eq(_x.categorize(str(_p), llm='never', save=False).doctype, 'meeting_notes')\n\n#| eval:false\n#| hide\n# the route that had to wait: what acquisition could not tell at the door, the doctype can\nv.shelf('papers', offline=True)          # pre-registered, so this test pays for no encoder download\nr = v.reshelf('Acme invoice', llm='never')\ntest_eq((r.doctype, \n\nanswer), ('Answer', ['amount', 'currency', 'owed_to'], None))\ntest_eq(d.fields['amount'], 180.0)\n# and it is `ask` underneath\ntest_eq(_x.ask('what is the total due?', ref='/inbox/acme-0117.md', related=2, **_m).answer, a.answer)\n\n# a file the vault has never seen, straight off disk: no model needed to prove where it came from\nfrom fastcore.all import Path\nfrom tempfile import mkdtemp\n_p = Path(mkd\n\n---\n\n[4] 02 ask\n(source: 10bdb7299a36ecf7, pages 0–0)\n\ntranscripts, files and their own notes. Answer only from those sections.\n\nRules:\n- Cite every claim with the bracketed number of the section it came from, like [2]. A sentence\n  drawing on two sections cites both.\n- If the sections do not answer the question, say exactly what is missing rather than filling the\n  gap from memory. A vault that admits a hole is useful; one that guesses is not.\n- Sect\n\n- Say what you are holding back and why, in one line, so the questioner knows something is \\\nthere rather than assuming there is nothing.\n- If the question cannot be answered without a personal detail, do not answer it. Say what \\\ninstruction would let you answer it usefully (a count, a comparison, a yes or no, a total) \\\nand stop. The questioner will send that instruction back and you will get an\n\nwhich must never be shown any of it.\n\nRules, in order of importance:\n- Never reproduce a personal detail. No names, addresses, emails, phone numbers, account or \\\ncard numbers, dates of birth, or medical specifics: not in your answer, not as an example, \\\nnot to show your working, not even partially or obfuscated.\n- Answer at the level of shape and quantity instead: how many, what kind, which peri\n\n---\n\n[1] is the document being asked about; the rest is context from elsewhere in the vault.\n\nQuestion: what is owed, to whom, and by when?",
+      'answer': None,
+      'thinking': '',
+      'cited': [],
+      'schema': 'Answer',
+      'fields': {'amount': 1240.0,
+       'payee': 'Contoso GmbH, Berlin',
+       'due': '2024-03-31'},
+      'doc_id': '4c1bdc4b329e3c3d',
+      'title': 'Acme invoice 0117',
+      'source': '/inbox/acme-0117.md',
+      'origin': 'vault',
+      'chars': 179,
+      'truncated': False,
+      'pii': {'has_pii': False,
+       'kinds': {},
+       'identifying': {},
+       'n': 0,
+       'scanned': 3395,
+       'density': 0.0,
+       'spans': []},
+      'usage': total=1,674|in=1,623|out=51|turns=1})
 
 ## Code
 
@@ -121,9 +214,54 @@ c = v.context('where does the entity graph get rebuilt?', sections=3, related=0,
 c.code, L(c.results).filter(lambda r: r.node_id is None).attrgot('breadcrumb')
 ```
 
+    parse files from /Users/71293/code/personal/orgs/vishalakshi: 100%|██████████| 18/18 [00:00<00:00, 225.97it/s]
+
+<style>
+    progress { appearance: none; border: none; border-radius: 4px; width: 300px;
+        height: 20px; vertical-align: middle; background: #e0e0e0; }
+&#10;    progress::-webkit-progress-bar { background: #e0e0e0; border-radius: 4px; }
+    progress::-webkit-progress-value { background: #2196F3; border-radius: 4px; }
+    progress::-moz-progress-bar { background: #2196F3; border-radius: 4px; }
+&#10;    progress:not([value]) {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px); }
+&#10;    progress.progress-bar-interrupted::-webkit-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-webkit-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted { background: #F44336; }    
+&#10;    table.fastprogress { border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
+    table.fastprogress th, table.fastprogress td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
+    table.fastprogress thead tr { background: #f8f9fa; font-weight: bold; }
+    table.fastprogress tbody tr:nth-of-type(even) { background: #f8f9fa; }
+</style>
+
+<style>
+    progress { appearance: none; border: none; border-radius: 4px; width: 300px;
+        height: 20px; vertical-align: middle; background: #e0e0e0; }
+&#10;    progress::-webkit-progress-bar { background: #e0e0e0; border-radius: 4px; }
+    progress::-webkit-progress-value { background: #2196F3; border-radius: 4px; }
+    progress::-moz-progress-bar { background: #2196F3; border-radius: 4px; }
+&#10;    progress:not([value]) {
+        background: repeating-linear-gradient(45deg, #7e7e7e, #7e7e7e 10px, #5c5c5c 10px, #5c5c5c 20px); }
+&#10;    progress.progress-bar-interrupted::-webkit-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-value { background: #F44336; }
+    progress.progress-bar-interrupted::-webkit-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted::-moz-progress-bar { background: #F44336; }
+    progress.progress-bar-interrupted { background: #F44336; }    
+&#10;    table.fastprogress { border-collapse: collapse; margin: 1em 0; font-size: 0.9em; }
+    table.fastprogress th, table.fastprogress td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
+    table.fastprogress thead tr { background: #f8f9fa; font-weight: bold; }
+    table.fastprogress tbody tr:nth-of-type(even) { background: #f8f9fa; }
+</style>
+
+    (3,
+     ['repo › /Users/71293/code/personal/orgs/vishalakshi/vishalakshi/core.py:520', 'grep › README.md:119', 'repo › /Users/71293/code/personal/orgs/vishalakshi/vishalakshi/core.py:547'])
+
 ``` python
 L(v.grep('rrf_all', root, limit=4)).attrgot('where')   # ripgrep; no kosha needed
 ```
+
+    ['README.md:125', 'nbs/index.ipynb:573', 'vishalakshi/code.py:12', 'vishalakshi/code.py:128']
 
 ## Watches
 
@@ -135,6 +273,8 @@ v.watch('late chunking retrieval', action='web', every='1d', n=5)
 v.watch('Re-read the evals', action='remind', every='1w')
 L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['params']))
 ```
+
+    [('url', 'https://example.com/changelog', 21600.0, {}), ('web', 'late chunking retrieval', 86400.0, {'n': 5}), ('remind', 'Re-read the evals', 604800.0, {})]
 
 ## The rest
 

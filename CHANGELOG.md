@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.6
+release
+
 ## 0.1.5
 
 **`vishalakshi.quality`**: feedback, a noise score, and a ranker fitted from both. `learn()`,

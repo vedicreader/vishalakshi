@@ -4,7 +4,7 @@ Modules:
 
 - `vishalakshi.skill`: one vault for everything you have read: web pages, papers, video, files, code and your own notes in one SQLite file, searchable together and answerable by a local or hosted model"""
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 from .core import *
 from .acquire import *
 from .ask import *
