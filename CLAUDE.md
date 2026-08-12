@@ -15,10 +15,21 @@ not to argue for it.
 - No em dashes, no bold inside a paragraph, no "not just X but Y", no rhetorical questions.
 - A design rationale that runs past three sentences belongs in a docstring or in `evals/`,
   not in a markdown cell.
-- Docstrings: one line for what it does, plus the one thing a reader would otherwise get wrong.
-
 The failure mode to avoid is a notebook where the prose is longer than the code and the reader
 has to hunt for what actually happens.
+
+## Docstrings and comments
+
+The code is the document. Prose explains what the code cannot say about itself, and nothing else.
+
+- Docstrings: one line. Add a second sentence only to state a measured number or a footgun.
+- Inline comments in a `def` signature are nbdev docments and become the API parameter table.
+  Keep them, keep them short.
+- Body comments: one line, and only where the code genuinely does not say it. A comment that
+  restates the line under it goes.
+- No changelog in a comment. "This used to do X and it broke" is a commit message.
+- Never reflow a triple-quoted string that is not a docstring. `PII_SP`, `VAULT_SP` and `TYPE_SP`
+  are prompts with line continuations; rewrapping one edits what a model is told.
 
 ## Evals
 

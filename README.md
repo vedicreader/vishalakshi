@@ -12,9 +12,8 @@ pip install vishalakshi          # vault + acquisition only; no LLM, no MCP
 
 ## The loop
 
-Everything in this section runs. The corpus is this repository’s own documentation and source, so
-the page is reproducible from a clone, and the vault is a throwaway file rather than your real one.
-[`Vault()`](https://vedicreader.github.io/vishalakshi/core.html#vault) with no argument uses `~/.vishalakshi/vault.db`.
+Everything in this section runs, against this repository’s own docs and source. [`Vault()`](https://vedicreader.github.io/vishalakshi/core.html#vault) with no
+argument uses `~/.vishalakshi/vault.db`; this page uses a throwaway file.
 
 ``` python
 from tempfile import mkdtemp
@@ -26,7 +25,7 @@ v.enc.note
 
     'minishlab/potion-multilingual-128M (256d, float16, model2vec)'
 
-Ingestion is one call. `add` takes a directory, a file, or text, and routes on which it got.
+`add` takes a directory, a file, or text, and routes on which it got.
 
 ``` python
 v.add('..')                       # README.md and every notebook under nbs/
@@ -40,8 +39,8 @@ v.note('federate fuses the legs by rank because they share no vector space: the 
      'nodes': 2,
      'chunks': 1}
 
-Then reach outward. `grab` routes on what the target is: an arXiv id, a YouTube link, a GitHub
-repo, a PDF, a local file, a directory. It is the one call a CLI or an agent needs.
+`grab` routes on what the target is: an arXiv id, a YouTube link, a GitHub repo, a PDF, a local
+file, a directory. One call, for a CLI or an agent.
 
 ``` python
 v.grab('1706.03762')                                       # an arXiv id: metadata + abstract
@@ -61,15 +60,13 @@ v.pdf('https://arxiv.org/pdf/1706.03762',                  # and the full paper,
      'nodes': 5,
      'chunks': 102}
 
-Now ask it something. The model is the package default: `gemma-4-E2B` on LiteRT, on the GPU, no
-API key and nothing to configure. Naming a model is naming it to rishi, so an id, a path or a
-`runtime/...` prefix all work, and `chat_kw=` reaches the rest of rishi’s constructor. There is no
-model registry here to fall out of date. `$VISHALAKSHI_MODEL` replaces the id; `$VISHALAKSHI_GPU=0`
-puts LiteRT back on the CPU.
+The default model is `gemma-4-E2B` on LiteRT, on the GPU, no API key. Naming a model is naming it
+to rishi, so an id, a path or a `runtime/...` prefix all work, and `chat_kw=` reaches the rest of
+rishi’s constructor. There is no model registry here to fall out of date.
 
-The defaults hand the model four sections at 1500 characters each. That is the point of retrieving
-*sections* rather than documents: the answer needs the paragraphs that bear on the question, not the
-corpus. A pointed context is why a 2B model on a laptop can answer at all.
+What you set: `$VISHALAKSHI_MODEL` replaces the id, `$VISHALAKSHI_GPU=0` puts LiteRT back on the
+CPU. `sections=4` and `max_chars=1500` are the context budget, four sections of 1500 characters
+each. Retrieving sections rather than documents is what lets a 2B model on a laptop answer.
 
 ``` python
 from rishi.litert import gemma4_e2b, gemma4_e4b
@@ -82,7 +79,7 @@ print(r.answer)
     litert/litert-community/gemma-4-E2B-it-litert-lm · litert
     The provided sections indicate that the reason for fusing rankings instead of distances is that the legs share no vector space [2]. This is because the vault embeds prose, kosha embeds identifiers, and ripgrep embeds nothing [2]. Reciprocal Rank Fusion needs only each leg's ordering, which is what survives a change of encoder [2].
 
-Every `[n]` in the answer resolves to a `node_id` you can read. That round trip is the point: a claim you can check against the text it came from.
+Every `[n]` in the answer resolves to a `node_id` you can read back.
 
 ``` python
 for c in r.cited: print(c['n'], c['breadcrumb'])
@@ -100,10 +97,8 @@ print(v.read(r.cited[0]['node_id'])['text'][:400])   # the exact text behind the
 
 ## When the answer would leave the machine
 
-A vault fills up with things that are nobody else’s business: a bank statement, a medical letter, an
-exported chat. Answering out of those is what a vault is *for*. Sending them to a hosted API is what
-it is not — so `ask` decides, and the decision is arithmetic rather than a model. A classifier that
-has to read the document in order to say whether the document may be read has already lost.
+A vault fills with things that are nobody else’s business. `ask` decides whether the sections it
+retrieved are one of them, by arithmetic rather than by a model, and routes the answer accordingly.
 
 ``` python
 from vishalakshi.pii import pii_report
@@ -115,17 +110,15 @@ r.has_pii, r.identifying, r.kinds
 
     (True, {'email': 1, 'card': 1}, {'email': 1, 'card': 1, 'ip': 1})
 
-Two things are doing work there. The card is a card because it passes Luhn, and the order number is
-not one because it fails the same check — a checksum is the difference between a detector and a
-superstition. And the IP address is *reported* but not *identifying*: a server log is not somebody’s
-private life, and treating it as one would cost every question about infrastructure a smaller model
-for nothing.
+The card passes Luhn and the order number fails it. On 400 documents, half carrying lookalikes
+(order numbers, ISBNs, part numbers, build strings), the checksums take precision from 0.664 to
+0.948 at recall 1.000, cutting false positives from 101/200 to 11/200 (`evals/pii.py`).
 
-`ask` gates on the sections retrieval actually chose, not on the vault and not on the document, so a
-vault holding one bank statement among four hundred papers is only a private question when the
-statement is in the room. When it is, `pii='local'` (the default) answers on a local model under a
-system prompt that tells it to give shape and quantity instead of detail — and *ignores* the model
-you named, because a hosted one cannot be sent the sections:
+The IP address is reported but not identifying, so questions about infrastructure keep the fast path.
+
+`ask` gates on the sections retrieval chose, so one bank statement among four hundred papers is
+private only when the statement is in the room. Then `pii='local'` (the default) answers on a local
+model and ignores the model you named:
 
 ``` python
 v.add('Invoice 4471 for Ada Lovelace, ada@example.com. Card 4111 1111 1111 1111. '
@@ -140,66 +133,47 @@ print(r.answer)
     I am holding back the specific personal details because I cannot reproduce them.
     The document is an invoice.
 
-The check is on the chat object after it is built, so a caller that *lends* a hosted chat — by
-mistake, by a stale config — is refused rather than trusted, and nothing is sent. The other three
-settings are [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) (mask what arithmetic can recognise, then let a hosted model answer, which
-gives up whatever turns on the details and does not mask names), `refuse` (return the finding and no
-answer), and `off`. The same arithmetic runs over the answer on the way back out, where a slip costs
-a masked token instead of somebody’s account number.
+The check is on the chat object after it is built, so a caller that lends a hosted chat, by
+mistake or by a stale config, is refused rather than trusted. The answer is re-scanned on the way
+back out and masked if the model slipped.
+
+| `pii=` | what happens |
+|----|----|
+| `local` (default) | a local model answers, under a prompt that gives shape and quantity, not detail |
+| [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) | mask what arithmetic recognises, then any model may answer. Names are not masked |
+| `refuse` | return the finding, no answer |
+| `off` | do not look |
 
 ## Telling it what was rubbish
 
-Two things go wrong as a vault fills, and neither is a retrieval bug. A crawl brings the cookie
-banner in with the page; a repository brings its licence three hundred times. And the ranking is
-occasionally just wrong for the way *you* ask.
+A crawl brings the cookie banner in with the page; a repo brings its licence three hundred times.
+The manual answer is a hard exclusion from `search`, `sections`, `context` and `ask`:
 
-The manual answer is a person's, and it is a hard exclusion — you saw it, you said no, it is gone
-from `search`, `sections`, `context` and `ask`:
-
-```python
-v.mark_noisy(doc_id, reason='site furniture')      # excluded until you say otherwise
-v.mark_not_pii(doc_id, reason='my own invoice')    # a false positive, cleared
+``` python
+v.mark_noisy(doc_id, reason='site furniture')
+v.mark_not_pii(doc_id, reason='my own invoice')
 ```
 
-Both are kept in `doc_marks`, not in the document's `meta`, because a re-ingest rewrites `meta` and
-a watch re-ingests on a schedule: a page marked noisy on Monday was quietly back in the results on
-Tuesday.
+Both go in `doc_marks` rather than the document’s `meta`, which a re-ingest rewrites.
 
-The rest is [`quality`](https://vedicreader.github.io/vishalakshi/quality.html), and the interesting
-part is where the labels come from. `ask` already computes which sections an answer *cited* — a
-relevance judgement made by the model that read all of them, produced on every question, about five
-sections at a time. `v.learn()` starts recording it; a section retrieved and then ignored is the
-weak negative that makes the positives mean anything.
+The rest is [quality](10_quality.ipynb). The labels come from `ask` itself, which already computes
+which sections an answer cited:
 
-```python
-v.learn()                       # log every ask; off until you say so
-v.suggest_noisy(k=20)           # ranked candidates — suggestions, never deletions
-v.fit_noise()                   # learn the blend from what you have marked
-r = v.fit_ranker(save=True)     # pairwise linear LTR over the feedback
-r.weights()                     # ...whose weights you can read before trusting it
-v.use_ranker(True)              # a separate call, deliberately
+``` python
+v.learn()                   # log every ask; off until you say so
+v.suggest_noisy(k=20)       # ranked candidates, suggestions only
+v.fit_ranker(save=True)     # pairwise linear LTR over the log
+v.use_ranker(True)          # a separate call, deliberately
 ```
 
-`fit_ranker` and `use_ranker` are two calls because [`evals/RESULTS.md`](evals/RESULTS.md) says
-they should be. Measured over three generated corpora, known-item queries, document-disjoint
-splits: the noise score reaches **0.988 AUC** unsupervised and **0.996** fitted from six marks, and
-**no learned reranker beat plain RRF reproducibly** — gradient boosting won MRR on one corpus
-(+0.083, p=0.05) and lost it on another (−0.109, p=0.01). So the noise score is worth having and
-the ranker is off until your own corpus says otherwise. `evals/gold.py` builds the gold set that
-would tell you.
-
-Two findings from that harness are worth carrying away even if you never fit anything. *"Spread
-across many clusters means generic"* is the intuitive noise heuristic and it scores **0.453 AUC —
-below chance** — because it cannot distinguish a survey from a footer; measured one level down, as
-the entropy of a single *chunk* over topic centroids, the same idea reaches 0.982. And a reranker
-that replaces the ranking costs −0.127 nDCG when it is mediocre, where the same model fused by
-reciprocal rank costs −0.001: substitution is the dangerous operation, not learning.
+Separate because [`evals/RESULTS.md`](evals/RESULTS.md) says so: the noise score reaches 0.988 AUC
+with no labels, and no learned reranker beat plain RRF reproducibly. Use the noise score; leave the
+ranker off until your own corpus says otherwise.
 
 ## What is decided, and what is yours
 
-The retrieval defaults are litesearch’s, and they are measured rather than chosen: `evals/` runs 120
-known-item queries per genre over three corpora and scores section-level MRR. You inherit the whole
-ladder by opening a vault.
+The retrieval defaults are litesearch’s, measured over 120 known-item queries per genre on three
+corpora at section-level MRR. You inherit the ladder by opening a vault.
 
 | decided for you | why |
 |----|----|
@@ -208,32 +182,31 @@ ladder by opening a vault.
 | HNSW vector index | -0.005 quality for a large speedup |
 | a document tree, always | ranking is a wash, and `toc`/`read`/`sections`/`context` come free |
 | one static encoder, 256d, float16 | the spread across four encoders is 0.018 to 0.046, and the static one wins a genre at ~1,700x cheaper indexing |
-| Devanagari and IAST fold to the same token | 1.000 verse recall for every encoder tested, from the tokenizer rather than the embedding |
+| Devanagari and IAST fold to the same token | 1.000 verse recall for every encoder tested |
+| the graph leg off for ranking | costs 0.070 to 0.160 weighted MRR on known-item queries, negative in every genre and flavour measured |
 
-Five things are yours, and none of them is required to get an answer.
+Yours, and none of them needed to get an answer:
 
 | yours | what it costs |
 |----|----|
-| `rerank=True` on `search`, `sections`, `context` | +0.026 to +0.077 weighted MRR, positive in all twelve paired cells, at roughly 10x the query latency |
+| `rerank=True` on `search`, `sections`, `context` | +0.026 to +0.077 weighted MRR, positive in all twelve paired cells, at ~10x the query latency |
 | `shelf(name)` | a partition, so two corpora stop diluting each other’s ranking |
-| `llm=` on `categorize` and `extract` | the cue table answers most documents for free; a model is for the ties |
+| `llm=` on `categorize` and `extract` | cues are decisive on 80% of templated documents and right on all of them; a model is for the rest (`evals/categorize.py`) |
 | `db.graph_search` | the graph leg by name, for bridge queries |
-| `pii=` on `ask` | `local` keeps a private question on a local model, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) masks the sections and lets a hosted one answer |
+| `pii=` on `ask` | the table above |
+| `learn()` then `use_ranker()` | log feedback, fit a reranker. Off by default: none beat plain RRF reproducibly (`evals/RESULTS.md`) |
+| `suggest_noisy()` | ranks the junk, 0.988 AUC with no labels |
+| `offline=True` | no download, hashing instead of embeddings. Costs +0.089 recall@10 on known-item queries (`evals/encoder.py`) |
 
-The graph leg is off for ranking and stays off. On ordinary known-item questions it costs 0.070 to
-0.160 weighted MRR, negative in every genre and flavour measured. It wins only when the answer
-shares no word with the question. `connect()` is still worth running, for the reason below.
-
-Sanskrit is the one place something switches itself on. Ingest a Sanskrit file and the vault
-re-registers litesearch’s readers with vidyut lemmas and Monier-Williams glosses, because putting
-the English behind the Sanskrit into the index beat changing the encoder when it was measured on
-this vault’s own shelf: a static encoder with glosses beat a 300M ONNX transformer without them. It
-is an ~83 MB download, paid once, only by someone actually reading Sanskrit.
+Sanskrit is the one thing that switches itself on. Ingest a Sanskrit file and the vault re-registers
+litesearch’s readers with vidyut lemmas and Monier-Williams glosses: a static encoder with glosses
+beat a 300M ONNX transformer without them on this vault’s own shelf. An ~83 MB download, paid once,
+only by someone actually reading Sanskrit.
 
 ## Everything in one corpus
 
 Every document carries a `kind`: `web`, `pdf`, `arxiv`, `youtube`, `file`, `code`, `data`, `note`,
-or whatever litesearch’s parser called the file. Filter when you want to, don’t when you don’t.
+or whatever litesearch’s parser called the file. Filter when you want to.
 
 ``` python
 v.stats()
@@ -258,11 +231,10 @@ len(v.search('rank fusion')), len(v.search('rank fusion', kind='note')), len(v.s
 
     (10, 1, 10)
 
-The filter is a SQL `WHERE` pushed into the search, not a pass over the results afterwards, so a
+The filter is a SQL `WHERE` pushed into the search rather than a pass over the results, so a
 narrow filter over a large vault still returns a full page of hits.
 
-Notes are ordinary documents, deliberately. The graph, the clusters and `context()` all see them for
-free, so what you concluded about a corpus comes back next to the evidence you concluded it from.
+Notes are ordinary documents, so the graph, the clusters and `context()` see them for free.
 
 ``` python
 L(v.sources()).map(lambda d: (d['kind'], d['title'], d['source']))[:6]
@@ -272,25 +244,15 @@ L(v.sources()).map(lambda d: (d['kind'], d['title'], d['source']))[:6]
 
 ## When the graph and the clusters pay off
 
-`connect()` builds an entity graph over everything in the vault, and `map()` reads the topics it
-persisted. Neither is retrieval. The graph leg loses on ordinary queries, which is why it is not
-wired into `search`.
+`connect()` builds an entity graph over the vault and `map()` reads the topics it persisted. Neither
+is retrieval, and the graph leg is not wired into `search`.
 
-What they answer is the question you ask *before* you know what to search for. `map()` is the shape
-of what you have collected, which is how you notice that four months of reading turned into three
-subjects rather than the one you thought. The graph is for reaching across shelves and across
-documents that never share a word: a bridge query where the paper and the invoice both mention a
-company neither of them names in the same way. Run `connect()` after a batch of ingests rather than
-inside each one, since it rebuilds over the whole vault.
-`topic_tree` puts the documents under each label, with the number of chunks each contributes.
+They answer the question you ask before you know what to search for. `map()` is the shape of what
+you have collected; the graph reaches across shelves and across documents that never share a word.
+Run `connect()` after a batch of ingests rather than inside each one.
 
-That second number is the one worth reading. A topic carried by a single document is usually that
-document talking to itself, and a label to distrust. A topic spread across five is a thread actually
-running through the corpus, and the place to start reading. It is also how you notice that two
-labels you thought were separate subjects are the same source seen twice.
-
-Three queries and no clustering: `connect()` already persisted the topic nodes, so this only pivots
-the mentions back onto documents.
+`topic_tree` puts documents under each label with the chunks each contributes. Read that second
+number: a topic carried by one document is that document talking to itself.
 
 ``` python
 v.connect(n_workers=0)
@@ -332,16 +294,15 @@ v.show_topics(limit=5, docs=3)      # v.topic_tree() returns the same thing as d
 
 ## What each document is, and what is inside it
 
-`kind` says how a document arrived. What it *is* is a different question, and one worth answering:
-a vault that knows which of its documents are invoices can hand you their totals as a table. The cue
-table knows 26 answers, in two halves — what arrives from outside (an invoice, a price list, a
-contract, a paper, a transcript, a source file) and what an organisation writes about its own work
-(a proposal, a requirements spec, a technical design, an SOP, a test plan, a roadmap, an insurance
-claim, a clinical record).
+`kind` says how a document arrived. What it *is* is a different question: a vault that knows which
+documents are invoices can hand you their totals as a table. The cue table knows 26 answers, split
+between what arrives from outside (invoice, contract, paper, transcript, source file) and what an
+organisation writes about its own work (proposal, requirements spec, technical design, SOP, test
+plan, roadmap, claim, clinical record).
 
-`categorize` answers it with a cue table first and a model only where the table cannot decide. That
-order is the design rather than an optimisation. Typing ten thousand documents through an LLM is
-hours of compute to answer a question a regex answers about most of them.
+`categorize` runs the cues first and a model only where they cannot decide. On templated documents
+the cues are decisive on 80% and right on all of those; where the surface points the wrong way, a
+paper about invoicing or an email quoting one, they got 2 of 5 (`evals/categorize.py`).
 
 ``` python
 INVOICE = '''# INVOICE
@@ -371,10 +332,9 @@ r.doctype, r.score, r.decisive, r.by
 
     ('invoice', 1.0, True, 'cues (ner+regex)')
 
-`score` and `decisive` are the seam. A clear winner needs no model; a two-way tie is exactly the
-case worth spending one on, which is what `llm='auto'`, the default, decides for itself. It will use
-a model it can find and never start a download to get one. `by` records which leg answered, so a
-vault’s types can be audited and re-run selectively.
+`score` and `decisive` are the seam. A clear winner needs no model; a two-way tie is what
+`llm='auto'` (the default) spends one on. It uses a model it can already find and never starts a
+download. `by` records which leg answered, so types can be audited and re-run selectively.
 
 ``` python
 v.categorize_all(llm='never')   # everything not typed yet; a failure is recorded, not raised
@@ -383,10 +343,9 @@ v.doctypes()                    # the shape of the corpus
 
     {'code': 11, 'documentation': 4, 'invoice': 2, 'paper': 1, 'other': 1}
 
-Notebooks read as code, the README as documentation, the invoice as an invoice, and no model was
-loaded to say so. `force=False` makes that cheap to re-run after an ingest: only what arrived since
-is looked at. `ner` reads the entity labels off one document, through the same extractor the graph
-runs on.
+Notebooks read as code, the README as documentation, the invoice as an invoice, no model loaded.
+`force=False` only looks at what arrived since the last run. `ner` reads entity labels off one
+document through the same extractor the graph uses.
 
 ``` python
 v.ner('/inbox/acme-0117.md').ents.map(lambda e: (e.label, e.text))[:6]
@@ -441,12 +400,11 @@ list(SCHEMAS)
 
     ['vendor', 'total', 'due_date']
 
-With no `schema`, the document is categorised first and the shape follows from what it turned out
+With no `schema` the document is categorised first and the shape follows from what it turned out
 to be, which is what makes this useful pointed at a folder of mixed paperwork. rishi constrains the
-model to the schema (a forced tool call on the hosted and LiteRT backends, a grammar on llama.cpp, a
-parsed JSON reply on MLX) so what comes back is the fields you asked for rather than prose about
-them. `extract_all(doctype='invoice')` does the same across every invoice in the vault and hands
-back one row each, which is a dataframe away from being useful.
+model to the schema: a forced tool call on the hosted and LiteRT backends, a grammar on llama.cpp, a
+parsed JSON reply on MLX. `extract_all(doctype='invoice')` does the same across every invoice and
+hands back one row each.
 
 ``` python
 e = v.extract('/inbox/acme-0117.md', chat_kw=dict(backend=Backend.GPU()))      # no schema: the doctype picks one
@@ -485,25 +443,17 @@ e = v.extract(r['doc_id'], schema='invoice', model='gpt-4.1-nano')   # needs OPE
 
 ## Asking about one document, with the vault as context
 
-`ask` retrieves sections from everywhere. Give it `ref=`, or call `ask_doc`, which is the same call
-with the name said out loud, and it starts from documents you have already chosen, reads them, and
-adds a few retrieved sections behind them. They are sections `[1..n]`, so the citation contract is
-the one `ask` already keeps.
+`ask` retrieves from everywhere. Give it `ref=`, or call `ask_doc`, and it starts from documents you
+chose, reads them, and adds a few retrieved sections behind them as `[1..n]`.
 
 Name more than one when the question is a comparison. “What does `extract.py` do that `core.py` does
-not” is unanswerable from `extract.py` alone: retrieval will not reliably put the other file in
-front of the model, and a model handed one file will confidently describe that file and guess at the
-difference. `doc_chars` is the budget for the named documents together, shared between them, because
-a context window is a total. Two files at the default 8000 is 4000 characters each.
+not” is unanswerable from `extract.py` alone.
 
-That default is measured. Through this path on `gemma-4-E2B-it-litert-lm`, 8000 characters (3533
-tokens) answers on the first send and 10000 (4265) overflows and needs the retry. Which means two
-source files at the local default are truncated to their imports, and a 2B model will say, correctly,
-that it cannot tell them apart from what it was given. That is the system working: raise `doc_chars`
-and use a model with the window to match, and the same call answers.
-
-Neither document need be in the vault. A path on disk is read straight off it, which is how a
-markdown page or a source file gets asked about before it is ever ingested.
+`doc_chars` is the budget for the named documents together, so two files at the default 8000 get
+4000 each. That default is measured: on `gemma-4-E2B-it-litert-lm`, 8000 characters (3533 tokens)
+answers on the first send and 10000 (4265) overflows into the retry. Two source files at the local
+default are therefore truncated to their imports; raise `doc_chars` and use a model with the window
+for it. Neither document need be in the vault.
 
 ``` python
 REFS = ['../vishalakshi/extract.py', '../vishalakshi/core.py']   # files on disk, never ingested
@@ -536,11 +486,10 @@ v.ask_doc('/inbox/acme-0117.md', 'what is owed, to whom, and by when?', model=ge
 
 A repo is prose and code, and the two want different indexes. `add_tree` splits it: documents to the
 vault, source files to kosha, which builds AST chunks, symbol names and a call graph with PageRank.
-`grab` routes a directory here, so the one-call path gets it too.
+`grab` routes a directory here too.
 
-Once a repo is indexed, `context` stops needing to be asked. It appends code sections to what it
-retrieves, decided by looking for `.kosha/code.db` on disk rather than by loading anything, so a
-question about late chunking pays nothing for a leg it has no use for.
+Once a repo is indexed, `context` appends code sections to what it retrieves, decided by looking for
+`.kosha/code.db` on disk rather than by loading anything.
 
 ``` python
 m=v.index_code('..')                              # this repo; env=True also indexes installed packages
@@ -596,16 +545,13 @@ c.code, [r.breadcrumb for r in c.results if r.node_id is None]
       'repo › ../vishalakshi/core.py:483',
       'grep › README.md:517'])
 
-Those sections are numbered alongside the prose ones and cite like them, so `ask` needed no changes
-at all. A code citation just has no `node_id`, because its handle is a `path:line` on disk rather
-than something `read()` can open.
+Those sections are numbered alongside the prose ones and cite like them. A code citation has no
+`node_id`, because its handle is a `path:line` on disk.
 
-`federate` goes wider: the vault, kosha, and ripgrep on the working tree. Three kinds of evidence
-and three kinds of blindness. The vault embeds prose; kosha embeds identifiers with a code-trained
-model, deliberately, because code embeds badly under a prose encoder; ripgrep embeds nothing and
-sees the file as it is on disk right now, including the file nothing has indexed and the edit made a
-minute ago. The legs share no vector space, so `federate` fuses their rankings with RRF and never
-their distances. `symbol`, `where_to_add` and `grep` are on the [code page](03_code.ipynb).
+`federate` goes wider: the vault, kosha, and ripgrep on the working tree. The vault embeds prose,
+kosha embeds identifiers with a code-trained model, ripgrep embeds nothing and sees the file as it is
+on disk right now. The legs share no vector space, so `federate` fuses their rankings with RRF and
+never their distances. `symbol`, `where_to_add` and `grep` are on the [code page](03_code.ipynb).
 
 ``` python
 L(v.grep('rrf_all', '..', limit=4)).attrgot('where')   # ripgrep, gitignore-aware
@@ -616,10 +562,9 @@ L(v.grep('rrf_all', '..', limit=4)).attrgot('where')   # ripgrep, gitignore-awar
 ## Watches: keeping it current
 
 An action is the name of an acquisition method, so anything you can file once you can file on a
-schedule. `harvest` is one of them, which is what makes a page that renders from an internal JSON
-API worth watching: fossick captures the calls the page makes, the vault picks the one carrying
-records, follows its pagination, and files each record as its own retrievable section. See the
-[acquire page](01_acquire.ipynb) for `apis`, `harvest` and `add_records`.
+schedule. `harvest` is one of them: fossick captures the calls a page makes, the vault picks the one
+carrying records, follows its pagination, and files each record as its own retrievable section. See
+the [acquire page](01_acquire.ipynb) for `apis`, `harvest` and `add_records`.
 
 ``` python
 v.watch('https://example.com/changelog', action='url', every='6h')
@@ -646,13 +591,13 @@ v.poll() # run everything due; failures are recorded on the row, never raised
      'results': [{'watch_id': '7bba44189449', 'action': 'url', 'target': 'https://example.com/changelog', 'status': 'skipped', 'took': 0.15, 'result': {'url': 'https://example.com/changelog', 'skipped': 'could not read the page (status 404)', 'status': 404}}, {'watch_id': '182c1aff94a3', 'action': 'web', 'target': 'late chunking retrieval', 'status': 'ok', 'took': 18.17, 'result': {'query': 'late chunking retrieval', 'n_found': 5, 'added': [{'doc_id': '5cbfbfdf58728489', 'title': 'Late Chunking: Balancing Precision and Cost in Long Context Retrieval | Weaviate', 'kind': 'web', 'nodes': 13, 'chunks': 39, 'url': 'https://weaviate.io/blog/late-chunking'}, {'doc_id': 'c48bc8d5f932aa2c', 'title': 'arXiv:2409.04701v3 [cs.CL] 7 Jul 2025 LATE CHUNKING: CONTEXTUAL CHUNK EMBED-', 'kind': 'web', 'nodes': 2, 'chunks': 280, 'url': 'https://arxiv.org/pdf/2409.04701'}, {'doc_id': '184c1b13d8f41da3', 'title': 'Late Chunking in Long-Context Embedding Models', 'kind': 'web', 'nodes': 2, 'chunks': 29, 'url': 'https://jina.ai/news/late-chunking-in-long-context-embedding-models/'}, {'doc_id': '094cc044d2ec521b', 'title': 'What is Late Chunking in RAG? How can you improve your RAG with Late Chunking! | by Vishal Mysore | Medium', 'kind': 'web', 'nodes': 5, 'chunks': 10, 'url': 'https://medium.com/@visrow/what-is-late-chunking-in-rag-how-can-you-improve-your-rag-with-late-chunking-f981a0cb39bb'}, {'doc_id': '16f8501b1a83daed', 'title': 'Late Chunking vs Contextual Retrieval: The Math Behind RAG’s Context Problem | by Michael Ryaboy | KX Systems | Medium', 'kind': 'web', 'nodes': 14, 'chunks': 79, 'url': 'https://medium.com/kx-systems/late-chunking-vs-contextual-retrieval-the-math-behind-rags-context-problem-d5a26b9bbd38'}], 'dropped': []}}, {'watch_id': '25f655475f54', 'action': 'remind', 'target': 'Re-read the eval numbers', 'status': 'ok', 'took': 0.0, 'result': {'doc_id': '0bd0b6ea7fd66c83', 'title': 'Re-read the eval numbers', 'kind': 'note', 'nodes': 2, 'chunks': 1}}],
      'next_due': 1786519416.002694}
 
-`poll()` is the tick. Call it from cron, a scheduler, or a frontend button. `remind` writes a note
-with no network involved, and one dead URL never stops the loop, because a failure is recorded on the
-row rather than raised.
+`poll()` is the tick. Call it from cron, a scheduler, or a button. `remind` writes a note with no
+network. A failure is recorded on the row rather than raised, so one dead URL does not stop the
+loop.
 
 ## The rest
 
-Each of these has its own page, and none of them is a decision you have to make to get started.
+Each has its own page, and none is a decision you need to make to start.
 
 | page | what is on it |
 |----|----|
@@ -665,16 +610,22 @@ Each of these has its own page, and none of them is a decision you have to make 
 | [extract](06_extract.ipynb) | `categorize`, `extract`, `extract_all`, the schemas |
 | [concepts](07_concepts.ipynb) | doctypes, `reshelf`, and what the vault decides about a document |
 | [pii](09_pii.ipynb) | the patterns, their checksums, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact), and what gates an answer |
+| [quality](10_quality.ipynb) | feedback, the noise score, and the ranker fitted from both |
 
 ``` sh
 vishalakshi grab https://example.com/post     # or a file, a directory, an arXiv id, a YouTube URL
 vishalakshi ask "why does late chunking help"
 ```
 
-`$VISHALAKSHI_VAULT` picks the vault file, `$VISHALAKSHI_MODEL` the model `ask` uses,
-`$VISHALAKSHI_PII_MODEL` the local one it falls back to when the sections are private,
-`$VISHALAKSHI_GPU=0` puts LiteRT on the CPU, and `$VISHALAKSHI_OFFLINE` forces the hashing encoder. `vishalakshi-mcp` exposes the same methods to any
-MCP client:
+| variable | what it sets |
+|----|----|
+| `$VISHALAKSHI_VAULT` | the vault file |
+| `$VISHALAKSHI_MODEL` | the model `ask` uses |
+| `$VISHALAKSHI_PII_MODEL` | the local model it falls back to when the sections are private |
+| `$VISHALAKSHI_GPU=0` | put LiteRT on the CPU |
+| `$VISHALAKSHI_OFFLINE` | never download; use the hashing encoder |
+
+`vishalakshi-mcp` exposes the same methods to any MCP client:
 
 ``` json
 {"mcpServers": {"vishalakshi": {"command": "vishalakshi-mcp",

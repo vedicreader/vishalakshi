@@ -28,11 +28,8 @@ def kinds(kind) -> L:
     "A kind filter as a list — `'note'`, `'note,web'` and `['note','web']` all work."
     return L(kind.split(',') if isinstance(kind, str) else kind).filter()
 
-# The encoder is not the lever. Across four encoders litesearch measures a spread of 0.018–0.046
-# weighted MRR, and the static model *wins* one genre outright while indexing ~1,700x cheaper. So
-# there is one default, and this is a table of overrides for an experiment — not a menu to be
-# picked from per corpus. `DFLT_ENC` is what `static_embedder()` loads, so a vault and a bare
-# `Index` over the same file agree without being told to.
+# Across four encoders litesearch measures a spread of 0.018–0.046 weighted MRR, and the
+# static model *wins* one genre outright while indexing ~1,700x cheaper
 ENCODERS = {
     # alias          what litesearch loads what it reads better than the default
     'default':       DFLT_ENC,
@@ -64,10 +61,7 @@ def mk_encoder(model=None,          # an ENCODERS alias, a model2vec id, a lites
                offline:bool=False,  # skip the download attempt entirely
                dtype=DTYPE,         # stored width; litesearch's default everywhere
 ) -> AttrDict:
-    '''The best encoder available as `AttrDict(model, dims, method, name, note)`.
-
-    Only `model` is the encoder. Turning it into the document and query functions is `Index`'s
-    job, which is why nothing here builds them: one thing that knows how to embed, not two.'''
+    '''The best encoder available as `AttrDict(model, dims, method, name, note)`.'''
     if offline:
         return AttrDict(model=HashEmbed(dims, dtype), dims=dims, method='hash', name='hash',
         note=f'char-n-gram hashing ({dims}d) — lexical only; pass encoder= or restore network access for real semantics')
@@ -84,12 +78,7 @@ def mk_encoder(model=None,          # an ENCODERS alias, a model2vec id, a lites
 
 # %% ../nbs/00_core.ipynb #c648b521
 class Vault(Index):
-    '''Everything you have read, in one SQLite file, searchable as one corpus.
-
-    A litesearch `Index` with a `kind` on every document, shelves beside it in the same file, an
-    entity graph over it, and the acquisition and extraction verbs patched on by the other modules.
-    Nothing here re-implements retrieval: `add`, `search`, `sections`, `read`, `toc` and `context`
-    are `Index`'s, with a facet filter pushed into them.'''
+    '''Everything you have read, in one SQLite file, searchable as one corpus.'''
     def __init__(self,
                  path:str=None,       # vault file; None -> ~/.vishalakshi/vault.db
                  encoder=None,        # an ENCODERS alias, a model id, an mk_encoder() result, or None
@@ -98,7 +87,7 @@ class Vault(Index):
                  dims:int=256,        # dims for the hashing fallback
                  db=None):            # an open litesearch Database to share; shelves pass the vault's
         # The env var is read here rather than only in the CLI, because a library caller on a
-        # machine with no network is the case it exists for -- and `Vault()` was ignoring it.
+        # machine with no network is the case it exists for -- and `Vault()` was ignoring it
         offline = bool(os.getenv('VISHALAKSHI_OFFLINE')) if offline is None else offline
         self.enc = encoder if _is_enc(encoder) else mk_encoder(encoder, dims=dims, offline=offline)
         super().__init__(ifnone(path, Path.home()/'.vishalakshi'/'vault.db'),
@@ -106,11 +95,7 @@ class Vault(Index):
         self._register()
 
     def _where(self, kind=None, include_noisy:bool=False) -> str|None:
-        '''A chunk-store `WHERE` for kind and quality policy, pushed into retrieval.
-
-        The noisy leg is an anti-join against `doc_marks`, not a scan of `docs`: `json_extract` over
-        every document runs on both legs, four times per `context()`, to find the handful somebody
-        rejected.'''
+        '''A chunk-store `WHERE` for kind and quality policy, pushed into retrieval.'''
         clauses = []
         if kinds(kind): clauses.append(_kw(kind))
         sub = None if include_noisy else self._noisy_sql()
@@ -135,12 +120,7 @@ def add(self:Vault,
         force:bool=False,     # re-ingest a source already present
         **kw                  # forwarded to litesearch add_doc (chunker, summarize, with_heading)
 ) -> dict:
-    '''Ingest anything into the vault: tree, chunks, embeddings, ANN index.
-
-    `src` decides the route, the way `Index.add` does — a directory goes to `add_dir`, a file to
-    `add_file`, and anything else is treated as the text of one document. Identity is
-    content-addressed over `source|title`, so re-adding the same page is a no-op rather than a
-    duplicate, and `force=True` re-ingests a source already present.'''
+    '''Ingest anything into the vault: tree, chunks, embeddings, ANN index.'''
     # a document's text is not a path, and asking the filesystem about a 40kB "filename" raises
     p = Path(src) if isinstance(src, (str, Path)) and len(str(src)) < 255 and '\n' not in str(src) else None
     if p is not None and p.is_dir():  return self.add_dir(str(p), kind=kind, **kw)
@@ -172,13 +152,7 @@ def add_files(self:Vault,
               embed_batch:int=2000, # chunks embedded and written per flush; 0 writes per document
               **kw                  # forwarded to add_file
 ) -> L:
-    '''Ingest a list of files onto this shelf, batched the way litesearch batches a whole tree.
-
-    A file at a time costs an embedder call, a transaction and an ANN index rebuild *per document*.
-    `Database.add_dir` already does the batching — a parse pool, chunks deferred and embedded
-    `embed_batch` at a time across documents, one index rebuild at the end — and it takes `files=`
-    instead of insisting on walking a tree. So the batching is its, and only the routing, which is
-    per file and cannot be, stays out here.'''
+    '''Ingest a list of files onto this shelf, batched the way litesearch batches a whole tree.'''
     files = L(files).map(Path)
     # an empty list would still reach `rebuild_index`, which is a real cost for no documents
     if not files: return L()
@@ -189,15 +163,7 @@ def add_files(self:Vault,
 def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,
             route:bool=True,      # send Sanskrit sources to the Sanskrit shelf, file by file
             **kw) -> L:
-    """Ingest every document under a directory. `dir2files` skips dotfiles, tests, build and dist.
-
-    Routing is per *file*, not per directory, because a directory is not a kind: a corpus checkout
-    mixes GRETIL editions with the README that describes them, and filing the whole tree by its
-    first document would put one or the other on a shelf whose encoder cannot read it. `grab` can
-    only route what it can see from the outside — a path — so the second look happens here.
-
-    Each shelf is then batched on its own, which is what it has to be: the encoder, the chunk store
-    and the ANN index are all per shelf."""
+    """Ingest every document under a directory. `dir2files` skips dotfiles, tests, build and dist."""
     fs = dir2files(dir, types=types)
     if not route or self.name != 'store': return self.add_files(fs, kind=kind, **kw)
     sa, rest = L(), L()
@@ -229,14 +195,8 @@ def search(self:Vault,
 ) -> L:
     '''Chunk-level hybrid search (FTS5 + vectors, RRF-fused), each hit carrying its breadcrumb.
 
-    A hit is the handle, not the text: `node_id` reads the section, `doc_id` the document. The
-    fused score is the only one worth keeping — the legs' own `rank` and `_dist` are on different
-    scales and only one leg sets each. Same shape as `related`, so a result set reads the same
-    whether you reached it by query or by proximity.
-
-    This overrides `Index.search`, which searches the flat chunk store. A vault always wants the
-    tree: span merging, and a breadcrumb that makes a hit citable. `rerank=True` is worth +0.026
-    to +0.077 weighted MRR at roughly 10x the latency.'''
+    `rerank=True` is worth +0.026 to +0.077 weighted MRR at roughly 10x the latency.
+    '''
     hits = self.db.doc_search(q, self.qemb(q), limit=limit, store=self.name, dtype=DTYPE,
                               where=self._where(kind, include_noisy), rerank=rerank, **kw)
     return L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
@@ -266,14 +226,13 @@ def context(self:Vault,
             **kw                # forwarded to litesearch context
 ) -> AttrDict:
     'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
-    # `where=` reaches every leg litesearch runs, so there is nothing left to drop afterwards.
-    # `sections*3` on top of the `sections*3` litesearch applies internally cost a 9x chunk fanout
-    # and 3x the `read()` calls to return the same six.
+    # `sections*3` on top of the `sections*3` litesearch applies internally cost a 9x chunk
+    # fanout and 3x the `read()` calls to return the same six
     ctx = self.db.context(q, self.qemb(q), store=self.name, related=related, max_read=max_read,
                           sections=sections, where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for r in (*ctx.results, *ctx.related): r.breadcrumb = tidy_bc(r.breadcrumb)
-    # before the shelf and code legs: a ranker fitted on this shelf reorders only this shelf, and
-    # a federated code hit is never scored on features computed from other documents.
+    # before the shelf and code legs: a ranker fitted on this shelf reorders only this shelf,
+    # and a federated code hit is never scored on features computed from other documents
     ctx = self._post(q, ctx)
     ctx.encoder, ctx.code, ctx.shelves = self.enc.note, 0, 0
     if shelves:
@@ -309,8 +268,8 @@ def read(self:Vault, node_id:str, max_chars:int=6000, store:str=None) -> dict:
 @patch
 def doc(self:Vault, ref:str) -> dict:
     'One document row, by `doc_id`, exact `source`, or a title substring; `meta` already decoded.'
-    # Without this, `ref=None` becomes `title LIKE '%%'` and returns the newest document, so a hit
-    # carrying no doc_id (a federated code section) gets an unrelated document's marks back.
+    # Without this, `ref=None` becomes `title LIKE '%%'` and returns the newest document, so a
+    # hit carrying no doc_id (a federated code section) gets an unrelated document's marks
     if not str(ref or '').strip(): return None
     q = str(ref or '').replace("'", "''")
     for w in (f"id='{q}'", f"source='{q}'", f"title LIKE '%{q}%'"):
@@ -381,18 +340,11 @@ def _register(self:Vault):
 
 @patch
 def shelf(self:Vault, name:str, encoder:str=None, **kw) -> Vault:
-    '''A sibling vault in the same file: its own store, its own tree, its own ANN index.
-
-    A shelf is a *partition*, not a second encoder. It is reopened with whatever wrote it, and with
-    the default otherwise — `encoder=` is for an experiment you are running deliberately, and it
-    will warn if it disagrees with what is already on disk.'''
+    '''A sibling vault in the same file: its own store, its own tree, its own ANN index.'''
     was = first(self._stores()(where=f'store={name!r}')) or {}
     enc = encoder or was.get('encoder')
     # Reuse the parent's *live* encoder when the shelf wants the one already loaded -- either
-    # nothing is registered yet, or what is registered is what the parent is holding. Building
-    # it again costs a full model load per shelf, and an application with a shelf per project
-    # pays that for every one of them. It is also what keeps `offline=True` offline: a brand
-    # new shelf used to fall through to the default here and quietly load a real model.
+    # nothing is registered yet, or what is registered is what the parent is holding
     if enc is None or enc == self.enc.name: enc = self.enc
     if enc == 'hash': enc, kw = None, dict(kw, offline=True)   # nothing to load; do not try
     return Vault(self.path, encoder=enc, store=name, db=self.db, **kw)
@@ -401,15 +353,14 @@ def shelf(self:Vault, name:str, encoder:str=None, **kw) -> Vault:
 def drop_shelf(self:Vault, name:str, force:bool=False) -> dict:
     '''Delete a shelf outright: its chunks, nodes, docs, entity graph, ANN index and registry row.
 
-    The way to change a shelf's encoder is to drop it and re-ingest. An ANN index holds exactly one
-    vector space, so writing 256d vectors into a shelf built at 512d does not migrate it — it makes
-    every distance across the two meaningless, which is what `_register` warns about.'''
+    An ANN index holds exactly one vector space, so writing 256d vectors into a shelf built at 512d does not migrate it — it makes every distance across the two meaningless, which is what `_register` warns about.
+    '''
     if name == 'store' and not force: raise ValueError("refusing to drop the main shelf; pass force=True")
     pre = '' if name == 'store' else f'{name}_'
     have = {r['name'] for r in self.db.q("select name from sqlite_master where type='table'")}
     gone = []
-    # the FTS virtual tables first: dropping one takes its shadow tables with it, and dropping the
-    # content table out from under it first leaves them orphaned
+    # the FTS virtual tables first: dropping one takes its shadow tables with it, and dropping
+    # the content table out from under it first leaves them orphaned
     for tn in (f'{name}_fts', f'{pre}entities_fts', name, f'{pre}nodes', f'{pre}docs',
                f'{pre}entities', f'{pre}mentions', f'{pre}edges'):
         if tn in have:
@@ -431,9 +382,7 @@ def shelves(self:Vault) -> L:
         except Exception: return 0
     return L(self._stores()(order_by='added_at')).map(lambda r: dict(r, docs=n(r['store'])))
 
-# Shelf names, not encoder assignments. One encoder writes every shelf, because the measurement
-# says the encoder is not the lever — a shelf earns its keep as a *partition*, so that a Sanskrit
-# corpus and a folder of invoices do not dilute each other's ranking, not as a second vector space.
+# Shelf names, not encoder assignments
 SHELVES = ('store',      # the main shelf: notes, pages, anything unrouted
            'papers',     # arXiv and papers
            'sanskrit',   # veda, commentary, translation — Devanagari and IAST alike
@@ -447,11 +396,7 @@ MARK_COLS = ('noisy', 'noisy_reason', 'pii_override', 'pii_reason')
 
 @patch
 def _marks(self:Vault):
-    """Per-document judgements, in their own table because `meta` belongs to whoever ingested.
-
-    `add_doc(force=True)` deletes the document row and writes a fresh one, so a mark kept in `meta`
-    is erased by the next re-ingest, and a watch re-ingests on a schedule. Joined back on `doc_id`,
-    which is content-addressed and so survives a re-fetch."""
+    """Per-document judgements, in their own table because `meta` belongs to whoever ingested."""
     t = self.db.t.doc_marks
     t.create(doc_id=str, store=str, noisy=int, noisy_reason=str, pii_override=str, pii_reason=str,
              at=float, pk=('doc_id', 'store'), if_not_exists=True)
@@ -504,10 +449,7 @@ def _migrate_marks(self:Vault) -> int:
 # %% ../nbs/00_core.ipynb #b6e182a1
 @patch
 def _post(self:Vault, q:str, ctx):
-    """Hook: what `context` hands back, after retrieval and before the federated legs.
-
-    A no-op here; `quality` replaces it when a ranker is switched on. The ranker needs the vault
-    and the vault must not need the ranker."""
+    """Hook: what `context` hands back, after retrieval and before the federated legs."""
     return ctx
 
 @patch
@@ -529,15 +471,8 @@ _facets_on = False
 def sanskrit_facets() -> bool:
     '''Re-register litesearch's Sanskrit profiles *with* lemmas and Monier-Williams glosses.
 
-    litesearch calls `register_profiles()` at import with no lemmatiser and no lexicon, so a verse
-    is indexed with its metre and nothing else. Putting the English behind the Sanskrit into
-    `metadata` is the single largest measured gain on this corpus — larger than changing the
-    encoder: a static encoder *with* glosses beats a 300M ONNX transformer without them. The gloss
-    is indexed for FTS and never embedded, so it costs no schema change and no vector width.
-
-    Called once, the first time a file is routed to the Sanskrit shelf, because the data behind it
-    is an ~83 MB download that nobody who is not reading Sanskrit should pay for. A failure leaves
-    the metre-only profiles in place rather than raising: worse retrieval, not a failed ingest.'''
+    Putting the English behind the Sanskrit into `metadata` is the single largest measured gain on this corpus — larger than changing the encoder: a static encoder *with* glosses beats a 300M ONNX transformer without them.
+    '''
     global _facets_on
     if _facets_on: return True
     try:
@@ -589,12 +524,7 @@ def connect(self:Vault,
             batch:int=2000,      # chunks per flush; keeps co-occurrence windows on disk, not in memory
             n_workers:int=None,  # extraction workers; 0 is serial, None picks by queue size
             **kw) -> dict:
-    '''(Re)build the entity graph over everything in the vault.
-
-    The corpus is streamed rather than materialised: `build_graph` reads `chunks` exactly once, and
-    `batch` sends its windows to a scratch table, so a vault that has outgrown memory still finishes.
-    Extraction is where the build spends its time, which is what `n_workers` splits — litesearch
-    keeps it serial on its own when `terms_fn` is set, since an extractor rarely pickles.'''
+    '''(Re)build the entity graph over everything in the vault.'''
     if not self.store.count: return dict(entities=0, mentions=0, edges=0, windows=0)
     if 'terms_fn' not in kw:
         try:
@@ -656,11 +586,7 @@ def topic_tree(self:Vault,
                docs:int=8,        # documents listed under each topic
                min_chunks:int=2,  # skip a topic carried by fewer chunks than this
 ) -> L:
-    '''Topics, and which documents each one runs through. The shape of the corpus, two levels deep.
-
-    `map()` says what the subjects are; this says where each one lives, which is the half that tells
-    you whether a subject is one source talking to itself or a thread running through six. Reads the
-    topic nodes `connect()` persisted, so it costs three queries and no clustering.'''
+    '''Topics, and which documents each one runs through. The shape of the corpus, two levels deep.'''
     try: g = self.db.get_graph(self.name)
     except Exception: return L()
     try: ents = L(g.entities(where="kind='topic'", order_by='freq desc'))
@@ -673,8 +599,8 @@ def topic_tree(self:Vault,
     cid_doc = {}
     for w in _sql_in('id', {c for cs in by_topic.values() for c in cs}):
         for r in self.store(select='id, doc_id', where=w): cid_doc[r['id']] = r['doc_id']
-    # two documents can share a title (every `index.ipynb` in a tree of repos), and identical rows
-    # under one topic read as a duplicate rather than as two sources agreeing
+    # two documents can share a title (every `index.ipynb` in a tree of repos), and identical
+    # rows under one topic read as a duplicate rather than as two sources agreeing
     drows = {r['id']: r for r in self.t.docs(select='id, title, source')}
     dupes = Counter(r['title'] for r in drows.values())
     def _name(d):
@@ -726,10 +652,7 @@ def sources(self:Vault, kind:str=None, include_noisy:bool=True) -> L:
 
 @patch
 def mark_noisy(self:Vault, ref, noisy:bool=True, reason:str='') -> dict:
-    """Mark a document as retrieval noise: search, sections, context and ask exclude it by default.
-
-    A hard exclusion, not a demotion: this is somebody saying "not this one". The algorithmic score
-    in `quality` only suggests."""
+    """Mark a document as retrieval noise: search, sections, context and ask exclude it by default."""
     return self.mark(ref, noisy=int(bool(noisy)), noisy_reason=(reason or None) if noisy else None)
 
 @patch

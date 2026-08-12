@@ -12,8 +12,8 @@ import json, sys
 from functools import wraps
 from .cli import cmd, jsonable, vault
 
-# mcp 2.0 renamed FastMCP to MCPServer and moved it; the constructor, the `tool` decorator and the
-# `run` transports are unchanged, so one alias covers both SDKs rather than pinning either.
+# mcp 2.0 renamed FastMCP to MCPServer and moved it; the constructor, the `tool` decorator and
+# the `run` transports are unchanged, so one alias covers both SDKs rather than pinning
 try: from mcp.server.mcpserver import MCPServer
 except ImportError:
     try: from mcp.server.fastmcp import FastMCP as MCPServer

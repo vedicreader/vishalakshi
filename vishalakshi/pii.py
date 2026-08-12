@@ -88,12 +88,7 @@ def pii_spans(text:str,          # what to scan
               kinds=None,        # restrict to these kinds; None -> every pattern
               mx:int=MAX_SCAN,   # chars scanned before a long document is sampled at both ends
 ) -> L:
-    """Every match, as `(start, end, kind, text)`, longest first and never overlapping.
-
-    Overlap is not a detail. A sixteen-digit card matches `card`, `phone` and `nhs`, and
-    counting it three times turns one payment card into a document that is apparently dense
-    with identity. The longest match wins and the rest are dropped.
-    """
+    """Every match, as `(start, end, kind, text)`, longest first and never overlapping."""
     text = _scan_text(text, mx)
     want = set(kinds or _COMPILED)
     found = []
@@ -115,13 +110,7 @@ def pii_report(text:str,          # what to scan
                kinds=None,        # restrict to these kinds; None -> every pattern
                mx:int=MAX_SCAN,   # chars scanned before a long document is sampled at both ends
 ) -> AttrDict:
-    """What was found and whether it makes this text somebody's business.
-
-    `has_pii` is what a policy switches on, and it is deliberately narrow: an IP address or an
-    API key is reported but does not on its own make a document private, because a server log
-    is not somebody's private life and treating it as one costs every question about
-    infrastructure a smaller model for nothing.
-    """
+    """What was found and whether it makes this text somebody's business."""
     spans, counts = pii_spans(text, kinds, mx), {}
     for _, _, k, _ in spans: counts[k] = counts.get(k, 0) + 1
     n = len(_scan_text(text, mx))
@@ -135,17 +124,7 @@ def redact(text:str,       # the text to mask
            kinds=None,     # restrict to these kinds
            mask:str=None,  # what to put in place of a match; None -> `[KIND]`
 ) -> str:
-    """`text` with every match replaced, so what is left can be read by anything.
-
-    Applied right to left, because replacing left to right moves every span after the one just
-    replaced and the offsets stop meaning anything two matches in.
-
-    And scanned entire, however long it is. `pii_spans` samples a long document at both ends,
-    which is the right trade when the question is *whether* there is anything here; it is the
-    wrong one when the answer is going to be used as offsets, because an offset into a sample
-    addresses the wrong characters of the text it came from -- masking the middle of the
-    document and leaving the end of it in the clear.
-    """
+    """`text` with every match replaced, so what is left can be read by anything."""
     out = str(text or '')
     if spans is None: spans = pii_spans(out, kinds, mx=len(out))
     for s, e, kind, _ in sorted(spans, reverse=True):
@@ -172,19 +151,11 @@ def pii(self:Vault,
 
 @patch
 def mark_not_pii(self:Vault, ref, clear:bool=True, reason:str='') -> dict:
-    """Explicitly clear a false-positive PII decision, or restore automatic detection.
-
-    Recorded in `doc_marks`, not `meta`, which a re-ingest rewrites. An exemption that expires the
-    next time a watch fires is worse than none, because nobody is watching for it."""
+    """Explicitly clear a false-positive PII decision, or restore automatic detection."""
     return self.mark(ref, pii_override='clear' if clear else None, pii_reason=(reason or None) if clear else None)
 
 def pii_ctx(ctx) -> AttrDict:
-    """The report for an assembled context -- which is what a policy has to gate on.
-
-    `ask` never sends a document. It sends the sections retrieval chose, so a vault holding one
-    private letter among four hundred papers is only a private question when the letter is
-    among the sections, and asking the document is the wrong question at the wrong time.
-    """
+    """The report for an assembled context -- which is what a policy has to gate on."""
     parts = [str(getattr(r, 'text', None) or (r.get('text') if isinstance(r, dict) else '') or '')
              for r in (list(ctx.get('results') or []) + list(ctx.get('related') or []))]
     return pii_report('\n\n'.join(parts))

@@ -131,12 +131,7 @@ def gh_file(self:Vault, url:str, title:str=None, **kw) -> dict:
                          meta=dict(url=url, repo=f'{owner}/{repo}', fetched_at=time.time()), **kw), url=url)
 
 def what_is(target:str) -> str:
-    """Which kind of thing a `grab` target names: `dir`, `file`, `sanskrit`, `arxiv`, `youtube`, `github`, `ghfile`, `pdf` or `web`.
-
-    `sanskrit` is checked before the generic `file` because it is the one local case whose *shelf*
-    depends on what is inside the file rather than on its extension: a GRETIL edition and an
-    ordinary web page are both `.htm`. Naming it here is what lets `route` send it to an encoder
-    that can read it, and the shelf has to be chosen before the document is read, not after."""
+    """Which kind of thing a `grab` target names: `dir`, `file`, `sanskrit`, `arxiv`, `youtube`, `github`, `ghfile`, `pdf` or `web`."""
     if (p:=Path(target)).is_dir(): return 'dir'
     if p.exists(): return 'sanskrit' if is_sanskrit_file(p) else 'file'
     if 'arxiv.org' in target or re.fullmatch(r'\d{4}\.\d{4,5}(v\d+)?', target): return 'arxiv'
@@ -186,12 +181,7 @@ def add_tree(self:Vault,
              verbose:bool=False,
              **kw                    # forwarded to add_file
 ) -> AttrDict:
-    '''Ingest a whole tree, each half to the index that can actually answer questions about it.
-
-    `connect` is off because it is not incremental: it rebuilds the graph over the *whole* vault, so
-    leaving it on made the tenth tree cost as much as the first nine. Nothing in the default
-    retrieval path reads the graph either — `context(graph=True)` is the caller that does. Ingest
-    what you have, then call `connect()` once.'''
+    '''Ingest a whole tree, each half to the index that can actually answer questions about it.'''
     p = Path(dir)
     if not p.is_dir(): raise ValueError(f'not a directory: {dir}')
     docs = self.add_dir(p, types=types, kind=kind, **kw)

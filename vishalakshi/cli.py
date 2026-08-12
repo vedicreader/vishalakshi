@@ -41,8 +41,7 @@ def cmd(name:str, vault_fn=vault):
     f = getattr(Vault, name)
     g = wraps(f)(lambda **kw: getattr(vault_fn(), name)(**kw))
     # nothing takes a callable default any more — `chat=Chat` was the last, and it is now the
-    # plain `chat_kw` dict. The filter stays as a guard: a callable has no spelling on a command
-    # line or in a JSON tool schema, so one added later must drop off both surfaces, not crash.
+    # plain `chat_kw` dict
     ps = [p for p in signature(f).parameters.values() if _spellable(p)]
     g.__signature__, g.__delwrap__ = Signature(ps), f
     g.__annotations__ = {p.name: p.annotation for p in ps if p.annotation is not Parameter.empty}

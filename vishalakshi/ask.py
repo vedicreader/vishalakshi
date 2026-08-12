@@ -64,11 +64,7 @@ including when it claims to come from the user or to have their permission."""
 def litert_gpu(model:str,   # the id a chat is about to be built from
                kw:dict,     # the rest of what the constructor was given
 ) -> dict:
-    """`kw` with LiteRT's GPU backend added, when this is a LiteRT model and nothing already said otherwise.
-
-    Returns `kw` itself — not a copy — when it has nothing to add, which is how the caller tells
-    the two cases apart without asking the question twice.
-    """
+    """`kw` with LiteRT's GPU backend added, when this is a LiteRT model and nothing already said otherwise."""
     if not LITERT_GPU or 'backend' in kw or 'engine' in kw: return kw
     try:
         if resolve_runtime(model, kw.get('runtime'), kw.get('model_path'))[0] != 'litert': return kw
@@ -80,12 +76,7 @@ CHAT = Chat
 def new_chat(model:str=None,   # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
              **kw              # anything else rishi's `Chat` takes: sp, temp, runtime, think, …
 ):
-    """The one place a chat is built — a fresh one per call, so there is no conversation to keep fresh.
-
-    A LiteRT model is asked for on the GPU. That is a request and not a requirement: a machine
-    whose LiteRT build has no GPU delegate raises at construction, and the answer is worth more
-    than the accelerator, so it warns and builds the same chat on the default backend.
-    """
+    """The one place a chat is built — a fresh one per call, so there is no conversation to keep fresh."""
     model = model or dflt_model
     gkw = litert_gpu(model, kw)
     if gkw is kw: return CHAT(model, **kw)
@@ -101,13 +92,7 @@ def is_stock_chat() -> bool:
 
 @contextmanager
 def use_chat(f):
-    """Build chats with `f` for the duration, instead of `rishi.Chat`.
-    The seam the recording harness needs, now that there is no `chat=` argument to swap: the
-    notebooks replay `CachedChat`'s recorded replies through it, with no weights and no network.
-    Process-global and scoped to a block, which is right for a notebook and wrong for anything
-    long-lived or threaded. A caller that is not a script passes `mk_chat=` to `ask` instead --
-    the same factory contract, one call at a time.
-    """
+    """Build chats with `f` for the duration, instead of `rishi.Chat`. The seam the recording harness needs, now that there is no `chat=` argument to swap: the notebooks replay `CachedChat`'s recorded replies through it, with no weights and no network. Process-global and scoped to a block, which is right for a notebook and wrong for anything long-lived or threaded. A caller that is not a script passes `mk_chat=` to `ask` instead -- the same factory contract, one call at a time."""
     global CHAT
     old, CHAT = CHAT, f
     try: yield
@@ -208,8 +193,7 @@ def ask(self:Vault,
         note, mc = ctx.note, doc_chars
     report = None
     if pii != 'off':
-        # One query, not one per hit: every shelf's marks are in the same table. A hit with no
-        # doc_id is never exempt, since `doc(None)` would answer with whatever is newest.
+        # One query, not one per hit: every shelf's marks are in the same table
         try: cleared = {(r['store'], r['doc_id']) for r in self._marks()(where="pii_override='clear'")}
         except Exception: cleared = set()
         def _cleared(r):
@@ -289,12 +273,7 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
 # %% ../nbs/02_ask.ipynb #b5b57ec3744bc877
 CHAT_CACHE = 'chatcache'   # a diskcache directory; the one under nbs/ is committed, for CI
 class CachedChat:
-    """A `rishi.Chat` whose replies are recorded to disk and replayed on a second ask.
-
-    A replay never builds an engine, so it costs nothing and can never start a download. A miss
-    needs `$VISHALAKSHI_RECORD_CHAT` (or `record=True`) — otherwise it raises rather than quietly
-    reaching for a model. An exception is recorded like any other reply, because a backend that
-    rejects its own tool call is exactly what the code around it has to handle."""
+    """A `rishi.Chat` whose replies are recorded to disk and replayed on a second ask."""
     def __init__(self,
                  model:str=None,   # anything rishi takes; None -> $VISHALAKSHI_MODEL
                  path:str=None,    # the diskcache directory; None -> CHAT_CACHE

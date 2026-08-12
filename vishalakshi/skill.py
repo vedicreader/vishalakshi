@@ -57,8 +57,9 @@ v.extract(ref, schema='vendor:str, total:float, due_date:str')
 v.extract_all(doctype='invoice') # one row per invoice in the vault
 ```
 
-`categorize` answers from a regex and entity cue table first and reaches for a model only where the
-table cannot decide. `decisive=True` means it did not need one.
+`categorize` runs a regex and entity cue table first and reaches for a model only where the table
+cannot decide. `decisive=True` means it did not need one. On templated documents the table is
+decisive on 80% and right on all of those.
 
 ## Code
 
@@ -77,11 +78,27 @@ The retrieval defaults are litesearch's measured ones and there is nothing to ch
 chunks, a preprocessed keyword leg, an HNSW vector leg, a document tree, one static 256d encoder,
 and a script fold that makes Devanagari and IAST reach the same row.
 
-Four things are yours. `rerank=True` on `search`, `sections` or `context` is worth +0.026 to +0.077
-weighted MRR at roughly 10x the latency. `v.shelf(name)` partitions a corpus so two bodies of
-material stop diluting each other. `llm=` decides how hard `categorize` and `extract` try. And
-`db.graph_search` is the entity-graph leg, by name, for queries whose answer shares no word with the
-question; it is off everywhere else because it costs 0.070 to 0.160 weighted MRR on ordinary ones.
+Yours:
+
+- `rerank=True` on `search`, `sections` or `context`: +0.026 to +0.077 weighted MRR at ~10x latency.
+- `v.shelf(name)` partitions a corpus so two bodies of material stop diluting each other.
+- `llm=` decides how hard `categorize` and `extract` try.
+- `db.graph_search` is the entity-graph leg by name, for queries whose answer shares no word with
+  the question. Off elsewhere: it costs 0.070 to 0.160 weighted MRR on ordinary ones.
+
+## Saying what was rubbish
+
+```python
+v.mark_noisy(doc_id, reason='site furniture')   # excluded from search, sections, context, ask
+v.mark_not_pii(doc_id, reason='my own invoice') # a false positive, cleared
+v.suggest_noisy(k=20)                           # ranked candidates, suggestions only
+v.learn()                                       # log every ask as feedback
+```
+
+Marks live in `doc_marks`, so a re-ingest or a watch firing does not erase them. `suggest_noisy`
+ranks documents by how much they behave like boilerplate, 0.988 AUC with no labels. There is also a
+fitted reranker behind `v.fit_ranker()` and `v.use_ranker()`; leave it off unless your own corpus
+says otherwise, because none beat plain RRF reproducibly (`evals/RESULTS.md`).
 
 `v.connect()` builds that graph. `v.map()` reads the topics out of it and `v.topic_tree()` says
 which documents each topic runs through, which is how you tell a subject that is one source talking
@@ -111,9 +128,7 @@ from pyskills import allow
 from .core import Vault
 from .cli import vault
 
-# Everything a sandboxed agent may call: read the vault, and add to it. The four that delete
-# (`forget`, `drop_shelf`, `unwatch`, `pause`) are left out on purpose — an agent filling a vault it
-# shares with you should not be able to empty it.
+# Everything a sandboxed agent may call: read the vault, and add to it
 READ = ('search sections context related read toc doc document sources stats shelves elsewhere map '
         'doctypes of_type ner categorize extract extract_all ask ask_doc explain doc_context topic_tree show_topics '
         'code_search symbol where_to_add grep federate watches apis assets').split()

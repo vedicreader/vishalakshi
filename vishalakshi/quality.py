@@ -68,9 +68,8 @@ def log_ask(self:Vault,
 ) -> int:
     """Turn one answered question into labels. Returns how many rows were written.
 
-    The numbers in `up`/`down` are the ones in the answer and in `mk_prompt`: `[1]` is the first
-    section: so a person can say `v.log_ask(out, down=[2])` while reading, without looking
-    anything up."""
+    The numbers in `up`/`down` are the ones in the answer and in `mk_prompt`: `[1]` is the first section: so a person can say `v.log_ask(out, down=[2])` while reading, without looking anything up.
+    """
     up, down = set(up or ()), set(down or ())
     res = L((out.get('context') or {}).get('results') or ())
     cited = {c['n'] for c in (out.get('cited') or L())}
@@ -99,10 +98,7 @@ def _observe(self:Vault, out):
 # %% ../nbs/10_quality.ipynb #82baf5e1
 @patch
 def doc_stats(self:Vault, exclude_ask=None) -> dict:
-    """doc_id -> (weighted wins, weighted losses) over the feedback log for this shelf.
-
-    `exclude_ask` drops the rows belonging to given questions, which is what makes an out-of-fold
-    prior possible. See `training_data` for why that is not optional."""
+    """doc_id -> (weighted wins, weighted losses) over the feedback log for this shelf."""
     ex = set(exclude_ask or ())
     out = defaultdict(lambda: [0.0, 0.0])
     for r in self._fb()(where=f'store={self.name!r}'):
@@ -143,11 +139,7 @@ NOISE_W = dict(hub=1.0, spread_chunk=0.8, dup_out=0.8, off_centre=0.5, low_idf=0
 
 @patch
 def chunk_matrix(self:Vault, limit:int=None, seed:int=0) -> tuple:
-    """`(ids, doc_ids, texts, V)`: every chunk's stored vector, L2-normalised, as one array.
-
-    Read off the store rather than re-embedded. The vectors are already there, they are the ones
-    retrieval actually uses, and re-embedding a corpus to ask a question about its shape would
-    cost more than every other part of this module put together."""
+    """`(ids, doc_ids, texts, V)`: every chunk's stored vector, L2-normalised, as one array."""
     rows = [r for r in self.store(select='id, doc_id, content, embedding') if r['embedding']]
     if limit and len(rows) > limit:
         idx = np.random.default_rng(seed).choice(len(rows), limit, replace=False)
@@ -182,15 +174,7 @@ def _knn(V:np.ndarray, k:int=10, exact_max:int=30_000, block:int=1024) -> tuple:
     return idx, sim
 
 def _centroids(V:np.ndarray, k:int=64, seed:int=0, iters:int=25) -> np.ndarray:
-    """Topic centroids: seeded k-means++ then Lloyd on the unit sphere, L2-normalised.
-
-    Not `usearch.index.kmeans`, which ignores its `seed` -- `spread_doc` is an entropy over these
-    assignments and drifted across its whole range between two calls on the same vault. Costs about
-    the same, since both are one `V @ C.T` per iteration.
-
-    `k` is capped at a quarter of the chunks. Ask for more centroids than there is structure for and
-    every chunk becomes its own cluster, at which point the spread features are zero by
-    construction."""
+    """Topic centroids: seeded k-means++ then Lloyd on the unit sphere, L2-normalised."""
     k = max(2, min(k, len(V) // 4))
     if len(V) <= 8: return V.mean(0, keepdims=True) / (np.linalg.norm(V.mean(0)) + 1e-9)
     rng = np.random.default_rng(seed)
@@ -240,10 +224,7 @@ def noise_features(self:Vault,
                    exact_max:int=30_000,
                    seed:int=0,
 ) -> AttrDict:
-    """Per-document noise features, computed from the vectors already in the file.
-
-    Returns `doc_ids`, `X` (documents x `NOISE_FEATURES`) and `names`. No labels are used and no
-    model is called, so this is what you have on a vault that has never been given feedback."""
+    """Per-document noise features, computed from the vectors already in the file."""
     ids, dids, texts, V = self.chunk_matrix(limit=limit, seed=seed)
     names = list(NOISE_FEATURES)
     if not len(V): return AttrDict(doc_ids=L(), X=np.zeros((0, len(names))), names=names)
@@ -260,9 +241,9 @@ def noise_features(self:Vault,
         redund = (close & same).any(1).astype(np.float32)    # the document repeating itself
     else: dup_out = redund = np.zeros(len(V), np.float32)
 
-    # distance from, not proximity to. Measured the other way round it scores 0.12 AUC: a survey
-    # spanning every topic sits *near* the mean of the corpus and boilerplate sits a long way
-    # from it, so proximity to the centroid indicts exactly the documents worth keeping.
+    # Measured the other way round it scores 0.12 AUC: a survey spanning every topic sits
+    # *near* the mean of the corpus and boilerplate sits a long way from it, so proximity to
+    # the
     cen = V.mean(0); cen /= np.linalg.norm(cen) + 1e-9
     off_centre = 1.0 - V @ cen
     C_ = _centroids(V, k=topics, seed=seed)
@@ -301,10 +282,8 @@ def noise_features(self:Vault,
 def _robust_z(X:np.ndarray) -> np.ndarray:
     """Per-feature normalisation by rank, centred on zero and spanning roughly [-1.7, 1.7].
 
-    Median/MAD is the obvious choice and it fails here. Boilerplate makes a feature bimodal: with
-    40% of documents carrying a glued-on footer the median of `dup_out` sits inside the noisy mode
-    and its MAD is near zero, so a perfectly separating feature z-scores to nothing. Ranks are
-    invariant to any monotone transform, which is all a blend of unlike features can assume."""
+    Boilerplate makes a feature bimodal: with 40% of documents carrying a glued-on footer the median of `dup_out` sits inside the noisy mode and its MAD is near zero, so a perfectly separating feature z-scores to nothing.
+    """
     X = np.asarray(X, np.float64)
     if len(X) < 3: return np.zeros_like(X)
     out = np.empty_like(X)
@@ -321,11 +300,7 @@ def _robust_z(X:np.ndarray) -> np.ndarray:
 
 @patch
 def noise_scores(self:Vault, weights:dict=None, ranker=None, **kw) -> L:
-    """Every document, most suspicious first, with the features that put it there.
-
-    `ranker=` takes what `fit_noise` returned and uses it instead of `NOISE_W`. The reported
-    per-feature numbers are rank-normalised, so they are comparable down a column and across
-    features, and are not the raw values."""
+    """Every document, most suspicious first, with the features that put it there."""
     f = self.noise_features(**kw)
     if not len(f.doc_ids): return L()
     Z = _robust_z(f.X)
@@ -341,11 +316,7 @@ def noise_scores(self:Vault, weights:dict=None, ranker=None, **kw) -> L:
 
 @patch
 def suggest_noisy(self:Vault, k:int=20, min_score:float=1.0, **kw) -> L:
-    """The `k` documents most worth looking at, excluding ones already judged.
-
-    A suggestion and nothing else. Confirming one is `v.mark_noisy(doc_id)`, which is a person
-    deciding: the score never removes anything from your results on its own, because the cost of
-    silently hiding the one document that mattered is not symmetric with the cost of a bad hit."""
+    """The `k` documents most worth looking at, excluding ones already judged."""
     judged = {r['doc_id'] for r in self._marks()(where=f'store={self.name!r}')}
     return self.noise_scores(**kw).filter(lambda r: r.score >= min_score and r.doc_id not in judged)[:k]
 
@@ -353,12 +324,7 @@ def suggest_noisy(self:Vault, k:int=20, min_score:float=1.0, **kw) -> L:
 def _sig(z): return 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
 
 class Ranker:
-    """Pairwise linear learning-to-rank over the feedback log.
-
-    `fit` takes a design matrix, a group id per row (the question the row was retrieved for) and a
-    label per row, and learns weights such that higher-labelled rows in the same group score
-    higher. `score` applies them. Both directions of every pair are implied by symmetry, so only
-    one is materialised."""
+    """Pairwise linear learning-to-rank over the feedback log."""
     def __init__(self, names, w=None, mu=None, sd=None, meta=None):
         self.names, self.w = list(names), None if w is None else np.asarray(w, np.float64)
         self.mu = None if mu is None else np.asarray(mu, np.float64)
@@ -510,12 +476,8 @@ def learn(self:Vault, on:bool=True) -> dict:
 def training_data(self:Vault, min_group:int=2) -> AttrDict:
     """The feedback log as `(X, groups, y, weights)`, one group per question.
 
-    Questions with a single distinct label are dropped: a pairwise model learns from disagreement
-    inside a group, and a group where everything was cited yields no pair.
-
-    `prior` is computed out of fold, from a posterior excluding that question's own rows. In fold
-    it is target leakage: the feature summarises the label, the fit puts its largest weight on it,
-    and the result scored recall 0.47 against a baseline of 0.80 on a document-disjoint split."""
+    In fold it is target leakage: the feature summarises the label, the fit puts its largest weight on it, and the result scored recall 0.47 against a baseline of 0.80 on a document-disjoint split.
+    """
     by = defaultdict(list)
     for r in self._fb()(where=f'store={self.name!r}', order_by='at'): by[r['ask_id']].append(r)
     Xs, gs, ys, ws = [], [], [], []
@@ -555,10 +517,8 @@ def fit_ranker(self:Vault, l2:float=1.0, save:bool=False, **kw) -> Ranker:
 def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, **kw) -> Ranker:
     """Learn the blend from the documents you have marked, instead of guessing nine weights.
 
-    Same pairwise machinery as the ranker: one group holding every document, marked ones labelled
-    1. "Rank every noisy document above every clean one" is the AUC, so the pairwise loss optimises
-    what `evals/noise.py` reports. Held out, this beat the fixed weights on all four corpora tried
-    (0.996 against 0.979) from six marks. The fixed weights are the cold start."""
+    Same pairwise machinery as the ranker: one group holding every document, marked ones labelled 1. "Rank every noisy document above every clean one" is the AUC, so the pairwise loss optimises what `evals/noise.py` reports.
+    """
     labels = labels or {r['doc_id']: bool(r['noisy']) for r in self._marks()(where=f'store={self.name!r}')
                         if r['noisy'] is not None}
     if not labels: raise ValueError('nothing marked: mark_noisy a few documents first')
@@ -566,8 +526,9 @@ def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, **kw) -> Ranker:
     keep = [i for i, d in enumerate(f.doc_ids) if d in labels] or list(range(len(f.doc_ids)))
     y = np.array([float(labels.get(f.doc_ids[i], 0.0)) for i in range(len(f.doc_ids))])
     if len(set(y[keep].tolist())) < 2:
-        # only positives marked: the unmarked documents are the negatives, which is what a person
-        # marking noise actually means, and is also the only way to get a pair out of this
+        # only positives marked: the unmarked documents are the negatives, which is what a
+        # person marking noise actually means, and is also the only way to get a pair out of
+        # this
         keep = list(range(len(f.doc_ids)))
     X = _robust_z(f.X)[keep]
     return Ranker(f.names).fit(X, ['all']*len(keep), y[keep], l2=l2)
@@ -596,13 +557,8 @@ def _rk(self:Vault):
 def retune(self:Vault, q:str, hits, ranker=None, alpha:float=0.25, rrf_k:int=60) -> L:
     """Reorder one question's hits, fused with the order they arrived in by reciprocal rank.
 
-    Fused rather than substituted. A ranker that sorts by its own score discards the baseline, so a
-    mediocre model does not degrade the ranking, it destroys it: over three corpora, substituting
-    cost a mean nDCG@10 of -0.127 and lost significantly on two, where the same model at
-    `alpha=0.25` came out at -0.001 and was never significant either way.
-
-    RRF is what the two retrieval legs are already fused with a layer down, so this is a third leg
-    with a weight on it. `alpha=0` leaves the baseline untouched, large `alpha` is the ranker alone."""
+    A ranker that sorts by its own score discards the baseline, so a mediocre model does not degrade the ranking, it destroys it: over three corpora, substituting cost a mean nDCG@10 of -0.127 and lost significantly on two, where the same model at `alpha=0.25` came out at -0.001 and was never.
+    """
     rk = ranker or self._rk()
     if rk is None or not len(hits): return L(hits)
     s = rk.score(self.pair_X(q, hits))

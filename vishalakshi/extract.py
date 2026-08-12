@@ -91,7 +91,7 @@ def signals(text:str,            # the document text
     found = noun + kws
     labels = dict(Counter(e.label.lower() for e in found))
     # `labels` is counted over everything found and `limit` caps only what is *shown*, because
-    # `cue_scores` reads the labels: a display cap that silently moved a score would be a trap
+    # `cue_scores` reads the labels: a display cap that silently moved a score would be a
     if noun:
         counts = {k: counts.get(k, 0) + (labels.get(k, 0) if k not in counts else 0)
                   for k in (*counts, *(l for l in labels if l not in ('keyphrase', 'term')))}
@@ -101,11 +101,8 @@ def signals(text:str,            # the document text
 
 # %% ../nbs/06_extract.ipynb #5c2e8b14
 DOCTYPES = {
-    # label: the cue phrases that are evidence for it, the regex signals it needs, and the entity
-    # labels it expects. Each leg is scored as a *fraction* matched, never a count, so a long
-    # document cannot out-score a short one on the same evidence. The entity labels are drawn from
-    # the set `_noun_ents` produces (`ORG`, `PERSON`, `LAW`) — all structurally nameable things,
-    # never money or dates, which the regex leg reads far more reliably off an invoice anyway.
+    # label: the cue phrases that are evidence for it, the regex signals it needs, and the
+    # entity labels it expects
     'invoice': dict(needs=('money',), ents=('ORG',), cues=(
         r'\b(?:tax )?invoice\b', r'\b(?:amount|balance|total) due\b', r'\bbill(?:ed)? to\b|\bremit\b',
         r'\bpayment terms?\b|\bnet \d{1,3}\b', r'\bsub-?total\b', r'\b(?:vat|gst|sales tax)\b')),
@@ -146,10 +143,8 @@ DOCTYPES = {
         r'\bq[1-4] \d{4}\b|\bfiscal year\b|\bfy\d{2}\b|\bquarter\b',
         r'\btable \d+\b|\bfigure \d+\b|\bappendix\b',
         r'\byear[- ]on[- ]year\b|\brevenue\b|\bmargin\b')),
-    # --- what an organisation writes about its own work, as opposed to what arrives from outside.
-    # Every cue here is a phrase a reader would accept as evidence on its own: `\bprocedure\b` and
-    # `\bpass(?:ed)?\b` were both tried and dropped, because a deploy note and a CI log match them
-    # and a confident wrong label is worse than no label.
+    # --- what an organisation writes about its own work, as opposed to what arrives from
+    # outside
     'proposal': dict(needs=(), ents=('ORG',), cues=(
         r'\bproposal\b|\brfp response\b|\brequest for proposal\b', r'\bproposed approach\b|\bour approach\b',
         r'\bscope of work\b|\bwork ?plan\b', r'\bdeliverables?\b', r'\bfees?\b|\binvestment\b',
@@ -190,9 +185,9 @@ DOCTYPES = {
         r'\broadmap\b', r'\bmilestones?\b', r'\bphase [0-9a-z]+\b|\bnow[,/ ]+next[,/ ]+later\b',
         r'\bnext (?:30|60|90) days\b|\bquarterly plan\b', r'\btarget date\b|\bplanned date\b',
         r'\bproduct backlog\b|\bdelivery plan\b|\bthemes?\b')),
-    # a claim and a clinical record were one label until the cues were written down: they share a
-    # shape (a dated record about a person) and no vocabulary at all, and a document that is
-    # genuinely both now ties rather than being typed confidently as whichever came first
+    # a claim and a clinical record were one label until the cues were written down: they
+    # share a shape (a dated record about a person) and no vocabulary at all, and a document
+    # that
     'claim': dict(needs=('date',), ents=('PERSON', 'ORG'), cues=(
         r'\bclaim (?:number|no\.?|form|reference)\b|\bclaim id\b',
         r'\bincident date\b|\bdate of loss\b', r'\bclaimant\b|\binsured\b|\bpolicyholder\b',
@@ -234,8 +229,8 @@ DOCTYPES = {
 }
 _CUES = {l: [re.compile(c, re.I|re.M) for c in d['cues']] for l, d in DOCTYPES.items()}
 
-# What acquired a document is evidence about what it is, and better evidence than any cue phrase:
-# a YouTube ingest *is* a transcript. Only the certain cases are listed.
+# What acquired a document is evidence about what it is, and better evidence than any cue
+# phrase: a YouTube ingest *is* a transcript
 KIND_HINT = dict(youtube='transcript', arxiv='paper', code='code')
 MIN_SCORE, MIN_MARGIN, KIND_BONUS = 0.4, 0.12, 0.2
 
@@ -309,9 +304,8 @@ def categorize(self:Vault,
         lbls = L(labels.split(',') if isinstance(labels, str) else labels or list(DOCTYPES)).map(str.strip)
         mid = model or dflt_model
         try:
-            # `auto` is allowed to *use* a model, not to go and fetch one: a vault of ten thousand
-            # documents must not turn a one-line note into a multi-gigabyte download. rishi decides
-            # what runs the id; whether the weights are already here is the one thing it cannot say.
+            # `auto` is allowed to *use* a model, not to go and fetch one: a vault of ten
+            # thousand documents must not turn a one-line note into a multi-gigabyte download
             if mode == 'auto' and is_stock_chat() and infer_runtime(mid) != 'remote' and not model_cached(mid):
                 by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
@@ -319,9 +313,8 @@ def categorize(self:Vault,
                 if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "rishi default"})'
                 else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
         except Exception as e:
-            # `auto` asked for a model *if one can be had*. There may be no weights and no network,
-            # and a corpus 90% typed by cues alone is worth far more than a traceback — so the cue
-            # verdict stands, and says why. `always` was an instruction, and raises.
+            # There may be no weights and no network, and a corpus 90% typed by cues alone is
+            # worth far more than a traceback — so the cue verdict stands, and says why
             if mode == 'always': raise
             by = f'cues ({g.method}); no model available ({type(e).__name__})'
     res = AttrDict(doc_id=d.doc_id, title=d.title, kind=d.kind, doctype=dt, score=g.score,
@@ -362,8 +355,8 @@ def of_type(self:Vault, doctype:str, kind:str=None) -> L:
     'Every document categorised as `doctype`, newest first.'
     return self.sources(kind).filter(lambda r: (r['meta'] or {}).get('doctype') == doctype)
 
-# What a document turned out to *be* — as opposed to how it arrived, which is what `KIND_SHELF`
-# covers. Only types whose shelf is not the default: everything else is already where it belongs.
+# What a document turned out to *be* — as opposed to how it arrived, which is what
+# `KIND_SHELF` covers
 DOCTYPE_SHELF = {'paper': 'papers', 'code': 'code', 'catalogue': 'data'}
 
 @patch
@@ -403,8 +396,8 @@ def ner(self:Vault,
 class Invoice:
     """An invoice, purchase order or quotation.
 
-    items: one entry per line, each {description, qty, unit_price, amount}.
-    Amounts are bare numbers with the currency in `currency`; dates are ISO (2024-03-01)."""
+    Amounts are bare numbers with the currency in `currency`; dates are ISO (2024-03-01).
+    """
     number:str = ''
     date:str = ''
     due_date:str = ''
@@ -516,8 +509,8 @@ class Summary:
     numbers:list[str] = None
     open_questions:list[str] = None
 
-# A purchase order and a quotation carry an invoice's fields under other names, so they share its
-# schema rather than getting a near-duplicate of it.
+# A purchase order and a quotation carry an invoice's fields under other names, so they share
+# its schema rather than getting a near-duplicate of it
 SCHEMAS = dict(invoice=Invoice, purchase_order=Invoice, quote=Invoice, receipt=Receipt,
                catalogue=Catalogue, contract=Contract, resume=Resume, paper=Paper,
                meeting_notes=MeetingNotes, other=Summary)
