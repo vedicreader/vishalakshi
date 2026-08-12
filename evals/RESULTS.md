@@ -91,15 +91,31 @@ out-of-fold, excluding each question's own rows. That alone moved forest and gbd
 significantly worse to indistinguishable, and it is invisible on a query-disjoint split — only the
 document-disjoint split showed it.
 
-## 3. What this means for switching things on
+## 3. PII detection
+
+`python -m evals.pii` — 400 documents, half with planted identity and half with lookalikes
+(order numbers, ISBNs, part numbers, build strings). Checksums are the claim:
+
+| detector | precision | recall | F1 | false positives |
+|---|---|---|---|---|
+| regex only | 0.664 | 1.000 | 0.798 | 101/200 |
+| with checksums | 0.948 | 1.000 | 0.973 | 11/200 |
+
+Recall is 1.000 on every planted kind in the harness (email, card, iban, ssn, nhs, phone, dob,
+account). The residual false positives are Luhn collisions on long digit runs. API keys (`secret`)
+gate with the identifying set; names and addresses are out of scope and need `mark_pii`.
+
+## 4. What this means for switching things on
 
 | piece | default | why |
 |---|---|---|
-| `mark_noisy` / `mark_not_pii` | active | a person's decision, not a model's |
-| `suggest_noisy` | suggests only | 0.988 AUC is good; it is not good enough to delete things unasked |
+| `mark_noisy` / `mark_not_pii` / `mark_pii` | active | a person's decision, not a model's |
+| `suggest_noisy` / `accept_noisy` | suggests only | 0.988 AUC is good; it is not good enough to delete things unasked |
+| `fit_noise` / `use_noise` | off until saved and switched | fitted blend 0.996 AUC; same save/use seam as the ranker |
 | feedback logging (`learn()`) | **off** | nothing is recorded until you say so |
 | `fit_ranker` | manual | fitting is free and cheap to inspect |
 | `use_ranker` | **off** | nothing here beat RRF reproducibly; measure on your own corpus first |
+| `ask` / `extract` / `explain` `pii=` | `local` | arithmetic gate; structured fields scrubbed on the way out |
 
 The honest summary is that the infrastructure is worth having and the models are not yet. Three
 generated corpora is not a real vault, and every number here should be re-measured against yours —

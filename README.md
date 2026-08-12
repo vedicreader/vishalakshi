@@ -43,29 +43,40 @@ print(L(r.cited).map(lambda c: f"{c['n']} {c['breadcrumb']}"))
 if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 ```
 
-## PII
+## PII and noise
 
-`ask` gates on retrieved sections by arithmetic, not a model. Luhn and similar checksums cut false positives from 101/200 to 11/200 at recall 1.000 (`evals/pii.py`). Patterns, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact), and marks live on [pii](09_pii.ipynb).
+`ask`, `extract` and `explain` share one gate. Detection is arithmetic (checksums: precision 0.664 → 0.948 at recall 1.000). API keys gate too. Names need `mark_pii`. Junk is a separate loop: `suggest_noisy` (0.988 AUC) then `mark_noisy` / `accept_noisy`. Depth on [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
 
 ``` python
 from vishalakshi.pii import pii_report
 
-r = pii_report('Invoice 4471 for Ada Lovelace, ada@example.com. Card 4111 1111 1111 1111. '
-               'Order 4111 1111 1111 1112. Server 10.0.0.14 returned 500.')
+r = pii_report('Invoice for ada@example.com. Card 4111 1111 1111 1111. KEY=sk-abcdefghijklmnopqrstuvwxyz123456')
 r.has_pii, r.identifying, r.kinds
+```
+
+``` python
+# judgement loop: force-private, clear a false positive, exclude site furniture
+v.add('A letter about Jane at 12 High Street - nothing arithmetic can catch.',
+      title='letter', source='/inbox/letter.md')
+v.add('Cookie policy. All rights reserved. Privacy. Terms. Contact us. Cookie policy.',
+      title='footer', source='/inbox/footer.md')
+v.mark_pii('/inbox/letter.md', reason='address')
+v.mark_noisy('/inbox/footer.md', reason='site furniture')
+v.pii('/inbox/letter.md').has_pii, v.pii('/inbox/letter.md').override
+L(v.suggest_noisy(k=5, min_score=-10)).map(lambda r: (r.title, round(r.score, 2)))[:5]
 ```
 
 | `pii=` | what happens |
 |----|----|
-| `local` (default) | a local model answers; shape and quantity, not detail |
+| `local` (default) | local model answers; shape and quantity, not detail. Structured `fields` are scrubbed too |
 | [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) | mask recognised spans, then any model may answer. Names are not masked |
 | `refuse` | return the finding, no answer |
 | `off` | do not look |
 
 ``` python
-v.mark_noisy(doc_id, reason='site furniture')
 v.mark_not_pii(doc_id, reason='my own invoice')
-v.learn(); v.suggest_noisy(k=20)   # noise score 0.988 AUC; ranker off by default; see quality
+v.accept_noisy(k=10, reason='reviewed')   # mark the current top suggestions
+v.fit_noise(save=True); v.use_noise(True) # optional; fitted blend 0.996 AUC
 ```
 
 ## Paperwork
@@ -137,8 +148,8 @@ L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['para
 | [extract](06_extract.ipynb) | `categorize`, `extract`, `extract_all`, schemas |
 | [concepts](07_concepts.ipynb) | encoders, shelves, backends, `reshelf` |
 | [skill](08_skill.ipynb) | agent cheat sheet (exported skill) |
-| [pii](09_pii.ipynb) | patterns, checksums, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact), gating |
-| [quality](10_quality.ipynb) | feedback, noise score, ranker |
+| [pii](09_pii.ipynb) | patterns, checksums, `secret`, `mark_pii` / `mark_not_pii`, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) |
+| [quality](10_quality.ipynb) | `suggest_noisy` / `accept_noisy`, `fit_noise`, ranker |
 
 ``` sh
 vishalakshi grab https://example.com/post

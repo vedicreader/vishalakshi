@@ -396,6 +396,7 @@ def ner(self:Vault,
 class Invoice:
     """An invoice, purchase order or quotation.
 
+    items: one entry per line, each {description, qty, unit_price, amount}.
     Amounts are bare numbers with the currency in `currency`; dates are ISO (2024-03-01).
     """
     number:str = ''
@@ -598,26 +599,46 @@ def extract(self:Vault,
             sp:str=EXTRACT_SP,     # system prompt for the extraction
             save:bool=False,       # write the fields into the document's meta
             llm:str='auto',        # the LLM leg of the categorisation, when picking the schema
+            pii:str='local',       # local|redact|refuse|off — same contract as `ask`
+            pii_model:str=None,    # local model when private; None -> $VISHALAKSHI_PII_MODEL
 ) -> AttrDict:
     "Pull structured fields out of one document — an invoice's totals, a catalogue's products."
     d = self.document(ref, max_chars=max_chars)
+    from vishalakshi.ask import LOCAL_RUNTIMES, PII_SP, dflt_model as _dflt, pii_model_ as _pii_m
+    from vishalakshi.pii import pii_report, redact, redact_obj
     if not (d.text or '').strip():
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
                         fields={}, skipped='no text to extract from')
+    text, report = d.text, None
+    if pii != 'off':
+        report = self.pii(d.doc_id or ref, max_chars=max_chars) if d.doc_id else pii_report(d.text)
+        if report.has_pii and pii == 'refuse':
+            return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
+                            fields={}, skipped='pii', refused=True, pii=report)
+        if report.has_pii and pii == 'redact': text = redact(d.text)
     dt, cat = None, None
     if schema is None:
         cat = self.categorize(d, model=model, chat_kw=chat_kw, llm=llm, save=save)
         dt = cat.doctype
         sch = SCHEMAS.get(dt, Summary)
     else: sch = as_schema(schema)
-    prompt = (f'{d.title}\n(source: {d.source})\n\n{d.text}\n\n---\n\n'
+    prompt = (f'{d.title}\n(source: {d.source})\n\n{text}\n\n---\n\n'
               f'Pull the fields of `{sch.__name__}` out of the document above.')
-    ch = new_chat(model, **(chat_kw or {}))
-    flds = structured(ch, prompt, sch, sp=sp)
+    mid, sys_sp = model, sp
+    if report and report.has_pii and pii == 'local':
+        mid, sys_sp = pii_model or _pii_m, PII_SP
+    ch = new_chat(mid, **(chat_kw or {}))
+    if report and report.has_pii and pii == 'local' and str(getattr(ch, 'runtime', '') or '') not in LOCAL_RUNTIMES:
+        return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=None,
+                        fields={}, skipped='pii', refused=True, pii=report, runtime=ch.runtime)
+    flds = structured(ch, prompt, sch, sp=sys_sp)
+    if report and report.has_pii:
+        blob = pii_report(str(flds))
+        if blob.has_pii: flds = redact_obj(flds)
     if save and d.doc_id: self.set_meta(d.doc_id, extracted=flds, extracted_as=sch.__name__)
     return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=sch.__name__,
-                    fields=flds, chars=len(d.text), truncated=d.truncated, model=model or dflt_model,
-                    runtime=ch.runtime, categorized=cat, usage=getattr(ch, 'use', None))
+                    fields=flds, chars=len(d.text), truncated=d.truncated, model=mid or _dflt,
+                    runtime=ch.runtime, categorized=cat, usage=getattr(ch, 'use', None), pii=report)
 
 @patch
 def extract_all(self:Vault,
@@ -639,6 +660,7 @@ def extract_all(self:Vault,
         except Exception as ex:
             errs.append(dict(doc_id=r['id'], title=r['title'], error=f'{type(ex).__name__}: {str(ex)[:200]}'))
     return AttrDict(n=len(rows), doctype=doctype, schema=schema, rows=rows, errors=errs)
+
 
 # %% ../nbs/06_extract.ipynb #7c4b0e91
 @patch
