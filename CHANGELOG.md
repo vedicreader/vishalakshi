@@ -2,6 +2,44 @@
 
 <!-- do not remove -->
 
+## 0.1.5
+
+**`vishalakshi.quality`** — feedback, a noise score, and a ranker fitted from both. `learn()`,
+`rate`, `log_ask`, `doc_prior`, `noise_features`, `noise_scores`, `suggest_noisy`, `fit_noise`,
+`Ranker`, `fit_ranker`, `use_ranker`, `retune`.
+
+The labels are taken rather than asked for: `ask` already computes which sections an answer cited,
+which is a relevance judgement by the model that read all of them, produced on every question. A
+section retrieved and ignored is the weak negative that makes the positives mean something. An
+answer that cites nothing is not logged at all — small models drop the convention on exactly the
+hardest questions, and six negatives is the wrong thing to learn from that.
+
+The noise score is unsupervised and reaches 0.988 AUC over generated corpora, 0.996 fitted from six
+marks. What it measures is *"this gets retrieved for everything"* — hubness in the k-NN graph,
+near-duplication across documents — not breadth. Document-level cluster spread, the intuitive
+version, scores 0.453: below chance, because it flags surveys harder than boilerplate.
+
+None of the rerankers beat RRF reproducibly on novel questions, and `use_ranker` is a separate call
+from `fit_ranker` for that reason. `retune` fuses by reciprocal rank rather than substituting the
+order: mediocre and fused costs −0.001 nDCG, mediocre and substituted costs −0.127. Full numbers
+and method in `evals/RESULTS.md`.
+
+**`doc_marks`** — `mark_noisy` and `mark_not_pii` now write to their own table instead of the
+document's `meta`. `add_doc(force=True)` deletes the document row and writes a fresh one, so a mark
+kept in `meta` was erased by the next re-ingest — and `run_watch` re-ingests on a schedule. A page
+marked noisy on Monday was back in the results on Tuesday, silently. Existing marks migrate on
+first open. The retrieval filter is an anti-join against the marked set rather than a
+`json_extract` over every document, which is the same answer without parsing the metadata of the
+whole vault on both legs of every query.
+
+**`Vault.doc(ref)`** returns None for an empty ref instead of falling through to `title LIKE '%%'`
+and matching the newest document in the vault. `ask`'s PII exemption check reached it with the
+`doc_id=None` that federated code sections carry, and got back an unrelated document's exemption.
+
+**`Vault.context`** no longer asks for `sections*3` on top of the `sections*3` litesearch already
+applies internally, or rebuilds the filter in Python after pushing it into retrieval — 9x the chunk
+fanout and 3x the `read()` calls to return the same six sections.
+
 ## 0.1.4
 enable marking items as not pii and testing for pdf acquire
 

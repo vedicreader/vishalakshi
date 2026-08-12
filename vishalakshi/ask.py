@@ -208,20 +208,28 @@ def ask(self:Vault,
         note, mc = ctx.note, doc_chars
     report = None
     if pii != 'off':
+        # One query, not one per hit: every shelf's marks live in the same table, so the exempt
+        # set is read once and matched on (store, doc_id). And a hit with no doc_id -- a federated
+        # code section carries none -- is never exempt, because `doc(None)` would otherwise answer
+        # with whichever document happens to be newest and hand back its exemption.
+        try: cleared = {(r['store'], r['doc_id']) for r in self._marks()(where="pii_override='clear'")}
+        except Exception: cleared = set()
         def _cleared(r):
-            try:
-                owner = self.shelf(r.store) if getattr(r, 'store', None) else self
-                return ((owner.doc(getattr(r, 'doc_id', None)) or {}).get('meta') or {}).get('pii_override') == 'clear'
-            except Exception: return False
+            did = getattr(r, 'doc_id', None)
+            return bool(did) and (getattr(r, 'store', None) or self.name, did) in cleared
         _priv = lambda r: not _cleared(r) and pii_report(str(getattr(r, 'text', '') or '')).has_pii
         keep = int(ctx.get('n_docs') or 0)
         ctx.related = L(r for r in ctx.related if not _priv(r))
         if keep: ctx.results = L(ctx.results[:keep]) + L(r for r in ctx.results[keep:] if not _priv(r))
-        report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not _cleared(r)), related=L(r for r in ctx.related if not _cleared(r))))
+        report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not _cleared(r)),
+                                  related=L(r for r in ctx.related if not _cleared(r))))
     private = bool(report and report.has_pii)
     if private:
         note = (f"{note}These sections hold personal information ({', '.join(sorted(report.identifying))}). " if pii == 'local' else note)
-        if pii == 'redact': ctx.results = L(AttrDict(r, text=redact(r.text)) for r in ctx.results)
+        # A section somebody has exempted is not masked either: the exemption is the whole point,
+        # and masking it anyway would make `mark_not_pii` mean nothing under this policy.
+        if pii == 'redact':
+            ctx.results = L(r if _cleared(r) else AttrDict(r, text=redact(r.text)) for r in ctx.results)
     if instruction: question = f'{question}\n\nInstruction from the questioner: {instruction}'
     prompt = mk_prompt(question, ctx, max_chars=mc, related=bool(related), note=note)
     if private and pii == 'local':
@@ -265,7 +273,7 @@ def ask(self:Vault,
             leaked = pii_ctx(AttrDict(results=[AttrDict(text=out.answer)], related=[]))
             if leaked.has_pii: out.answer, out.leaked = redact(out.answer), leaked.identifying
     out.usage = getattr(ch, 'use', None)
-    return out
+    return self._observe(out)     # records the citations as labels, when learning is on
 
 @patch
 def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_chars:int=6000,

@@ -147,6 +147,54 @@ gives up whatever turns on the details and does not mask names), `refuse` (retur
 answer), and `off`. The same arithmetic runs over the answer on the way back out, where a slip costs
 a masked token instead of somebody’s account number.
 
+## Telling it what was rubbish
+
+Two things go wrong as a vault fills, and neither is a retrieval bug. A crawl brings the cookie
+banner in with the page; a repository brings its licence three hundred times. And the ranking is
+occasionally just wrong for the way *you* ask.
+
+The manual answer is a person's, and it is a hard exclusion — you saw it, you said no, it is gone
+from `search`, `sections`, `context` and `ask`:
+
+```python
+v.mark_noisy(doc_id, reason='site furniture')      # excluded until you say otherwise
+v.mark_not_pii(doc_id, reason='my own invoice')    # a false positive, cleared
+```
+
+Both are kept in `doc_marks`, not in the document's `meta`, because a re-ingest rewrites `meta` and
+a watch re-ingests on a schedule: a page marked noisy on Monday was quietly back in the results on
+Tuesday.
+
+The rest is [`quality`](https://vedicreader.github.io/vishalakshi/quality.html), and the interesting
+part is where the labels come from. `ask` already computes which sections an answer *cited* — a
+relevance judgement made by the model that read all of them, produced on every question, about five
+sections at a time. `v.learn()` starts recording it; a section retrieved and then ignored is the
+weak negative that makes the positives mean anything.
+
+```python
+v.learn()                       # log every ask; off until you say so
+v.suggest_noisy(k=20)           # ranked candidates — suggestions, never deletions
+v.fit_noise()                   # learn the blend from what you have marked
+r = v.fit_ranker(save=True)     # pairwise linear LTR over the feedback
+r.weights()                     # ...whose weights you can read before trusting it
+v.use_ranker(True)              # a separate call, deliberately
+```
+
+`fit_ranker` and `use_ranker` are two calls because [`evals/RESULTS.md`](evals/RESULTS.md) says
+they should be. Measured over three generated corpora, known-item queries, document-disjoint
+splits: the noise score reaches **0.988 AUC** unsupervised and **0.996** fitted from six marks, and
+**no learned reranker beat plain RRF reproducibly** — gradient boosting won MRR on one corpus
+(+0.083, p=0.05) and lost it on another (−0.109, p=0.01). So the noise score is worth having and
+the ranker is off until your own corpus says otherwise. `evals/gold.py` builds the gold set that
+would tell you.
+
+Two findings from that harness are worth carrying away even if you never fit anything. *"Spread
+across many clusters means generic"* is the intuitive noise heuristic and it scores **0.453 AUC —
+below chance** — because it cannot distinguish a survey from a footer; measured one level down, as
+the entropy of a single *chunk* over topic centroids, the same idea reaches 0.982. And a reranker
+that replaces the ranking costs −0.127 nDCG when it is mediocre, where the same model fused by
+reciprocal rank costs −0.001: substitution is the dangerous operation, not learning.
+
 ## What is decided, and what is yours
 
 The retrieval defaults are litesearch’s, and they are measured rather than chosen: `evals/` runs 120
