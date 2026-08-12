@@ -174,9 +174,8 @@ def pii(self:Vault,
 def mark_not_pii(self:Vault, ref, clear:bool=True, reason:str='') -> dict:
     """Explicitly clear a false-positive PII decision, or restore automatic detection.
 
-    Recorded in `doc_marks`, not in the document's `meta`: a re-ingest rewrites `meta`, and an
-    exemption that quietly expires the next time a watch fires is worse than no exemption, because
-    nobody is watching for it to come back."""
+    Recorded in `doc_marks`, not `meta`, which a re-ingest rewrites. An exemption that expires the
+    next time a watch fires is worse than none, because nobody is watching for it."""
     return self.mark(ref, pii_override='clear' if clear else None, pii_reason=(reason or None) if clear else None)
 
 def pii_ctx(ctx) -> AttrDict:

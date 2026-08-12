@@ -108,10 +108,9 @@ class Vault(Index):
     def _where(self, kind=None, include_noisy:bool=False) -> str|None:
         '''A chunk-store `WHERE` for kind and quality policy, pushed into retrieval.
 
-        The noisy leg is an anti-join against `doc_marks` rather than a scan of `docs`. Both say
-        the same thing, but `json_extract(meta, '$.noisy')` has to parse the metadata of every
-        document in the vault, on both retrieval legs, four times per `context()` -- and the set
-        it is looking for is the handful of documents somebody has actually rejected.'''
+        The noisy leg is an anti-join against `doc_marks`, not a scan of `docs`: `json_extract` over
+        every document runs on both legs, four times per `context()`, to find the handful somebody
+        rejected.'''
         clauses = []
         if kinds(kind): clauses.append(_kw(kind))
         sub = None if include_noisy else self._noisy_sql()
@@ -267,16 +266,14 @@ def context(self:Vault,
             **kw                # forwarded to litesearch context
 ) -> AttrDict:
     'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
-    # `where=` reaches every leg litesearch runs -- `sections`, the related `doc_search`, and
-    # `graph_search` -- so the filter is applied during retrieval and there is nothing left to
-    # drop afterwards. Asking for `sections*3` on top of the `sections*3` litesearch already
-    # applies internally cost a 9x chunk fanout and 3x the `read()` calls, to return the same six.
+    # `where=` reaches every leg litesearch runs, so there is nothing left to drop afterwards.
+    # `sections*3` on top of the `sections*3` litesearch applies internally cost a 9x chunk fanout
+    # and 3x the `read()` calls to return the same six.
     ctx = self.db.context(q, self.qemb(q), store=self.name, related=related, max_read=max_read,
                           sections=sections, where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for r in (*ctx.results, *ctx.related): r.breadcrumb = tidy_bc(r.breadcrumb)
-    # before the shelf and code legs, so a ranker fitted on this shelf's feedback only ever
-    # reorders this shelf's sections, and a federated code hit is never scored on features
-    # that were computed from documents it has nothing to do with.
+    # before the shelf and code legs: a ranker fitted on this shelf reorders only this shelf, and
+    # a federated code hit is never scored on features computed from other documents.
     ctx = self._post(q, ctx)
     ctx.encoder, ctx.code, ctx.shelves = self.enc.note, 0, 0
     if shelves:
@@ -312,9 +309,8 @@ def read(self:Vault, node_id:str, max_chars:int=6000, store:str=None) -> dict:
 @patch
 def doc(self:Vault, ref:str) -> dict:
     'One document row, by `doc_id`, exact `source`, or a title substring; `meta` already decoded.'
-    # Without this, `ref=None` becomes `title LIKE '%%'` and matches the newest document in the
-    # vault -- so a caller asking about a hit that carries no doc_id (a federated code section)
-    # gets an unrelated document's row back, and whatever is recorded against it.
+    # Without this, `ref=None` becomes `title LIKE '%%'` and returns the newest document, so a hit
+    # carrying no doc_id (a federated code section) gets an unrelated document's marks back.
     if not str(ref or '').strip(): return None
     q = str(ref or '').replace("'", "''")
     for w in (f"id='{q}'", f"source='{q}'", f"title LIKE '%{q}%'"):
@@ -451,13 +447,11 @@ MARK_COLS = ('noisy', 'noisy_reason', 'pii_override', 'pii_reason')
 
 @patch
 def _marks(self:Vault):
-    '''Per-document judgements, in their own table because `meta` belongs to whoever ingested.
+    """Per-document judgements, in their own table because `meta` belongs to whoever ingested.
 
-    `add_doc(force=True)` deletes the document row and writes a fresh one, so anything kept in
-    `meta` is erased by the next re-ingest -- and a watch re-ingests on a schedule. A page marked
-    noisy on Monday was back in the results on Tuesday, silently. What a person decided about a
-    document has to outlive the document's rows, so it lives in a table the ingest never touches
-    and is joined back on `doc_id`, which is content-addressed and therefore stable across re-fetches.'''
+    `add_doc(force=True)` deletes the document row and writes a fresh one, so a mark kept in `meta`
+    is erased by the next re-ingest, and a watch re-ingests on a schedule. Joined back on `doc_id`,
+    which is content-addressed and so survives a re-fetch."""
     t = self.db.t.doc_marks
     t.create(doc_id=str, store=str, noisy=int, noisy_reason=str, pii_override=str, pii_reason=str,
              at=float, pk=('doc_id', 'store'), if_not_exists=True)
@@ -512,9 +506,8 @@ def _migrate_marks(self:Vault) -> int:
 def _post(self:Vault, q:str, ctx):
     """Hook: what `context` hands back, after retrieval and before the federated legs.
 
-    A no-op here. `quality` replaces it with a fitted ranker when one has been switched on — which
-    keeps the dependency pointing one way, since the ranker needs the vault and the vault must not
-    need the ranker."""
+    A no-op here; `quality` replaces it when a ranker is switched on. The ranker needs the vault
+    and the vault must not need the ranker."""
     return ctx
 
 @patch
@@ -733,12 +726,10 @@ def sources(self:Vault, kind:str=None, include_noisy:bool=True) -> L:
 
 @patch
 def mark_noisy(self:Vault, ref, noisy:bool=True, reason:str='') -> dict:
-    '''Mark a document as retrieval noise: search, sections, context and ask exclude it by default.
+    """Mark a document as retrieval noise: search, sections, context and ask exclude it by default.
 
-    A hard exclusion rather than a demotion, because this is somebody saying "not this one" and a
-    demotion that still surfaces it on a thin query would be an argument, not an answer. The
-    *algorithmic* score in `quality` only ever demotes and only ever suggests -- nothing gets
-    excluded from your results because a model thought it should be.'''
+    A hard exclusion, not a demotion: this is somebody saying "not this one". The algorithmic score
+    in `quality` only suggests."""
     return self.mark(ref, noisy=int(bool(noisy)), noisy_reason=(reason or None) if noisy else None)
 
 @patch

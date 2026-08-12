@@ -1,4 +1,4 @@
-"""what came back was good, said out loud and then learned from
+"""feedback, a noise score, and a ranker fitted from both
 
 Docs: https://vedicreader.github.io/vishalakshi/quality.html.md"""
 
@@ -23,7 +23,7 @@ SIGNALS = dict(up=(1.0, 3.0), good=(1.0, 3.0), read=(1.0, 1.5), cited=(1.0, 1.0)
 
 @patch
 def _fb(self:Vault):
-    "The feedback log, created on first use — one row per (question, section) judgement."
+    "The feedback log, created on first use: one row per (question, section) judgement."
     t = self.db.t.feedback
     t.create(id=str, at=float, store=str, q=str, ask_id=str, node_id=str, doc_id=str, rank=int,
              score=float, signal=str, label=float, weight=float, pk='id', if_not_exists=True)
@@ -68,8 +68,8 @@ def log_ask(self:Vault,
 ) -> int:
     """Turn one answered question into labels. Returns how many rows were written.
 
-    The numbers in `up`/`down` are the ones in the answer and in `mk_prompt` — `[1]` is the first
-    section — so a person can say `v.log_ask(out, down=[2])` while reading, without looking
+    The numbers in `up`/`down` are the ones in the answer and in `mk_prompt`: `[1]` is the first
+    section: so a person can say `v.log_ask(out, down=[2])` while reading, without looking
     anything up."""
     up, down = set(up or ()), set(down or ())
     res = L((out.get('context') or {}).get('results') or ())
@@ -143,7 +143,7 @@ NOISE_W = dict(hub=1.0, spread_chunk=0.8, dup_out=0.8, off_centre=0.5, low_idf=0
 
 @patch
 def chunk_matrix(self:Vault, limit:int=None, seed:int=0) -> tuple:
-    """`(ids, doc_ids, texts, V)` — every chunk's stored vector, L2-normalised, as one array.
+    """`(ids, doc_ids, texts, V)`: every chunk's stored vector, L2-normalised, as one array.
 
     Read off the store rather than re-embedded. The vectors are already there, they are the ones
     retrieval actually uses, and re-embedding a corpus to ask a question about its shape would
@@ -184,19 +184,13 @@ def _knn(V:np.ndarray, k:int=10, exact_max:int=30_000, block:int=1024) -> tuple:
 def _centroids(V:np.ndarray, k:int=64, seed:int=0, iters:int=25) -> np.ndarray:
     """Topic centroids: seeded k-means++ then Lloyd on the unit sphere, L2-normalised.
 
-    Written out rather than delegated, because `usearch.index.kmeans` does not honour its `seed`.
-    Called twice on identical input it returns different assignments, and `spread_doc` -- which is
-    an entropy over those assignments -- drifts across its entire range between two calls on the
-    same vault. A score that changes when you ask it twice cannot be evaluated, and the difference
-    between one run and the next would be indistinguishable from the effect being measured.
+    Not `usearch.index.kmeans`, which ignores its `seed` -- `spread_doc` is an entropy over these
+    assignments and drifted across its whole range between two calls on the same vault. Costs about
+    the same, since both are one `V @ C.T` per iteration.
 
-    It also costs about what usearch cost: both are dominated by one `V @ C.T` per iteration, which
-    is a large GEMM and therefore BLAS's problem rather than ours.
-
-    `k` is capped at a quarter of the chunks. Asking for more centroids than there is structure to
-    support hands every chunk its own cluster, at which point the spread features measure nothing:
-    each chunk sits on top of one centroid, its entropy over them is zero by construction, and
-    boilerplate scores lowest of all because its identical copies collapse onto a single point."""
+    `k` is capped at a quarter of the chunks. Ask for more centroids than there is structure for and
+    every chunk becomes its own cluster, at which point the spread features are zero by
+    construction."""
     k = max(2, min(k, len(V) // 4))
     if len(V) <= 8: return V.mean(0, keepdims=True) / (np.linalg.norm(V.mean(0)) + 1e-9)
     rng = np.random.default_rng(seed)
@@ -225,7 +219,7 @@ def _centroids(V:np.ndarray, k:int=64, seed:int=0, iters:int=25) -> np.ndarray:
 
 _TOK = re.compile(r"[A-Za-z0-9_']+")
 def _idf(texts) -> dict:
-    "Inverse document frequency over chunks — boilerplate is made of words that are everywhere."
+    "Inverse document frequency over chunks: boilerplate is made of words that are everywhere."
     df, n = Counter(), max(len(texts), 1)
     for t in texts: df.update(set(_TOK.findall((t or '').lower())))
     return {w: math.log(n / (1 + c)) for w, c in df.items()}
@@ -305,18 +299,12 @@ def noise_features(self:Vault,
     return AttrDict(doc_ids=doc_ids, X=np.array(rows, np.float32), names=names)
 
 def _robust_z(X:np.ndarray) -> np.ndarray:
-    """Per-feature normalisation to a common, comparable scale, by rank rather than by moments.
+    """Per-feature normalisation by rank, centred on zero and spanning roughly [-1.7, 1.7].
 
-    Standardising by median and MAD is the obvious choice and it fails on exactly this data.
-    Boilerplate makes a feature *bimodal*: on a corpus where forty per cent of documents carry a
-    glued-on footer, the median of `dup_out` sits inside the noisy mode and its MAD is nearly
-    zero, so the z-score of a perfectly separating feature collapses to nothing and the blend
-    throws away its best signal. Rank normalisation has no such failure mode -- it is invariant to
-    any monotone transform of a feature, which is all a blend of heterogeneous features can
-    honestly assume about them -- and it costs a sort.
-
-    Output is centred on zero and scaled so a feature spans roughly [-1.7, 1.7], close enough to a
-    z-score that the same weights mean the same thing."""
+    Median/MAD is the obvious choice and it fails here. Boilerplate makes a feature bimodal: with
+    40% of documents carrying a glued-on footer the median of `dup_out` sits inside the noisy mode
+    and its MAD is near zero, so a perfectly separating feature z-scores to nothing. Ranks are
+    invariant to any monotone transform, which is all a blend of unlike features can assume."""
     X = np.asarray(X, np.float64)
     if len(X) < 3: return np.zeros_like(X)
     out = np.empty_like(X)
@@ -356,7 +344,7 @@ def suggest_noisy(self:Vault, k:int=20, min_score:float=1.0, **kw) -> L:
     """The `k` documents most worth looking at, excluding ones already judged.
 
     A suggestion and nothing else. Confirming one is `v.mark_noisy(doc_id)`, which is a person
-    deciding — the score never removes anything from your results on its own, because the cost of
+    deciding: the score never removes anything from your results on its own, because the cost of
     silently hiding the one document that mattered is not symmetric with the cost of a bad hit."""
     judged = {r['doc_id'] for r in self._marks()(where=f'store={self.name!r}')}
     return self.noise_scores(**kw).filter(lambda r: r.score >= min_score and r.doc_id not in judged)[:k]
@@ -422,14 +410,14 @@ class Ranker:
         return self
 
     def score(self, X):
-        "Higher is better. Unfitted, everything ties — so a caller can always ask."
+        "Higher is better. Unfitted, everything ties: so a caller can always ask."
         X = np.asarray(X, np.float64)
         if self.w is None: return np.zeros(len(X))
         return ((X - self.mu) / self.sd) @ self.w
 
     __call__ = score
     def weights(self) -> L:
-        "The fitted weights, largest first — the thing you read before trusting any of this."
+        "The fitted weights, largest first: the thing you read before trusting any of this."
         if self.w is None: return L()
         return L(sorted(zip(self.names, self.w.tolist()), key=lambda t: -abs(t[1]))).map(
             lambda t: AttrDict(feature=t[0], weight=round(t[1], 4)))
@@ -510,7 +498,7 @@ def _rankers(self:Vault):
 
 @patch
 def learn(self:Vault, on:bool=True) -> dict:
-    "Log every `ask` as feedback from now on. Off by default — nothing is recorded until you say so."
+    "Log every `ask` as feedback from now on. Off by default: nothing is recorded until you say so."
     t = self._rankers()
     row = dict(first(t(where=f'store={self.name!r}')) or dict(store=self.name, model='', at=time.time(),
                                                               enabled=0, note=''))
@@ -522,18 +510,12 @@ def learn(self:Vault, on:bool=True) -> dict:
 def training_data(self:Vault, min_group:int=2) -> AttrDict:
     """The feedback log as `(X, groups, y, weights)`, one group per question.
 
-    Questions with only one distinct label are dropped: a pairwise model learns from disagreement
-    within a group, and a group where everything was cited contributes no pair at all.
+    Questions with a single distinct label are dropped: a pairwise model learns from disagreement
+    inside a group, and a group where everything was cited yields no pair.
 
-    The `prior` feature is computed **out of fold** -- for each question, from a posterior that
-    excludes that question's own rows. In-fold it is target leakage of the plainest kind: the
-    feature is a summary of the label, the fit puts its largest weight on it, and the model that
-    comes out has learned which documents were cited during training rather than what makes a
-    section relevant. Measured, on a document-disjoint split of known-item queries, that model was
-    *worse than no reranking at all* -- recall 0.47 against a baseline of 0.80 -- because on a
-    question whose answer it had never been rewarded for, the one feature it trusted pointed
-    steadily at the wrong documents. Out of fold the leak is closed and the weight goes where the
-    evidence actually is."""
+    `prior` is computed out of fold, from a posterior excluding that question's own rows. In fold
+    it is target leakage: the feature summarises the label, the fit puts its largest weight on it,
+    and the result scored recall 0.47 against a baseline of 0.80 on a document-disjoint split."""
     by = defaultdict(list)
     for r in self._fb()(where=f'store={self.name!r}', order_by='at'): by[r['ask_id']].append(r)
     Xs, gs, ys, ws = [], [], [], []
@@ -573,13 +555,10 @@ def fit_ranker(self:Vault, l2:float=1.0, save:bool=False, **kw) -> Ranker:
 def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, **kw) -> Ranker:
     """Learn the blend from the documents you have marked, instead of guessing nine weights.
 
-    Fitted with the same pairwise machinery as the ranker, and for a reason rather than for
-    convenience: with one group holding every document and the marked ones labelled 1, "rank
-    every noisy document above every clean one" *is* the AUC, so the pairwise logistic loss
-    optimises the quantity `evals/noise.py` reports. Eight marks against sixty clean documents is
-    five hundred pairs, which is enough for nine weights and nowhere near enough for anything larger.
-
-    This is the honest version of the noise score. The fixed weights are a cold start."""
+    Same pairwise machinery as the ranker: one group holding every document, marked ones labelled
+    1. "Rank every noisy document above every clean one" is the AUC, so the pairwise loss optimises
+    what `evals/noise.py` reports. Held out, this beat the fixed weights on all four corpora tried
+    (0.996 against 0.979) from six marks. The fixed weights are the cold start."""
     labels = labels or {r['doc_id']: bool(r['noisy']) for r in self._marks()(where=f'store={self.name!r}')
                         if r['noisy'] is not None}
     if not labels: raise ValueError('nothing marked: mark_noisy a few documents first')
@@ -615,19 +594,15 @@ def _rk(self:Vault):
 
 @patch
 def retune(self:Vault, q:str, hits, ranker=None, alpha:float=0.25, rrf_k:int=60) -> L:
-    """Reorder one question's hits with a fitted ranker, fused with the order they arrived in.
+    """Reorder one question's hits, fused with the order they arrived in by reciprocal rank.
 
-    Fused rather than replaced, and `alpha` is why. A reranker that sorts by its own score alone
-    discards the baseline completely, so a model that is merely *mediocre* does not degrade the
-    ranking gracefully -- it destroys it. Over three generated corpora, known-item queries on a
-    document-disjoint split, replacing the order outright cost a mean nDCG@10 of -0.127 and was
-    significantly worse on two of the three; the same model fused at `alpha=0.25` came out at
-    -0.001, never significant in either direction on any of them. Fusion does not make a weak
-    ranker good. It makes it safe, which is the property worth having on by default.
+    Fused rather than substituted. A ranker that sorts by its own score discards the baseline, so a
+    mediocre model does not degrade the ranking, it destroys it: over three corpora, substituting
+    cost a mean nDCG@10 of -0.127 and lost significantly on two, where the same model at
+    `alpha=0.25` came out at -0.001 and was never significant either way.
 
-    The fusion is reciprocal rank, which is what the two retrieval legs are already combined with
-    a layer down, so this adds no new idea to the system -- just a third leg with a weight on it.
-    `alpha=0` is the baseline untouched; `alpha` large is the ranker alone."""
+    RRF is what the two retrieval legs are already fused with a layer down, so this is a third leg
+    with a weight on it. `alpha=0` leaves the baseline untouched, large `alpha` is the ranker alone."""
     rk = ranker or self._rk()
     if rk is None or not len(hits): return L(hits)
     s = rk.score(self.pair_X(q, hits))

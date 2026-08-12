@@ -208,10 +208,8 @@ def ask(self:Vault,
         note, mc = ctx.note, doc_chars
     report = None
     if pii != 'off':
-        # One query, not one per hit: every shelf's marks live in the same table, so the exempt
-        # set is read once and matched on (store, doc_id). And a hit with no doc_id -- a federated
-        # code section carries none -- is never exempt, because `doc(None)` would otherwise answer
-        # with whichever document happens to be newest and hand back its exemption.
+        # One query, not one per hit: every shelf's marks are in the same table. A hit with no
+        # doc_id is never exempt, since `doc(None)` would answer with whatever is newest.
         try: cleared = {(r['store'], r['doc_id']) for r in self._marks()(where="pii_override='clear'")}
         except Exception: cleared = set()
         def _cleared(r):
@@ -226,8 +224,7 @@ def ask(self:Vault,
     private = bool(report and report.has_pii)
     if private:
         note = (f"{note}These sections hold personal information ({', '.join(sorted(report.identifying))}). " if pii == 'local' else note)
-        # A section somebody has exempted is not masked either: the exemption is the whole point,
-        # and masking it anyway would make `mark_not_pii` mean nothing under this policy.
+        # An exempted section is not masked either, or `mark_not_pii` means nothing here.
         if pii == 'redact':
             ctx.results = L(r if _cleared(r) else AttrDict(r, text=redact(r.text)) for r in ctx.results)
     if instruction: question = f'{question}\n\nInstruction from the questioner: {instruction}'
