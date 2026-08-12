@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.4
+enable marking items as not pii and testing for pdf acquire
+
 ## 0.1.3
 
 **`vishalakshi.pii`** — whether a document is somebody's business, decided by arithmetic. Patterns

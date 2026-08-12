@@ -208,11 +208,16 @@ def ask(self:Vault,
         note, mc = ctx.note, doc_chars
     report = None
     if pii != 'off':
-        _priv = lambda r: pii_report(str(getattr(r, 'text', '') or '')).has_pii
+        def _cleared(r):
+            try:
+                owner = self.shelf(r.store) if getattr(r, 'store', None) else self
+                return ((owner.doc(getattr(r, 'doc_id', None)) or {}).get('meta') or {}).get('pii_override') == 'clear'
+            except Exception: return False
+        _priv = lambda r: not _cleared(r) and pii_report(str(getattr(r, 'text', '') or '')).has_pii
         keep = int(ctx.get('n_docs') or 0)
         ctx.related = L(r for r in ctx.related if not _priv(r))
         if keep: ctx.results = L(ctx.results[:keep]) + L(r for r in ctx.results[keep:] if not _priv(r))
-        report = pii_ctx(ctx)
+        report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not _cleared(r)), related=L(r for r in ctx.related if not _cleared(r))))
     private = bool(report and report.has_pii)
     if private:
         note = (f"{note}These sections hold personal information ({', '.join(sorted(report.identifying))}). " if pii == 'local' else note)

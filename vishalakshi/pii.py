@@ -164,8 +164,18 @@ def pii(self:Vault,
     "Whether one whole document is somebody's business, and what in it says so."
     d = self.document(ref, max_chars=max_chars)
     r = pii_report(d.text)
+    override = (d.get('meta') or {}).get('pii_override')
+    r.detected, r.override = r.has_pii, override
+    if override == 'clear': r.has_pii = False
     r.doc_id, r.title, r.source = d.get('doc_id'), d.get('title'), d.get('source')
     return r
+
+@patch
+def mark_not_pii(self:Vault, ref, clear:bool=True, reason:str='') -> dict:
+    'Explicitly clear a false-positive PII decision, or restore automatic detection.'
+    d = self.doc(ref)
+    if not d: raise ValueError(f'no document in the vault matching {ref!r}')
+    return self.set_meta(d['id'], pii_override='clear' if clear else None, pii_override_reason=reason if clear else '')
 
 def pii_ctx(ctx) -> AttrDict:
     """The report for an assembled context -- which is what a policy has to gate on.

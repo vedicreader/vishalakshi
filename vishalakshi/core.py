@@ -105,9 +105,12 @@ class Vault(Index):
                          encoder=self.enc.model, name=store, db=db)
         self._register()
 
-    def _where(self, kind) -> str| None:
-        'A chunk-store `WHERE` for a kind filter — pushed into the search, not applied after it.'
-        return None if not kinds(kind) else f'doc_id IN (SELECT id FROM {self.t.prefix}docs WHERE {_kw(kind)})'
+    def _where(self, kind=None, include_noisy:bool=False) -> str|None:
+        'A chunk-store `WHERE` for kind and quality policy, pushed into retrieval.'
+        clauses = []
+        if kinds(kind): clauses.append(_kw(kind))
+        if not include_noisy: clauses.append("coalesce(json_extract(meta, '$.noisy'), 0) = 0")
+        return None if not clauses else f'doc_id IN (SELECT id FROM [{self.t.prefix}docs] WHERE {" AND ".join(clauses)})'
 
     def __repr__(self):
         s = self.stats()
@@ -215,6 +218,7 @@ def search(self:Vault,
            kind:str=None,      # restrict to one or more KINDS ('note' or 'note,web')
            chars:int=300,      # chars of each hit kept as `snippet`
            rerank:bool=False,  # reorder the candidates with a cross-encoder (see below)
+           include_noisy:bool=False, # include documents explicitly marked as noisy
            **kw                # forwarded to litesearch doc_search
 ) -> L:
     '''Chunk-level hybrid search (FTS5 + vectors, RRF-fused), each hit carrying its breadcrumb.
@@ -228,16 +232,16 @@ def search(self:Vault,
     tree: span merging, and a breadcrumb that makes a hit citable. `rerank=True` is worth +0.026
     to +0.077 weighted MRR at roughly 10x the latency.'''
     hits = self.db.doc_search(q, self.qemb(q), limit=limit, store=self.name, dtype=DTYPE,
-                              where=self._where(kind), rerank=rerank, **kw)
+                              where=self._where(kind, include_noisy), rerank=rerank, **kw)
     return L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
                       breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
                       snippet=(h.get('content') or '')[:chars]) for h in hits)
 
 @patch
-def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False, **kw) -> list:
-    'Ranked *sections* rather than chunks — the unit worth reading, each with a `read` handle.'
+def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False, include_noisy:bool=False, **kw) -> list:
+    'Ranked *sections* rather than chunks — noisy documents are excluded unless requested.'
     secs = self.db.sections(q, self.qemb(q), limit=limit, per=per, store=self.name, dtype=DTYPE,
-                            where=self._where(kind), rerank=rerank, **kw)
+                            where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for s in secs: s['breadcrumb'] = tidy_bc(s.get('breadcrumb'))
     return secs
 
@@ -252,12 +256,13 @@ def context(self:Vault,
             shelves:int=2,      # sections to append from each *other* shelf; 0 -> none
             dir:str=None,       # repo for the code legs; None -> the cwd repo
             rerank:bool=False,  # reorder the chunk hits before they are rolled up into sections
+            include_noisy:bool=False, # include documents explicitly marked as noisy
             **kw                # forwarded to litesearch context
 ) -> AttrDict:
     'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
-    keep = None if not kinds(kind) else {r['id'] for r in self.t.docs(where=_kw(kind), select='id')}
+    keep = {r['id'] for r in self.t.docs(where=' AND '.join(x for x in (_kw(kind) if kinds(kind) else '', "coalesce(json_extract(meta, '$.noisy'), 0) = 0" if not include_noisy else '') if x), select='id')}
     ctx = self.db.context(q, self.qemb(q), store=self.name, related=related, max_read=max_read,
-                          sections=sections*3 if keep else sections, rerank=rerank, **kw)
+                          sections=sections*3, where=self._where(kind, include_noisy), rerank=rerank, **kw)
     if keep is not None:
         ctx.results = ctx.results.filter(lambda r: r.doc_id in keep)[:sections]
         ctx.related = ctx.related.filter(lambda r: r.doc_id in keep)[:related]
@@ -620,10 +625,18 @@ def show_topics(self:Vault, limit:int=20, docs:int=8, **kw):
     print(fmt_topics(self.topic_tree(limit=limit, docs=docs, **kw)))
 
 @patch
-def sources(self:Vault, kind:str=None) -> L:
-    'Every document in the vault with its provenance, newest first.'
-    rows = self.t.docs(where=_kw(kind) if kinds(kind) else None, order_by='added_at desc')
+def sources(self:Vault, kind:str=None, include_noisy:bool=True) -> L:
+    'Documents with provenance; management includes noisy rows by default.'
+    wh = ' AND '.join(x for x in (_kw(kind) if kinds(kind) else '', "coalesce(json_extract(meta, '$.noisy'), 0) = 0" if not include_noisy else '') if x) or None
+    rows = self.t.docs(where=wh, order_by='added_at desc')
     return L(rows).map(lambda d: dict(d, meta=json.loads(d['meta'] or '{}')))
+
+@patch
+def mark_noisy(self:Vault, ref, noisy:bool=True, reason:str='') -> dict:
+    'Mark a document as retrieval noise; search, sections, context and ask exclude it by default.'
+    d = self.doc(ref)
+    if not d: raise ValueError(f'no document in the vault matching {ref!r}')
+    return self.set_meta(d['id'], noisy=bool(noisy), noisy_reason=reason if noisy else '')
 
 @patch
 def forget(self:Vault, doc_id:str):

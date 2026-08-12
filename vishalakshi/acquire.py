@@ -142,7 +142,8 @@ def what_is(target:str) -> str:
     if 'arxiv.org' in target or re.fullmatch(r'\d{4}\.\d{4,5}(v\d+)?', target): return 'arxiv'
     if re.search(r'youtube\.com|youtu\.be', target): return 'youtube'
     if re.match(r'https?://github\.com/[^/]+/[^/]+', target): return 'ghfile' if '/blob/' in target else 'github'
-    if target.lower().split('?')[0].endswith('.pdf'): return 'pdf'
+    path = urlparse(target).path.rstrip('/').lower()
+    if path.endswith('.pdf') or path.endswith('/pdf'): return 'pdf'
     if target.startswith('http'): return 'web'
     raise ValueError(f'not a URL, an arXiv id, a file or a directory: {target}')
 
@@ -272,7 +273,7 @@ def add_records(self:Vault, recs:list, title:str, source:str=None, kind:str='dat
                     kind=kind, force=force, meta=dict(meta or {}, records=len(L(recs))))
 
 # %% ../nbs/01_acquire.ipynb #b900ff0a
-ACTIONS = ('url', 'web', 'harvest', 'arxiv', 'youtube', 'crawl', 'remind')
+ACTIONS = ('url', 'web', 'harvest', 'arxiv', 'youtube', 'crawl', 'path', 'remind')
 
 _DUR, _MULT = re.compile(r'([\d.]+)\s*([smhdw])', re.I), dict(s=1, m=60, h=3600, d=86400, w=604800)
 
@@ -329,8 +330,11 @@ def run_watch(self:Vault, w:dict) -> dict:
     'Fire one watch and record the outcome.'
     t0 = time.time()
     try:
+        params = dict(w['params'])
+        if w['action'] in ('url', 'arxiv', 'youtube', 'path'): params.setdefault('force', True)
         res = (self.note(w['target'], title=w.get('note') or None, tags=['reminder'])
-               if w['action'] == 'remind' else getattr(self, w['action'])(w['target'], **w['params']))
+               if w['action'] == 'remind' else self.grab(w['target'], **params)
+               if w['action'] == 'path' else getattr(self, w['action'])(w['target'], **params))
         status = 'skipped' if isinstance(res, dict) and res.get('skipped') else 'ok'
     except Exception as e: res, status = dict(error=f'{type(e).__name__}: {str(e)[:200]}'), 'error'
     now = time.time()
