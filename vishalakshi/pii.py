@@ -12,15 +12,7 @@ import re
 from fastcore.all import AttrDict, L
 
 # %% ../nbs/09_pii.ipynb #f6e67e8b
-#: Bytes of a document worth scanning. PII is not evenly distributed -- a statement's account
-#: number is in its header -- but a scan is linear and a vault holds whole books, so a long
-#: document is sampled at both ends rather than read entire.
-MAX_SCAN = 200_000
-
-#: Matches per thousand characters above which a document is *about* people rather than merely
-#: mentioning one. Nothing here uses it to decide `has_pii`; it is for a caller that wants to
-#: tell a signature block apart from a customer list.
-DENSE = 1.0
+MAX_SCAN, DENSE = 200_000, 1.0
 
 # %% ../nbs/09_pii.ipynb #372845f0
 def luhn(s:str) -> bool:
@@ -33,7 +25,6 @@ def luhn(s:str) -> bool:
         tot += d
     return tot % 10 == 0
 
-
 def _iban_ok(s:str) -> bool:
     "IBAN's mod-97 check: move the country prefix to the end, letters to digits, remainder must be 1."
     s = re.sub(r'[^A-Za-z0-9]', '', s).upper()
@@ -43,7 +34,6 @@ def _iban_ok(s:str) -> bool:
     except ValueError: return False
     return n % 97 == 1
 
-
 def _nhs_ok(s:str) -> bool:
     "The UK NHS number's mod-11 check digit. Ten digits in a row are otherwise just ten digits."
     ds = [int(c) for c in s if c.isdigit()]
@@ -51,7 +41,6 @@ def _nhs_ok(s:str) -> bool:
     tot = sum(d * (10 - i) for i, d in enumerate(ds[:9]))
     chk = 11 - tot % 11
     return chk != 10 and (0 if chk == 11 else chk) == ds[9]
-
 
 def _ssn_ok(s:str) -> bool:
     "A US SSN's structurally impossible cases, which is as much as arithmetic can say about one."
@@ -69,11 +58,6 @@ PATTERNS = {
     'iban':    (r'\b[A-Z]{2}\d{2}[ ]?(?:[A-Z0-9]{4}[ ]?){2,7}[A-Z0-9]{1,4}\b', _iban_ok),
     'ssn':     (r'\b\d{3}-\d{2}-\d{4}\b', _ssn_ok),
     'nhs':     (r'\b\d{3}[ -]?\d{3}[ -]?\d{4}\b', _nhs_ok),
-    # A run of digits is not a phone number. Four groups of four is an order reference far more
-    # often than it is anybody's landline, and a pattern loose enough to catch one catches the
-    # other -- which is how a card number that fails Luhn came back as a phone instead. So the
-    # number has to carry something saying it is one: a country code, a parenthesised or
-    # trunk-prefixed area code, the strictly hyphenated US form, or a word in front of it.
     'phone':   (r'\+\d{1,3}[ .-]?\(?\d{1,5}\)?[ .-]?\d{3,4}[ .-]?\d{3,4}\b'
                 r'|\(\d{2,5}\)[ .-]?\d{3,4}[ .-]?\d{3,4}\b'
                 r'|\b0\d{1,4}[ .-]\d{3,4}[ .-]?\d{3,4}\b'
@@ -88,13 +72,8 @@ PATTERNS = {
     'secret':  (r'\b(?:sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35})\b', None),
     'medical': (r'\b(?:diagnos\w+|prescri\w+|patient (?:id|number|name)|nhs number|medical record)\b', None),
 }
-
-#: The kinds that are a person's identity rather than a document's plumbing. An IP address in
-#: a server log is not somebody's private life, and neither is an API key -- both belong in a
-#: report, and neither on its own should send a whole document to a smaller model.
-IDENTIFYING = frozenset({'email', 'card', 'iban', 'ssn', 'nhs', 'phone', 'dob', 'passport',
-                         'licence', 'account', 'sortcode', 'medical'})
-
+IDENTIFYING = frozenset({'email', 'card', 'iban', 'ssn', 'nhs', 'phone', 'dob', 'passport', 'licence', 'account',
+                         'sortcode', 'medical'})
 _COMPILED = {k: (re.compile(p, re.I), v) for k, (p, v) in PATTERNS.items()}
 
 # %% ../nbs/09_pii.ipynb #d1ff54dc
@@ -104,7 +83,6 @@ def _scan_text(text:str, mx:int=MAX_SCAN) -> str:
     if len(text) <= mx: return text
     half = mx // 2
     return text[:half] + '\n' + text[-half:]
-
 
 def pii_spans(text:str,          # what to scan
               kinds=None,        # restrict to these kinds; None -> every pattern
@@ -153,7 +131,7 @@ def pii_report(text:str,          # what to scan
 
 # %% ../nbs/09_pii.ipynb #bb39f244
 def redact(text:str,       # the text to mask
-           spans=None,     # spans from `pii_spans`; recomputed when None
+           spans=None,     # spans from `pii_spans`; recomputed over the whole of `text` when None
            kinds=None,     # restrict to these kinds
            mask:str=None,  # what to put in place of a match; None -> `[KIND]`
 ) -> str:
@@ -161,9 +139,15 @@ def redact(text:str,       # the text to mask
 
     Applied right to left, because replacing left to right moves every span after the one just
     replaced and the offsets stop meaning anything two matches in.
+
+    And scanned entire, however long it is. `pii_spans` samples a long document at both ends,
+    which is the right trade when the question is *whether* there is anything here; it is the
+    wrong one when the answer is going to be used as offsets, because an offset into a sample
+    addresses the wrong characters of the text it came from -- masking the middle of the
+    document and leaving the end of it in the clear.
     """
-    if spans is None: spans = pii_spans(text, kinds)
     out = str(text or '')
+    if spans is None: spans = pii_spans(out, kinds, mx=len(out))
     for s, e, kind, _ in sorted(spans, reverse=True):
         out = out[:s] + (mask if mask is not None else f'[{kind.upper()}]') + out[e:]
     return out
@@ -171,7 +155,6 @@ def redact(text:str,       # the text to mask
 # %% ../nbs/09_pii.ipynb #e7e2b7b9
 from .core import Vault
 from fastcore.all import patch
-
 
 @patch
 def pii(self:Vault,
@@ -183,7 +166,6 @@ def pii(self:Vault,
     r = pii_report(d.text)
     r.doc_id, r.title, r.source = d.get('doc_id'), d.get('title'), d.get('source')
     return r
-
 
 def pii_ctx(ctx) -> AttrDict:
     """The report for an assembled context -- which is what a policy has to gate on.

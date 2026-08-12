@@ -34,7 +34,7 @@ v.note('federate fuses the legs by rank because they share no vector space: the 
        'prose, kosha embeds identifiers, ripgrep embeds nothing.', tags=['retrieval', 'design'])
 ```
 
-    {'doc_id': 'ed3044d347f8f257',
+    {'doc_id': '70be58b567298ed0',
      'title': 'federate fuses the legs by rank because they share no vector space: the vault em',
      'kind': 'note',
      'nodes': 2,
@@ -49,6 +49,8 @@ v.pdf('https://arxiv.org/pdf/1706.03762',                  # and the full paper,
       title='Attention Is All You Need')
 ```
 
+    [2026-08-12 10:59:13] INFO: Fetched (200) <GET https://arxiv.org/pdf/1706.03762v7> (referer: https://www.google.com/)
+    [2026-08-12 10:59:14] INFO: Fetched (200) <GET https://arxiv.org/pdf/1706.03762> (referer: https://www.google.com/)
     Dictionary used where Stream expected, treating as empty stream
     Dictionary used where Stream expected, treating as empty stream
     Dictionary used where Stream expected, treating as empty stream
@@ -60,25 +62,26 @@ v.pdf('https://arxiv.org/pdf/1706.03762',                  # and the full paper,
      'nodes': 5,
      'chunks': 102}
 
-Now ask it something. The model is rishi’s own default, `gemma4_e2b`: LiteRT, CPU, no API key.
-Naming a model is naming it to rishi, so an id, a path or a `runtime/...` prefix all work, and
-`chat_kw=` reaches the rest of rishi’s constructor. There is no model registry here to fall out of
-date.
+Now ask it something. The model is the package default: `gemma-4-E2B` on LiteRT, on the GPU, no
+API key and nothing to configure. Naming a model is naming it to rishi, so an id, a path or a
+`runtime/...` prefix all work, and `chat_kw=` reaches the rest of rishi’s constructor. There is no
+model registry here to fall out of date. `$VISHALAKSHI_MODEL` replaces the id; `$VISHALAKSHI_GPU=0`
+puts LiteRT back on the CPU.
 
 The defaults hand the model four sections at 1500 characters each. That is the point of retrieving
 *sections* rather than documents: the answer needs the paragraphs that bear on the question, not the
 corpus. A pointed context is why a 2B model on a laptop can answer at all.
 
 ``` python
-from rishi.litert import gemma4_e2b
+from rishi.litert import gemma4_e2b, gemma4_e4b
 
-r = v.ask('why are rankings fused instead of distances?', model=gemma4_e2b)
+r = v.ask('why are rankings fused instead of distances?')
 print(r.model, '·', r.runtime)
 print(r.answer)
 ```
 
-    litert-community/gemma-4-E2B-it-litert-lm · litert
-    The vault embeds prose, kosha embeds identifiers, and ripgrep embeds nothing, which means legs cannot be merged by distance [2]. Reciprocal Rank Fusion (RRF) only needs each leg's ordering, which is what survives a change in encoder, and it is the same mechanism LiteSearch already uses to combine FTS with vectors [2]. Each leg is tried independently to report what it contributed or why it did not [2].
+    litert/litert-community/gemma-4-E2B-it-litert-lm · litert
+    The vault fuses rankings instead of distances because the legs share no vector space [3]. Specifically, the vault embeds prose, kosha embeds identifiers, and ripgrep embeds nothing [3]. This mechanism is used in Reciprocal Rank Fusion (RRF) because it only requires each leg's ordering, which is what survives a change in the encoder [2].
 
 Every `[n]` in the answer resolves to a `node_id` you can read. That round trip is the point: a claim you can check against the text it came from.
 
@@ -88,13 +91,69 @@ print()
 print(v.read(r.cited[0]['node_id'])['text'][:400])   # the exact text behind the claim
 ```
 
+    3 index › The loop
     2 03 code › Fusing legs that share no vector space
 
-    The vault embeds prose, kosha embeds identifiers, ripgrep embeds nothing, so the legs cannot be
-    merged by distance. Reciprocal Rank Fusion needs only each leg's *ordering* — which is exactly
-    what survives a change of encoder — and it is the same mechanism litesearch already uses to
-    combine FTS with vectors. Each leg is tried independently: `legs` reports what each contributed,
-    or why it did not.
+    Everything in this section runs. The corpus is this repository's own documentation and source, so
+    the page is reproducible from a clone, and the vault is a throwaway file rather than your real one.
+    `Vault()` with no argument uses `~/.vishalakshi/vault.db`.
+
+    from tempfile import mkdtemp
+    from vishalakshi import Vault
+
+    v = Vault(Path(mkdtemp())/'vault.db')
+    v.enc.note
+
+    Ingestion is one call. `add` tak
+
+## When the answer would leave the machine
+
+A vault fills up with things that are nobody else’s business: a bank statement, a medical letter, an
+exported chat. Answering out of those is what a vault is *for*. Sending them to a hosted API is what
+it is not — so `ask` decides, and the decision is arithmetic rather than a model. A classifier that
+has to read the document in order to say whether the document may be read has already lost.
+
+``` python
+from vishalakshi.pii import pii_report
+
+r = pii_report('Invoice 4471 for Ada Lovelace, ada@example.com. Card 4111 1111 1111 1111. '
+               'Order 4111 1111 1111 1112. Server 10.0.0.14 returned 500.')
+r.has_pii, r.identifying, r.kinds
+```
+
+    (True, {'email': 1, 'card': 1}, {'email': 1, 'card': 1, 'ip': 1})
+
+Two things are doing work there. The card is a card because it passes Luhn, and the order number is
+not one because it fails the same check — a checksum is the difference between a detector and a
+superstition. And the IP address is *reported* but not *identifying*: a server log is not somebody’s
+private life, and treating it as one would cost every question about infrastructure a smaller model
+for nothing.
+
+`ask` gates on the sections retrieval actually chose, not on the vault and not on the document, so a
+vault holding one bank statement among four hundred papers is only a private question when the
+statement is in the room. When it is, `pii='local'` (the default) answers on a local model under a
+system prompt that tells it to give shape and quantity instead of detail — and *ignores* the model
+you named, because a hosted one cannot be sent the sections:
+
+``` python
+v.add('Invoice 4471 for Ada Lovelace, ada@example.com. Card 4111 1111 1111 1111. '
+      'Amount 240.00 GBP, due 2026-09-01.', title='invoice 4471', source='/inbox/4471.md')
+
+r = v.ask('what is on invoice 4471?', model='gpt-4.1-nano')   # hosted, and named at the call site
+print(r.runtime, '·', r.model)                                # ...and not what answered
+print(r.answer)
+```
+
+    litert · litert/litert-community/gemma-4-E2B-it-litert-lm
+    I am holding back the specific personal details found in the documents.
+    The documents contain information related to an invoice details.
+
+The check is on the chat object after it is built, so a caller that *lends* a hosted chat — by
+mistake, by a stale config — is refused rather than trusted, and nothing is sent. The other three
+settings are [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) (mask what arithmetic can recognise, then let a hosted model answer, which
+gives up whatever turns on the details and does not mask names), `refuse` (return the finding and no
+answer), and `off`. The same arithmetic runs over the answer on the way back out, where a slip costs
+a masked token instead of somebody’s account number.
 
 ## What is decided, and what is yours
 
@@ -111,7 +170,7 @@ ladder by opening a vault.
 | one static encoder, 256d, float16 | the spread across four encoders is 0.018 to 0.046, and the static one wins a genre at ~1,700x cheaper indexing |
 | Devanagari and IAST fold to the same token | 1.000 verse recall for every encoder tested, from the tokenizer rather than the embedding |
 
-Four things are yours, and none of them is required to get an answer.
+Five things are yours, and none of them is required to get an answer.
 
 | yours | what it costs |
 |----|----|
@@ -119,6 +178,7 @@ Four things are yours, and none of them is required to get an answer.
 | `shelf(name)` | a partition, so two corpora stop diluting each other’s ranking |
 | `llm=` on `categorize` and `extract` | the cue table answers most documents for free; a model is for the ties |
 | `db.graph_search` | the graph leg by name, for bridge queries |
+| `pii=` on `ask` | `local` keeps a private question on a local model, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) masks the sections and lets a hosted one answer |
 
 The graph leg is off for ranking and stays off. On ordinary known-item questions it costs 0.070 to
 0.160 weighted MRR, negative in every genre and flavour measured. It wins only when the answer
@@ -139,13 +199,18 @@ or whatever litesearch’s parser called the file. Filter when you want to, don�
 v.stats()
 ```
 
-    {'docs': 16,
-     'nodes': 134,
-     'chunks': 691,
+    {'docs': 18,
+     'nodes': 161,
+     'chunks': 816,
      'encoder': 'model2vec',
      'entities': 0,
-     'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmpxjla5hox/vault.db',
-     'by_kind': {'notebook': 10, 'md': 3, 'txt': 1, 'pdf': 1, 'note': 1}}
+     'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmpg78t1dvo/vault.db',
+     'by_kind': {'notebook': 11,
+      'md': 3,
+      'txt': 1,
+      'pdf': 1,
+      'note': 1,
+      'file': 1}}
 
 ``` python
 len(v.search('rank fusion')), len(v.search('rank fusion', kind='note')), len(v.search('rank fusion', kind='md,notebook'))
@@ -163,7 +228,7 @@ free, so what you concluded about a corpus comes back next to the evidence you c
 L(v.sources()).map(lambda d: (d['kind'], d['title'], d['source']))[:6]
 ```
 
-    [('pdf', 'Attention Is All You Need', 'https://arxiv.org/pdf/1706.03762'), ('md', 'CHANGELOG', '../CHANGELOG.md'), ('md', 'README', '../README.md'), ('notebook', '00 core', '../nbs/00_core.ipynb'), ('notebook', '01 acquire', '../nbs/01_acquire.ipynb'), ('notebook', '02 ask', '../nbs/02_ask.ipynb')]
+    [('file', 'invoice 4471', '/inbox/4471.md'), ('pdf', 'Attention Is All You Need', 'https://arxiv.org/pdf/1706.03762'), ('md', 'CHANGELOG', '../CHANGELOG.md'), ('md', 'README', '../README.md'), ('notebook', '00 core', '../nbs/00_core.ipynb'), ('notebook', '01 acquire', '../nbs/01_acquire.ipynb')]
 
 ## When the graph and the clusters pay off
 
@@ -188,47 +253,52 @@ Three queries and no clustering: `connect()` already persisted the topic nodes, 
 the mentions back onto documents.
 
 ``` python
-v.connect()
+# n_workers=0 keeps this serial. The pool forks, and forking a notebook kernel on macOS fails
+# intermittently — as a swallowed BrokenProcessPool, surfacing as a TypeError from `zip`. Over a
+# vault this size it is ~2s either way; pass `n_workers=None` to let it decide.
+v.connect(n_workers=0)
 ```
 
-    {'entities': 3860,
-     'mentions': 7314,
-     'edges': 1987,
-     'windows': 2305,
-     'resolved': {'merged': 1058,
-      'by_ann': 593,
-      'by_lexical': 465,
-      'edges': 1695,
-      'entities': 3860,
-      'resolvable': 3860,
-      'canonical': 2802},
-     'topics': 136,
+    {'entities': 4508,
+     'mentions': 8661,
+     'edges': 2252,
+     'windows': 2753,
+     'resolved': {'merged': 1239,
+      'by_ann': 676,
+      'by_lexical': 563,
+      'edges': 1901,
+      'entities': 4508,
+      'resolvable': 4508,
+      'canonical': 3269},
+     'topics': 167,
      'method': 'knn'}
 
 ``` python
 v.show_topics(limit=5, docs=3)      # v.topic_tree() returns the same thing as data
 ```
 
-    ents, cues, needs, money                     (8 chunks, 1 docs)
+    ents, cues, needs, org                       (8 chunks, 1 docs)
       `- 06 extract                                  8
-    strip, meta, fetched_at, parts               (8 chunks, 4 docs)
-      |- 01 acquire                                  3
-      |- 00 core                                     2
-      `- 02 ask                                      2
-    doctype, save, schema, chat_kw               (8 chunks, 1 docs)
+    cited, node_id, breadcrumb, exact            (8 chunks, 5 docs)
+      |- 02 ask                                      4
+      |- index                                       1
+      `- README                                      1
+    save, doctype, schema, doc_id                (8 chunks, 1 docs)
       `- 06 extract                                  8
-    docs, doc_id, doctype, self                  (8 chunks, 4 docs)
-      |- 06 extract                                  4
-      |- 02 ask                                      2
-      `- 00 core                                     1
-    dims, hash, mk_encoder, test_eq              (8 chunks, 1 docs)
+    desc, delete_where, docs, self               (8 chunks, 1 docs)
       `- 00 core                                     8
+    youtube, ghfile, url, target                 (8 chunks, 2 docs)
+      |- 01 acquire                                  7
+      `- 08 skill                                    1
 
 ## What each document is, and what is inside it
 
-`kind` says how a document arrived. What it *is* (an invoice, a price list, a contract, a paper, a
-transcript, a source file) is a different question, and one worth answering: a vault that knows
-which of its documents are invoices can hand you their totals as a table.
+`kind` says how a document arrived. What it *is* is a different question, and one worth answering:
+a vault that knows which of its documents are invoices can hand you their totals as a table. The cue
+table knows 26 answers, in two halves — what arrives from outside (an invoice, a price list, a
+contract, a paper, a transcript, a source file) and what an organisation writes about its own work
+(a proposal, a requirements spec, a technical design, an SOP, a test plan, a roadmap, an insurance
+claim, a clinical record).
 
 `categorize` answers it with a cue table first and a model only where the table cannot decide. That
 order is the design rather than an optimisation. Typing ten thousand documents through an LLM is
@@ -272,7 +342,7 @@ v.categorize_all(llm='never')   # everything not typed yet; a failure is recorde
 v.doctypes()                    # the shape of the corpus
 ```
 
-    {'code': 10, 'documentation': 4, 'invoice': 1, 'paper': 1, 'other': 1}
+    {'code': 11, 'documentation': 4, 'invoice': 2, 'paper': 1, 'other': 1}
 
 Notebooks read as code, the README as documentation, the invoice as an invoice, and no model was
 loaded to say so. `force=False` makes that cheap to re-run after an ingest: only what arrived since
@@ -515,14 +585,16 @@ Each of these has its own page, and none of them is a decision you have to make 
 | [mcp](05_mcp.ipynb) | `vishalakshi-mcp`, and the same methods as tools |
 | [extract](06_extract.ipynb) | `categorize`, `extract`, `extract_all`, the schemas |
 | [concepts](07_concepts.ipynb) | doctypes, `reshelf`, and what the vault decides about a document |
+| [pii](09_pii.ipynb) | the patterns, their checksums, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact), and what gates an answer |
 
 ``` sh
 vishalakshi grab https://example.com/post     # or a file, a directory, an arXiv id, a YouTube URL
 vishalakshi ask "why does late chunking help"
 ```
 
-`$VISHALAKSHI_VAULT` picks the vault file, `$VISHALAKSHI_MODEL` the model `ask` uses, and
-`$VISHALAKSHI_OFFLINE` forces the hashing encoder. `vishalakshi-mcp` exposes the same methods to any
+`$VISHALAKSHI_VAULT` picks the vault file, `$VISHALAKSHI_MODEL` the model `ask` uses,
+`$VISHALAKSHI_PII_MODEL` the local one it falls back to when the sections are private,
+`$VISHALAKSHI_GPU=0` puts LiteRT on the CPU, and `$VISHALAKSHI_OFFLINE` forces the hashing encoder. `vishalakshi-mcp` exposes the same methods to any
 MCP client:
 
 ``` json

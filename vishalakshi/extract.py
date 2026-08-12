@@ -146,6 +146,64 @@ DOCTYPES = {
         r'\bq[1-4] \d{4}\b|\bfiscal year\b|\bfy\d{2}\b|\bquarter\b',
         r'\btable \d+\b|\bfigure \d+\b|\bappendix\b',
         r'\byear[- ]on[- ]year\b|\brevenue\b|\bmargin\b')),
+    # --- what an organisation writes about its own work, as opposed to what arrives from outside.
+    # Every cue here is a phrase a reader would accept as evidence on its own: `\bprocedure\b` and
+    # `\bpass(?:ed)?\b` were both tried and dropped, because a deploy note and a CI log match them
+    # and a confident wrong label is worse than no label.
+    'proposal': dict(needs=(), ents=('ORG',), cues=(
+        r'\bproposal\b|\brfp response\b|\brequest for proposal\b', r'\bproposed approach\b|\bour approach\b',
+        r'\bscope of work\b|\bwork ?plan\b', r'\bdeliverables?\b', r'\bfees?\b|\binvestment\b',
+        r'\bproject team\b|\bteam structure\b')),
+    'presentation': dict(needs=(), ents=(), cues=(
+        r'\bslide deck\b|\bthis (?:deck|presentation)\b|\bslide \d+\b',
+        r'\bkey takeaways?\b|\bkey messages?\b', r'\bfor discussion\b|\bquestions? for discussion\b',
+        r'\bexecutive update\b|\bsteering committee\b|\bboard update\b',
+        r'\bappendix slides?\b|\bback-?up slides?\b',
+        r'\bagenda for (?:today|this session)\b|\bwalk(?:ing)? through\b')),
+    'requirements_spec': dict(needs=(), ents=(), cues=(
+        r'\brequirements? specification\b|\bproduct requirements?\b', r'\bacceptance criteria\b',
+        r'\bfunctional requirements?\b|\bnon[- ]functional requirements?\b', r'\buser stor(?:y|ies)\b',
+        r'\brequirement id\b|\btraceability matrix\b', r'\bthe system shall\b|\bmust be able to\b')),
+    'technical_design': dict(needs=(), ents=(), cues=(
+        r'\bsolution design\b|\btechnical design\b|\bdesign document\b',
+        r'\bdata architecture\b|\bsystem architecture\b|\barchitecture (?:diagram|overview)\b',
+        r'\bdata flow\b|\bsequence diagram\b|\bcomponent (?:diagram|view)\b',
+        r'\bapplication hosting\b|\bnon[- ]functional\b|\bscalability\b',
+        r'\bintegration (?:points?|patterns?|layer)\b|\binterface (?:contract|spec)\b',
+        r'\bsubnet\b|\bapi gateway\b|\bdeployment (?:topology|diagram)\b')),
+    'regulatory_guidance': dict(needs=(), ents=('LAW', 'ORG'), cues=(
+        r'\bregulation \(?(?:eu|ec)\b|\bmedical device regulation\b', r'\bcompetent authority\b',
+        r'\bnotified bod(?:y|ies)\b|\bconformity assessment\b', r'\bauthori[sz]ed representative\b',
+        r'\btechnical documentation\b|\btechnical file\b', r'\barticle \d+\b|\bannex [ivx]+\b')),
+    'procedure': dict(needs=(), ents=('ORG',), cues=(
+        r'\bstandard operating procedure\b|\bs\.?o\.?p\.?\b|\bwork instruction\b',
+        r'\bprocess owner\b|\bresponsibilit(?:y|ies)\b', r'\bapproval workflow\b|\bapproval authority\b',
+        r'\bescalation\b|\bexception handling\b', r'\brevision history\b|\bchange control\b',
+        r'\bthis procedure (?:applies|describes|covers)\b|\bscope and purpose\b')),
+    'qa_artifact': dict(needs=(), ents=(), cues=(
+        r'\btest (?:case|plan|script|protocol)\b', r'\bexpected results?\b|\bactual results?\b',
+        r'\bsteps to reproduce\b|\bdefects?\b|\bbug report\b',
+        r'\bdeviation log\b|\bdiscrepanc(?:y|ies)\b',
+        r'\btemplate fidelity\b|\bvalidation report\b|\bqa audit\b',
+        r'\bpass/fail\b|\btest (?:results?|status|evidence)\b')),
+    'roadmap': dict(needs=(), ents=('ORG',), cues=(
+        r'\broadmap\b', r'\bmilestones?\b', r'\bphase [0-9a-z]+\b|\bnow[,/ ]+next[,/ ]+later\b',
+        r'\bnext (?:30|60|90) days\b|\bquarterly plan\b', r'\btarget date\b|\bplanned date\b',
+        r'\bproduct backlog\b|\bdelivery plan\b|\bthemes?\b')),
+    # a claim and a clinical record were one label until the cues were written down: they share a
+    # shape (a dated record about a person) and no vocabulary at all, and a document that is
+    # genuinely both now ties rather than being typed confidently as whichever came first
+    'claim': dict(needs=('date',), ents=('PERSON', 'ORG'), cues=(
+        r'\bclaim (?:number|no\.?|form|reference)\b|\bclaim id\b',
+        r'\bincident date\b|\bdate of loss\b', r'\bclaimant\b|\binsured\b|\bpolicyholder\b',
+        r'\bpolicy (?:number|no\.?|#)\b|\bcoverage\b', r'\b(?:loss )?adjuster\b|\bassessor\b',
+        r'\bsettlement\b|\bdeductible\b|\bexcess\b|\bliability accepted\b')),
+    'clinical_record': dict(needs=('date',), ents=('PERSON', 'ORG'), cues=(
+        r'\bpatient\b|\bencounter\b', r'\bdiagnos(?:is|es|ed)\b|\bicd-?10\b',
+        r'\bpresenting complaint\b|\bclinical (?:history|notes?)\b',
+        r'\bprescri(?:bed|ption)\b|\bmedication\b|\bdosage\b',
+        r'\bdischarge summary\b|\breferral letter\b|\bclinician\b|\bphysician\b',
+        r'\badverse events?\b|\bdevice malfunction\b|\bside effects?\b')),
     'documentation': dict(needs=('heading',), ents=(), cues=(
         r'\binstallation\b|\bgetting started\b|\bquick ?start\b',
         r'\busage\b|\bexamples?\b|\bapi reference\b', r'\bparameters?\b|\breturns\b|\barguments?\b',
@@ -254,8 +312,7 @@ def categorize(self:Vault,
             # `auto` is allowed to *use* a model, not to go and fetch one: a vault of ten thousand
             # documents must not turn a one-line note into a multi-gigabyte download. rishi decides
             # what runs the id; whether the weights are already here is the one thing it cannot say.
-            if (mode == 'auto' and is_stock_chat()
-                    and infer_runtime(mid) != 'remote' and not model_cached(mid)):
+            if mode == 'auto' and is_stock_chat() and infer_runtime(mid) != 'remote' and not model_cached(mid):
                 by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
                 said = new_chat(mid, **(chat_kw or {})).classify(f'{d.title}\n\n{txt}', list(lbls)+['other'], sp=TYPE_SP)
