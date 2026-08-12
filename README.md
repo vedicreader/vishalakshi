@@ -45,7 +45,7 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate. Detection is arithmetic (checksums: precision 0.664 → 0.948 at recall 1.000). API keys gate too. Names need `mark_pii`. Junk is a separate loop: `suggest_noisy` (0.988 AUC) then `mark_noisy` / `accept_noisy`. Depth on [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
+`ask`, `extract` and `explain` share one gate, decided by arithmetic: checksums take precision from 0.664 to 0.948 at recall 1.000. API keys count; names do not, so those take `mark_pii`. Junk is the other loop: `suggest_noisy` scores 0.988 AUC with no labels, and `mark_noisy` is what acts on it. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
 
 ``` python
 from vishalakshi.pii import pii_report
@@ -55,15 +55,16 @@ r.has_pii, r.identifying, r.kinds
 ```
 
 ``` python
-# judgement loop: force-private, clear a false positive, exclude site furniture
-v.add('A letter about Jane at 12 High Street - nothing arithmetic can catch.',
+# a person's judgement, over the top of the arithmetic
+v.add('A letter about Jane at 12 High Street; nothing arithmetic can catch.',
       title='letter', source='/inbox/letter.md')
-v.add('Cookie policy. All rights reserved. Privacy. Terms. Contact us. Cookie policy.',
+v.add('Cookie policy. All rights reserved. Privacy. Terms. Contact us.',
       title='footer', source='/inbox/footer.md')
-v.mark_pii('/inbox/letter.md', reason='address')
-v.mark_noisy('/inbox/footer.md', reason='site furniture')
-v.pii('/inbox/letter.md').has_pii, v.pii('/inbox/letter.md').override
-L(v.suggest_noisy(k=5, min_score=-10)).map(lambda r: (r.title, round(r.score, 2)))[:5]
+v.mark_pii('/inbox/letter.md', reason='address')            # private even though nothing matched
+v.mark_noisy('/inbox/footer.md', reason='site furniture')   # out of search, sections, context, ask
+
+r = v.pii('/inbox/letter.md')
+r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v.search('cookie policy'))
 ```
 
 | `pii=` | what happens |

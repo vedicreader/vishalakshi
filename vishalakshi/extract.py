@@ -19,7 +19,9 @@ from fastcore.all import AttrDict, L, patch
 from litesearch import text_entities
 from rishi.core import Chat, extract_fence, infer_runtime, resp_text
 from .core import Vault
-from .ask import VAULT_SP, dflt_model, is_stock_chat, new_chat, split_reasoning   # also patches Vault.ask
+from .ask import (VAULT_SP, LOCAL_RUNTIMES, PII_SP, dflt_model, is_stock_chat, new_chat,
+                            pii_model_, split_reasoning)   # also patches Vault.ask
+from .pii import pii_report, redact, redact_obj
 
 # %% ../nbs/06_extract.ipynb #d8c31e56
 SIGNALS = dict(
@@ -604,18 +606,16 @@ def extract(self:Vault,
 ) -> AttrDict:
     "Pull structured fields out of one document — an invoice's totals, a catalogue's products."
     d = self.document(ref, max_chars=max_chars)
-    from vishalakshi.ask import LOCAL_RUNTIMES, PII_SP, dflt_model as _dflt, pii_model_ as _pii_m
-    from vishalakshi.pii import pii_report, redact, redact_obj
     if not (d.text or '').strip():
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
                         fields={}, skipped='no text to extract from')
-    text, report = d.text, None
-    if pii != 'off':
-        report = self.pii(d.doc_id or ref, max_chars=max_chars) if d.doc_id else pii_report(d.text)
-        if report.has_pii and pii == 'refuse':
-            return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
-                            fields={}, skipped='pii', refused=True, pii=report)
-        if report.has_pii and pii == 'redact': text = redact(d.text)
+    # marks win over arithmetic, so this is `self.pii` rather than a bare `pii_report`
+    report = (self.pii(d.doc_id, max_chars=max_chars) if d.doc_id else pii_report(d.text)) if pii != 'off' else None
+    private, text = bool(report and report.has_pii), d.text
+    if private and pii == 'refuse':
+        return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
+                        fields={}, skipped='pii', refused=True, pii=report)
+    if private and pii == 'redact': text = redact(d.text)
     dt, cat = None, None
     if schema is None:
         cat = self.categorize(d, model=model, chat_kw=chat_kw, llm=llm, save=save)
@@ -625,19 +625,17 @@ def extract(self:Vault,
     prompt = (f'{d.title}\n(source: {d.source})\n\n{text}\n\n---\n\n'
               f'Pull the fields of `{sch.__name__}` out of the document above.')
     mid, sys_sp = model, sp
-    if report and report.has_pii and pii == 'local':
-        mid, sys_sp = pii_model or _pii_m, PII_SP
+    if private and pii == 'local':
+        mid, sys_sp = pii_model or pii_model_, PII_SP
     ch = new_chat(mid, **(chat_kw or {}))
-    if report and report.has_pii and pii == 'local' and str(getattr(ch, 'runtime', '') or '') not in LOCAL_RUNTIMES:
+    if private and pii == 'local' and str(getattr(ch, 'runtime', '') or '') not in LOCAL_RUNTIMES:
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=None,
                         fields={}, skipped='pii', refused=True, pii=report, runtime=ch.runtime)
     flds = structured(ch, prompt, sch, sp=sys_sp)
-    if report and report.has_pii:
-        blob = pii_report(str(flds))
-        if blob.has_pii: flds = redact_obj(flds)
+    if private and pii_report(str(flds)).has_pii: flds = redact_obj(flds)
     if save and d.doc_id: self.set_meta(d.doc_id, extracted=flds, extracted_as=sch.__name__)
     return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=sch.__name__,
-                    fields=flds, chars=len(d.text), truncated=d.truncated, model=mid or _dflt,
+                    fields=flds, chars=len(d.text), truncated=d.truncated, model=mid or dflt_model,
                     runtime=ch.runtime, categorized=cat, usage=getattr(ch, 'use', None), pii=report)
 
 @patch
@@ -660,7 +658,6 @@ def extract_all(self:Vault,
         except Exception as ex:
             errs.append(dict(doc_id=r['id'], title=r['title'], error=f'{type(ex).__name__}: {str(ex)[:200]}'))
     return AttrDict(n=len(rows), doctype=doctype, schema=schema, rows=rows, errors=errs)
-
 
 # %% ../nbs/06_extract.ipynb #7c4b0e91
 @patch

@@ -179,16 +179,14 @@ def _section_private(r, cleared, forced, store:str) -> bool:
     return pii_report(str(getattr(r, 'text', '') or '')).has_pii
 
 def _scrub_answer(out, private:bool):
-    "Mask identifying spans that leaked into a prose answer or structured fields."
+    "Mask what the model reproduced anyway, in a prose answer or in structured fields."
     if not private: return out
     if out.get('fields') is not None:
-        blob = pii_report(str(out.fields))
-        if blob.has_pii:
-            out.fields, out.leaked = redact_obj(out.fields), blob.identifying
-        return out
-    if out.get('answer'):
-        leaked = pii_ctx(AttrDict(results=[AttrDict(text=out.answer)], related=[]))
-        if leaked.has_pii: out.answer, out.leaked = redact(out.answer), leaked.identifying
+        r = pii_report(str(out.fields))
+        if r.has_pii: out.fields, out.leaked = redact_obj(out.fields), r.identifying
+    elif out.get('answer'):
+        r = pii_report(out.answer)
+        if r.has_pii: out.answer, out.leaked = redact(out.answer), r.identifying
     return out
 
 @patch
@@ -228,22 +226,18 @@ def ask(self:Vault,
         keep = int(ctx.get('n_docs') or 0)
         ctx.related = L(r for r in ctx.related if not _priv(r))
         if keep: ctx.results = L(ctx.results[:keep]) + L(r for r in ctx.results[keep:] if not _priv(r))
-        report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not ((getattr(r,'store',None) or self.name, getattr(r,'doc_id',None)) in cleared)),
-                                  related=L(r for r in ctx.related if not ((getattr(r,'store',None) or self.name, getattr(r,'doc_id',None)) in cleared))))
-        # a force-marked doc with nothing arithmetic can find still gates
-        if any(_section_private(r, cleared, forced, self.name) for r in (*ctx.results, *ctx.related)):
-            if not (report and report.has_pii):
-                report = report or AttrDict(has_pii=True, identifying={'marked': 1}, kinds={'marked': 1}, n=0, spans=L())
-                report.has_pii, report.identifying = True, dict(report.identifying or {}, marked=1)
+        _seen = lambda r: (getattr(r, 'store', None) or self.name, getattr(r, 'doc_id', None)) in cleared
+        report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not _seen(r)),
+                                  related=L(r for r in ctx.related if not _seen(r))))
+        # `mark_pii` gates a document arithmetic cannot see anything wrong with
+        if not report.has_pii and any(_priv(r) for r in (*ctx.results, *ctx.related)):
+            report.has_pii, report.identifying = True, {'marked': 1}
     private = bool(report and report.has_pii)
     if private:
         note = (f"{note}These sections hold personal information ({', '.join(sorted(report.identifying))}). " if pii == 'local' else note)
+        # an exempted section is not masked either, or `mark_not_pii` means nothing here
         if pii == 'redact':
-            cleared, forced = _pii_marks(self)
-            def _cleared(r):
-                did = getattr(r, 'doc_id', None)
-                return bool(did) and (getattr(r, 'store', None) or self.name, did) in cleared
-            ctx.results = L(r if _cleared(r) else AttrDict(r, text=redact(r.text)) for r in ctx.results)
+            ctx.results = L(r if _seen(r) else AttrDict(r, text=redact(r.text)) for r in ctx.results)
     if instruction: question = f'{question}\n\nInstruction from the questioner: {instruction}'
     prompt = mk_prompt(question, ctx, max_chars=mc, related=bool(related), note=note)
     if private and pii == 'local':
@@ -268,7 +262,6 @@ def ask(self:Vault,
     if schema is not None:
         from vishalakshi.extract import as_schema, structured
         sch = as_schema(schema, name='Answer', doc=f'The answer to: {question}')
-        # keep the protective system prompt on the structured turn when sections are private
         sys_sp = PII_SP if private and pii == 'local' else sp
         out.schema, out.fields = sch.__name__, structured(ch, prompt, sch, sp=sys_sp)
         out = _scrub_answer(out, private)
@@ -288,7 +281,7 @@ def ask(self:Vault,
         out.cited = cited(out.answer, ctx.results)
         out = _scrub_answer(out, private)
     out.usage = getattr(ch, 'use', None)
-    return self._observe(out)
+    return self._observe(out)     # records the citations as labels, when learning is on
 
 @patch
 def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_chars:int=6000,
@@ -307,7 +300,7 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
     elif private and pii == 'refuse':
         return AttrDict(answer=f"held back: section holds personal information ({', '.join(sorted(report.identifying))})",
                         refused=True, pii=report, node_id=node_id)
-    ch = (mk_chat or new_chat)(mid if private and pii=='local' else model, sp=sys_sp, **(chat_kw or {}))
+    ch = (mk_chat or new_chat)(mid, sp=sys_sp, **(chat_kw or {}))
     if private and pii == 'local' and str(getattr(ch, 'runtime', '') or '') not in LOCAL_RUNTIMES:
         return AttrDict(answer=f"held back: section holds personal information and {ch.runtime} is not local",
                         refused=True, pii=report, node_id=node_id, runtime=ch.runtime)
@@ -316,10 +309,9 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
               "\n\nExplain this section, then say what the related sections add or contradict.")
     res = ch(prompt)
     answer, thinking = split_reasoning(resp_text(res))
-    out = AttrDict(answer=answer.strip(), thinking=thinking or thought(res), node_id=node_id,
-                   model=mid, runtime=ch.runtime, pii=report, related=rel)
+    out = AttrDict(node_id=node_id, answer=answer.strip(), thinking=thinking or thought(res),
+                   section=sec, related=rel, model=mid, runtime=ch.runtime, pii=report)
     return _scrub_answer(out, private)
-
 
 # %% ../nbs/02_ask.ipynb #b5b57ec3744bc877
 CHAT_CACHE = 'chatcache'   # a diskcache directory; the one under nbs/ is committed, for CI

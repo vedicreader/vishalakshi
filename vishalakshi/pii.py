@@ -137,10 +137,10 @@ from .core import Vault
 from fastcore.all import patch
 
 def redact_obj(o, kinds=None):
-    "Redact strings inside nested dicts/lists the way `redact` does a single string."
-    if isinstance(o, str): return redact(o, kinds=kinds)
+    "`redact` over the strings inside a nested dict or list: what a structured answer is."
+    if isinstance(o, str):  return redact(o, kinds=kinds)
     if isinstance(o, dict): return {k: redact_obj(v, kinds) for k, v in o.items()}
-    if isinstance(o, (list, tuple)): return type(o)(redact_obj(v, kinds) for v in o)
+    if isinstance(o, list): return [redact_obj(v, kinds) for v in o]
     return o
 
 @patch
@@ -175,4 +175,3 @@ def pii_ctx(ctx) -> AttrDict:
     parts = [str(getattr(r, 'text', None) or (r.get('text') if isinstance(r, dict) else '') or '')
              for r in (list(ctx.get('results') or []) + list(ctx.get('related') or []))]
     return pii_report('\n\n'.join(parts))
-

@@ -23,7 +23,9 @@ CMDS = ('stats search sections context ask explain read related toc map topic_tr
         'apis harvest add_records watch watches unwatch pause poll index_code code_search symbol '
         'where_to_add grep federate drop_shelf categorize categorize_all doctypes of_type ner reshelf '
         'extract '
-        'extract_all ask_doc pii mark_pii mark_not_pii mark_noisy mark_noisy_many suggest_noisy accept_noisy marks learn fit_noise use_noise').split()
+        'extract_all ask_doc '
+        'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks '
+        'suggest_noisy accept_noisy learn fit_noise use_noise').split()
 
 @cache
 def vault(path:str=None) -> Vault:
@@ -46,7 +48,6 @@ def cmd(name:str, vault_fn=vault):
     g.__signature__, g.__delwrap__ = Signature(ps), f
     g.__annotations__ = {p.name: p.annotation for p in ps if p.annotation is not Parameter.empty}
     return g
-
 
 # %% ../nbs/04_cli.ipynb #f0a650d6
 def jsonable(o):

@@ -24,7 +24,9 @@ except ImportError:
 TOOLS = ('stats search sections context ask read related toc map topic_tree sources document shelves elsewhere grab url '
          'web arxiv youtube github gh_file add_file add_dir add_tree note connect forget apis harvest watch watches '
          'poll unwatch index_code code_search symbol where_to_add grep federate categorize '
-         'categorize_all doctypes of_type ner reshelf extract extract_all ask_doc pii mark_pii mark_not_pii mark_noisy mark_noisy_many suggest_noisy accept_noisy marks learn fit_noise use_noise').split()
+         'categorize_all doctypes of_type ner reshelf extract extract_all ask_doc '
+         'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks '
+         'suggest_noisy accept_noisy learn fit_noise use_noise').split()
 
 mcp = MCPServer('vishalakshi', instructions=(
     'A personal research vault: web pages, papers, transcripts, files, code and notes in one '
@@ -42,7 +44,10 @@ mcp = MCPServer('vishalakshi', instructions=(
     'out against a schema — a name like `invoice`, or a spec like `vendor:str, total:float` you '
     'make up on the spot — and `ask_doc` answers a question about that document with the rest of '
     'the vault as context, as prose or as a shape you name. `extract_all` does it across every '
-    'document of one type, which is how a folder of invoices becomes a table.\n\nJudgement loop: `suggest_noisy` ranks junk; `mark_noisy` / `accept_noisy` exclude it from retrieval. `pii` reports whether a document is private; `mark_pii` / `mark_not_pii` override the detector.'))
+    'document of one type, which is how a folder of invoices becomes a table.\n\n'
+    'Judgement loop: `suggest_noisy` ranks junk and `mark_noisy` / `accept_noisy` exclude it from '
+    'retrieval. `pii` says whether a document is private; `mark_pii` and `mark_not_pii` overrule '
+    'the detector.'))
 
 def as_tool(name:str):
     'Register one `Vault` method as an MCP tool, forcing its result through JSON.'
@@ -56,4 +61,3 @@ for _t in TOOLS: as_tool(_t)
 def main():
     'Entry point for `vishalakshi-mcp`. stdio by default; `--http` for Streamable HTTP.'
     mcp.run(transport='streamable-http' if '--http' in sys.argv[1:] else 'stdio')
-
