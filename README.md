@@ -16,8 +16,10 @@ pip install vishalakshi          # vault + acquisition only; no LLM, no MCP
 
 ``` python
 from tempfile import mkdtemp
+from litesearch import repo_root
 from vishalakshi import Vault
 
+root = str(repo_root() or Path('..'))   # works from nbs/ or the repo root
 v = Vault(Path(mkdtemp())/'vault.db')
 v.enc.note
 ```
@@ -25,7 +27,7 @@ v.enc.note
 `add` takes a directory, a file, or text. `grab` routes an arXiv id, YouTube link, GitHub repo, PDF, file, or directory.
 
 ``` python
-v.add('..')                       # README.md and every notebook under nbs/
+v.add(root)                       # README.md and every notebook under nbs/
 v.note('federate fuses the legs by rank because they share no vector space: the vault embeds '
        'prose, kosha embeds identifiers, ripgrep embeds nothing.', tags=['retrieval', 'design'])
 v.stats()
@@ -37,8 +39,8 @@ Default model: `gemma-4-E2B` on LiteRT GPU, no API key. Name any rishi model id/
 r = v.ask('why are rankings fused instead of distances?')
 print(r.model, '·', r.runtime)
 print(r.answer)
-for c in r.cited: print(c['n'], c['breadcrumb'])
-print(v.read(r.cited[0]['node_id'])['text'][:400])
+print(L(r.cited).map(lambda c: f"{c['n']} {c['breadcrumb']}"))
+if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 ```
 
 ## PII
@@ -88,20 +90,27 @@ v.doctypes()
 ``` python
 from dataclasses import fields
 from vishalakshi.extract import SCHEMAS, as_schema
-list(SCHEMAS), [f.name for f in fields(as_schema('invoice'))]
+
+print(L(SCHEMAS), L(fields(as_schema('invoice'))).attrgot('name'))
 e = v.extract('/inbox/acme-0117.md')                    # doctype picks schema
-v.ask_doc('/inbox/acme-0117.md', 'what is owed, to whom, and by when?',
-          schema='amount:float, payee:str, due:str')
+a = v.ask_doc('/inbox/acme-0117.md', 'what is owed, to whom, and by when?',
+              schema='amount:float, payee:str, due:str')
+e.schema, e.fields, a
 ```
 
 ## Code
 
-`add_tree` / `index_code` put source in kosha. `context(..., code=n)` appends code sections beside prose; `federate` and `grep` are on [code](03_code.ipynb).
+`index_code` fills kosha; `context(..., code=n)` then appends code sections beside prose. `grep` is ripgrep on disk (no index). `federate` is on [code](03_code.ipynb).
 
 ``` python
-c = v.context('where does the entity graph get rebuilt?', sections=3, related=0, code=3, dir='..')
-c.code, [r.breadcrumb for r in c.results if r.node_id is not None]
-L(v.grep('rrf_all', '..', limit=4)).attrgot('where')
+v.index_code(root)                # fills .kosha/; context then appends code sections
+c = v.context('where does the entity graph get rebuilt?', sections=3, related=0, code=3, dir=root)
+# code hits have no node_id; their handle is path:line on disk
+c.code, L(c.results).filter(lambda r: r.node_id is None).attrgot('breadcrumb')
+```
+
+``` python
+L(v.grep('rrf_all', root, limit=4)).attrgot('where')   # ripgrep; no kosha needed
 ```
 
 ## Watches
@@ -112,7 +121,7 @@ An action is an acquisition method name. `poll()` is the tick (cron, scheduler, 
 v.watch('https://example.com/changelog', action='url', every='6h')
 v.watch('late chunking retrieval', action='web', every='1d', n=5)
 v.watch('Re-read the evals', action='remind', every='1w')
-v.watches()
+L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['params']))
 ```
 
 ## The rest
