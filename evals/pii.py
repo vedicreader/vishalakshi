@@ -81,6 +81,13 @@ NEGATIVE = [
     lambda r: f"Grid reference {r.randrange(100000,999999)} {r.randrange(100000,999999)} on the survey.",
     lambda r: f"Invoice total 1{r.randrange(100000,999999)} rupees before tax.",
     lambda r: f"Docket {r.randrange(10**9, 10**10)}-{r.randrange(10,99)} filed with the registry.",
+    # A two-letter word before five digits is a US zip only if the letters are a state, and only
+    # if they are capitals. Case-folded, `as 12345` and `no 90210` are somebody's address, and a
+    # street suffix after a lowercase common noun is a sentence rather than a delivery.
+    lambda r: f"As {r.randrange(10000,99999)} units shipped, the line was retired.",
+    lambda r: f"No {r.randrange(10000,99999)} records matched the query.",
+    lambda r: f"Ref ab {r.randrange(10000,99999)} cleared without comment.",
+    lambda r: f"Delivered to {r.randrange(1,99)} the big street party volunteers.",
 ]
 
 FILLER = ("The committee met on Tuesday and reviewed the outstanding items. "
