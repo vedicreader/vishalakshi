@@ -6,8 +6,7 @@
 ## Install
 
 ``` sh
-pip install 'vishalakshi[all]'   # + rishi to answer, + kosha & rgapi for code, + mcp for the server
-pip install vishalakshi          # vault + acquisition only; no LLM, no MCP
+pip install vishalakshi
 ```
 
 ## The loop
@@ -45,7 +44,9 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate, decided by arithmetic: 0.962 precision at recall 1.000 over emails, cards, keys and street lines. Names are the one kind no pattern finds, so they are opt-in (`ner=True`) and honorific-anchored, and `scanned_ner` says whether anything looked. An answer is re-scanned with names on whatever went in. Junk is the other loop: `suggest_noisy` scores 0.988 AUC with no labels, and `mark_noisy` is what acts on it. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
+`ask`, `extract` and `explain` share one gate: 0.962 precision at recall 1.000 over emails, cards, keys and street lines (`evals/pii.py`). Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
+
+Junk is separate: `suggest_noisy` scores 0.988 AUC with no labels; `mark_noisy` excludes. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
 
 ``` python
 from vishalakshi.pii import pii_report
@@ -172,6 +173,6 @@ MCP client config is on [mcp](05_mcp.ipynb). Retrieval trade-offs and measured d
 The notebooks in `nbs/` are the source; the modules are generated.
 
 ``` sh
-pip install -e '.[all]'
+pip install -e .
 nbdev-prepare
 ```

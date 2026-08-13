@@ -51,8 +51,7 @@ def _ssn_ok(s:str) -> bool:
     return a not in ('000', '666') and a[0] != '9' and b != '00' and c != '0000'
 
 # %% ../nbs/09_pii.ipynb #42e59a18
-#: kind -> (pattern, validator or None). Order matters only for reporting; spans are
-#: de-overlapped afterwards, longest first, so a card inside a longer digit run wins.
+#: kind -> (pattern, validator or None). Spans de-overlapped longest-first.
 PATTERNS = {
     'email':   (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b', None),
     'card':    (r'\b(?:\d[ -]?){13,19}\b', luhn),
@@ -72,8 +71,7 @@ PATTERNS = {
     'sortcode':(r'\b(?:sort\s*code)\W{0,6}\d{2}[- ]?\d{2}[- ]?\d{2}\b', None),
     'secret':  (r'\b(?:sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35})\b', None),
     'medical': (r'\b(?:patient (?:id|number|name)|nhs number|medical record(?:\s*(?:no|number|#))?|mrn\W{0,6}\w+)\b', None),
-    # a number, then a street *name*, then the suffix. Without the name in the middle, `Chapter 4
-    # Court` and `Table 3 Road` are addresses, and precision goes 0.948 -> 0.746 (`evals/pii.py`).
+    # require a street name between number and suffix (0.948 vs 0.746 without, evals/pii.py)
     'address': (r'\b\d{1,5}[A-Za-z]?[ ,]+(?:[A-Z][A-Za-z.\'-]+[ ,]+){1,3}'
                 r'(?:Street|St|Road|Rd|Avenue|Ave|Lane|Ln|Drive|Boulevard|Blvd|Close|Court|Ct'
                 r'|Crescent|Way|Place|Terrace|Square|Sq|Gardens|Grove|Row|Walk)\b\.?'
@@ -85,12 +83,10 @@ IDENTIFYING = frozenset({'email', 'card', 'iban', 'ssn', 'nhs', 'phone', 'dob', 
                          'sortcode', 'medical', 'secret', 'address', 'person'})
 _COMPILED = {k: (re.compile(p, re.I), v) for k, (p, v) in PATTERNS.items()}
 
+
 # %% ../nbs/09_pii.ipynb #d1ff54dc
 def _scan_parts(text:str, mx:int=MAX_SCAN) -> list:
-    """Both ends of a long document as `(offset, part)`, since headers and footers carry the identity.
-
-    Kept apart rather than spliced: `Dr` ending one part and `Charles Babbage` starting the next is not a name.
-    """
+    """Both ends of a long document as `(offset, part)` (headers/footers hold identifiers)."""
     text = str(text or '')
     if len(text) <= mx: return [(0, text)]
     half = mx // 2
@@ -103,10 +99,7 @@ def _scan_text(text:str, mx:int=MAX_SCAN) -> str:
 def person_spans(text:str,     # what to scan
                  mx:int=None,  # chars handed to the extractor; None -> `extract.NER_CHARS`
 ) -> L:
-    """Personal names, from the honorific-anchored regex `signals` already uses.
-
-    An honorific is what anchors it, so `Dr Charles Babbage` is a name here and a bare `Ada Lovelace` is not.
-    """
+    """Honorific-anchored personal names. Off by default; costs an entity pass."""
     from vishalakshi.extract import NER_CHARS, _noun_ents
     text = str(text or '')[:mx or NER_CHARS]
     out = []
@@ -139,16 +132,14 @@ def pii_spans(text:str,          # what to scan
         out.append((s, e, kind, val))
     return L(sorted(out))
 
+
 # %% ../nbs/09_pii.ipynb #1f8b0234
 def pii_report(text:str,          # what to scan
                kinds=None,        # restrict to these kinds; None -> every pattern
                mx:int=MAX_SCAN,   # chars scanned before a long document is sampled at both ends
                ner:bool=False,    # also look for names
 ) -> AttrDict:
-    """What was found and whether it makes this text somebody's business.
-
-    `scanned_ner` is in the report because no `person` count means nothing on its own: names are not looked for unless asked.
-    """
+    """Spans found and whether they tip `has_pii` (IDENTIFYING kinds only)."""
     spans, counts = pii_spans(text, kinds, mx, ner=ner), {}
     for _, _, k, _ in spans: counts[k] = counts.get(k, 0) + 1
     n = len(_scan_text(text, mx))
@@ -159,6 +150,7 @@ def pii_report(text:str,          # what to scan
                     n_person=counts.get('person', 0), scanned=n, scanned_ner=bool(ner),
                     density=round(1000 * n_arith / max(n, 1), 3), spans=spans)
 
+
 # %% ../nbs/09_pii.ipynb #bb39f244
 def redact(text:str,       # the text to mask
            spans=None,     # spans from `pii_spans`; recomputed over the whole of `text` when None
@@ -166,15 +158,13 @@ def redact(text:str,       # the text to mask
            mask:str=None,  # what to put in place of a match; None -> `[KIND]`
            ner:bool=False, # also mask names
 ) -> str:
-    """`text` with every match replaced, so what is left can be read by anything.
-
-    `ner=True` reaches only the first `NER_CHARS`, so a name late in a long document survives it.
-    """
+    """Mask matched spans. Names only with `ner=True`."""
     out = str(text or '')
     if spans is None: spans = pii_spans(out, kinds, mx=len(out), ner=ner)
     for s, e, kind, _ in sorted(spans, reverse=True):
         out = out[:s] + (mask if mask is not None else f'[{kind.upper()}]') + out[e:]
     return out
+
 
 # %% ../nbs/09_pii.ipynb #e7e2b7b9
 from .core import Vault

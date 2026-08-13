@@ -6,114 +6,82 @@ file, searchable together and answerable by a local or hosted model
 ```python
 from vishalakshi.skill import vault
 v = vault()                      # $VISHALAKSHI_VAULT, else ~/.vishalakshi/vault.db
-```
-
-One vault holds everything. `add` takes a directory, a file, or text; `grab` takes anything at all
-and routes on what it is (an arXiv id, a YouTube link, a GitHub repo, a PDF url, a path).
-
-```python
-v.add('~/notes')                 # a directory, a file, or a string of text
+v.add('~/notes')                 # directory, file, or text
 v.grab('1706.03762')             # arXiv id, YouTube url, GitHub repo, PDF url, path
 v.note('what I concluded', tags=['retrieval'])
 ```
 
 ## Reading it back
 
-Four calls, in the order you usually want them.
-
 ```python
-v.context(q)                     # start here: whole sections plus what they connect to
-v.ask(q)                         # an answer with [n] citations that resolve to node_ids
-v.search(q, limit=10)            # chunk hits, each with a breadcrumb and a node_id
-v.sections(q, limit=5)           # ranked sections rather than chunks
-v.read(node_id)                  # the section behind a citation, in full
+v.context(q)                     # whole sections plus what they connect to; hand this to a model
+v.ask(q)                         # answer with [n] citations -> node_ids
+v.search(q, limit=10)            # chunk hits
+v.sections(q, limit=5)           # ranked sections
+v.read(node_id)                  # section behind a citation
 ```
 
-`context` is the one to hand a model. `search` is for locating a fact you can already name.
-`sections` is for a topic. Every hit carries a `node_id`, and `read(node_id)` opens exactly the text
-it came from, which is how a claim gets checked rather than trusted.
+`kind` filters without a second pass: `v.search(q, kind='pdf')` or `'note,web'`.
+Kinds: `web`, `pdf`, `arxiv`, `youtube`, `file`, `code`, `data`, `note`.
 
-`kind` filters any of them without a second pass over the results: `v.search(q, kind='pdf')`, or
-`'note,web'` for more than one. The kinds are `web`, `pdf`, `arxiv`, `youtube`, `file`, `code`,
-`data`, `note`, plus whatever the file parser called it.
-
-## Answering about documents you name
+## Named documents
 
 ```python
 v.ask_doc(['a.py', 'b.py'], 'what does a do that b does not?')
 v.ask_doc(path, 'what is owed and by when?', schema='amount:float, due:str')
 ```
 
-Neither document need be in the vault; a path on disk is read straight off it. `doc_chars` is the
-budget shared between the named documents, so two files at the default 8000 get 4000 characters
-each. Raise it when the question is a real comparison, and use a model with the window to match.
+A path on disk is read even if not yet in the vault. `doc_chars` is the shared budget for named docs.
 
-## Paperwork, as fields
+## Paperwork
 
 ```python
-v.categorize(ref, llm='never')   # invoice? paper? contract? a cue table, no model
-v.extract(ref)                   # the doctype picks the schema
+v.categorize(ref, llm='never')   # cues first; model only on ties
+v.extract(ref)                   # doctype picks the schema
 v.extract(ref, schema='vendor:str, total:float, due_date:str')
-v.extract_all(doctype='invoice') # one row per invoice in the vault
+v.extract_all(doctype='invoice')
 ```
 
-`categorize` runs a regex and entity cue table first and reaches for a model only where the table
-cannot decide. `decisive=True` means it did not need one. On templated documents the table is
-decisive on 80% and right on all of those.
+`decisive=True` means cues decided without a model.
 
 ## Code
 
 ```python
-v.index_code(dir)                # fills kosha: AST chunks, symbols, a call graph
+v.index_code(dir)                # kosha: AST chunks, symbols, call graph
 v.code_search(q); v.symbol(name); v.where_to_add(desc); v.grep(pat, dir)
 v.federate(q, dir=dir)           # vault + kosha + ripgrep, fused by rank
 ```
 
-Once a repo is indexed, `context` appends code sections on its own, decided by looking for
-`.kosha/code.db` on disk rather than by loading anything.
+Once `.kosha/code.db` exists, `context` appends code sections on its own.
 
-## What is decided, and what is yours
+## Knobs
 
-The retrieval defaults are litesearch's measured ones and there is nothing to choose: 512-character
-chunks, a preprocessed keyword leg, an HNSW vector leg, a document tree, one static 256d encoder,
-and a script fold that makes Devanagari and IAST reach the same row.
+Retrieval defaults are litesearch's. Reach for:
 
-Yours:
+- `rerank=True` on `search` / `sections` / `context` when precision matters more than latency
+- `v.shelf(name)` to keep two corpora from diluting each other
+- `llm=` for how hard `categorize` / `extract` try
+- `db.graph_search` for queries that share no words with the answer (costly on ordinary ones)
 
-- `rerank=True` on `search`, `sections` or `context`: +0.026 to +0.077 weighted MRR at ~10x latency.
-- `v.shelf(name)` partitions a corpus so two bodies of material stop diluting each other.
-- `llm=` decides how hard `categorize` and `extract` try.
-- `db.graph_search` is the entity-graph leg by name, for queries whose answer shares no word with
-  the question. Off elsewhere: it costs 0.070 to 0.160 weighted MRR on ordinary ones.
-
-## Saying what was rubbish
+## Marks and feedback
 
 ```python
-v.mark_noisy(doc_id, reason='site furniture')   # excluded from search, sections, context, ask
-v.mark_not_pii(doc_id, reason='my own invoice') # a false positive, cleared
-v.pii(doc_id, ner=True)                         # also look for names; read `scanned_ner`, not the count alone
-v.mark_pii(doc_id, reason='address book')       # force private when arithmetic finds nothing
-v.suggest_noisy(k=20)                           # ranked candidates, suggestions only
-v.accept_noisy(k=10)                            # mark the current top suggestions
-v.learn()                                       # log every ask as feedback
+v.mark_noisy(doc_id, reason='site furniture')
+v.mark_pii(doc_id, reason='address book'); v.mark_not_pii(doc_id, reason='my own invoice')
+v.pii(doc_id, ner=True)          # read `scanned_ner`, not the count alone
+v.suggest_noisy(k=20); v.accept_noisy(k=10)
+v.learn()                        # log every ask as feedback
 ```
 
-Marks live in `doc_marks`, so a re-ingest does not erase them. `suggest_noisy` is 0.988 AUC with no
-labels. Leave `fit_ranker` / `use_ranker` off unless your corpus says otherwise: none beat plain
-RRF reproducibly (`evals/RESULTS.md`).
+Marks live in `doc_marks` (survive re-ingest). `suggest_noisy` is 0.988 AUC. Leave `fit_ranker` / `use_ranker` off unless your corpus says otherwise (`evals/RESULTS.md`).
 
-`connect()` builds the entity graph; `map` / `topic_tree` / `show_topics` read topics from it.
-Neither is a ranking leg. Run `connect()` after a batch of ingests, not inside each one.
-
+`connect()` builds the entity graph; `map` / `topic_tree` / `show_topics` read topics. Run `connect()` after a batch of ingests.
 
 ## Notes
 
-`v.stats()` says what is in the vault, `v.sources()` why each document is there, `v.toc()` its shape.
-Ingestion is content-addressed, so re-adding the same source is a no-op rather than a duplicate.
-Ingesting Sanskrit switches on vidyut lemmas and Monier-Williams glosses by itself, once.
+`stats` / `sources` / `toc` inspect the vault. Ingest is content-addressed. Sanskrit turns on vidyut lemmas and Monier-Williams glosses once.
 
-`forget`, `drop_shelf`, `unwatch` and `pause` delete things and are deliberately not registered with
-`allow`, so sandboxed code cannot reach them. Call them yourself when you mean to.
+`forget`, `drop_shelf`, `unwatch` and `pause` are not in `allow`; call them yourself when you mean to.
 
 Docs: https://vedicreader.github.io/vishalakshi/skill.html.md"""
 

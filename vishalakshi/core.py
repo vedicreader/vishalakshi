@@ -12,9 +12,10 @@ __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'MARK_COLS', 'KIND_SHELF'
 import json, os, re, time, uuid, warnings
 from collections import Counter
 import numpy as np
-from fastcore.all import AttrDict, L, Path, first, ifnone, patch
+from fastcore.all import AttrDict, L, Path, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, build_graph,
         resolve_entities, topic_nodes, FastEncode, DOC_EXTS, embedding_gemma)
+
 
 # %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note')
@@ -28,10 +29,7 @@ def kinds(kind) -> L:
     "A kind filter as a list: `'note'`, `'note,web'` and `['note','web']` all work."
     return L(kind.split(',') if isinstance(kind, str) else kind).filter()
 
-# Across four encoders litesearch measures a spread of 0.018–0.046 weighted MRR, and the
-# static model *wins* one genre outright while indexing ~1,700x cheaper
 ENCODERS = {
-    # alias          what litesearch loads what it reads better than the default
     'default':       DFLT_ENC,
     'multilingual':  DFLT_ENC,                              # 100+ languages, Devanagari included
     'retrieval':     'minishlab/potion-retrieval-32M',      # tuned for search, not for similarity
@@ -50,10 +48,11 @@ def enc_spec(model=None) -> tuple:
     spec = _MODEL_MAP.get(spec, spec) if isinstance(spec, str) else spec
     return spec, ('onnx' if isinstance(spec, dict) else 'static')
 
+
 # %% ../nbs/00_core.ipynb #6c733f86
 class HashEmbed:
     "litesearch's `hash_embed` behind an `.encode`, so an offline vault is an encoder like any other."
-    def __init__(self, dims:int=256, dtype=DTYPE): self.dims, self.dtype = dims, dtype
+    def __init__(self, dims:int=256, dtype=DTYPE): store_attr()
     def encode(self, xs, **kw): return hash_embed(list(xs), ndim=self.dims, dtype=self.dtype)
 
 def mk_encoder(model=None,          # an ENCODERS alias, a model2vec id, a litesearch model dict, or an embedder
@@ -76,6 +75,7 @@ def mk_encoder(model=None,          # an ENCODERS alias, a model2vec id, a lites
         warnings.warn(f'could not load {nm} ({type(e).__name__}: {str(e)[:100]}); falling back to hash_embed')
         return mk_encoder(dims=dims, offline=True, dtype=dtype)
 
+
 # %% ../nbs/00_core.ipynb #c648b521
 class Vault(Index):
     '''Everything you have read, in one SQLite file, searchable as one corpus.'''
@@ -86,8 +86,6 @@ class Vault(Index):
                  offline:bool=None,   # never attempt a model download; None -> $VISHALAKSHI_OFFLINE
                  dims:int=256,        # dims for the hashing fallback
                  db=None):            # an open litesearch Database to share; shelves pass the vault's
-        # The env var is read here rather than only in the CLI, because a library caller on a
-        # machine with no network is the case it exists for, and `Vault()` was ignoring it
         offline = bool(os.getenv('VISHALAKSHI_OFFLINE')) if offline is None else offline
         self.enc = encoder if _is_enc(encoder) else mk_encoder(encoder, dims=dims, offline=offline)
         super().__init__(ifnone(path, Path.home()/'.vishalakshi'/'vault.db'),
@@ -108,6 +106,7 @@ class Vault(Index):
         return (f"Vault({self.path!r}: {s['docs']} docs, {s['chunks']} chunks, {s['entities']} entities, encoder={self.enc.method})")
 
 def _kw(kind) -> str: return 'kind IN (%s)' % ','.join(map(repr, kinds(kind)))
+
 
 # %% ../nbs/00_core.ipynb #f07669ec
 @patch
@@ -132,7 +131,7 @@ def add(self:Vault,
 def _first_line(src, n:int=80) -> str:
     'A title for text that came without one: the first non-empty line, as `toc()` will show it.'
     txt = src if isinstance(src, str) else '\n'.join(t for _, t in (src or []))
-    return next((l.strip().lstrip('# ') for l in txt.splitlines() if l.strip()), 'untitled')[:n]
+    return (first(l.strip().lstrip('# ') for l in txt.splitlines() if l.strip()) or 'untitled')[:n]
 
 @patch
 def assets(self:Vault, name:str=None) -> Path:
@@ -182,6 +181,7 @@ def note(self:Vault,
     ttl = title or (text.strip().splitlines() or ['note'])[0].lstrip('# ')[:80]
     return self.add(text.strip(), ttl, source=f'note:{uuid.uuid4().hex[:12]}', kind='note', meta=dict(tags=list(tags or [])))
 
+
 # %% ../nbs/00_core.ipynb #2bd1071c
 @patch
 def search(self:Vault,
@@ -193,10 +193,7 @@ def search(self:Vault,
            include_noisy:bool=False, # include documents explicitly marked as noisy
            **kw                # forwarded to litesearch doc_search
 ) -> L:
-    '''Chunk-level hybrid search (FTS5 + vectors, RRF-fused), each hit carrying its breadcrumb.
-
-    `rerank=True` is worth +0.026 to +0.077 weighted MRR at roughly 10x the latency.
-    '''
+    """Chunk-level hybrid search; hits carry breadcrumb and `node_id`. Honours kind and noisy marks."""
     hits = self.db.doc_search(q, self.qemb(q), limit=limit, store=self.name, dtype=DTYPE,
                               where=self._where(kind, include_noisy), rerank=rerank, **kw)
     return L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
@@ -226,13 +223,11 @@ def context(self:Vault,
             **kw                # forwarded to litesearch context
 ) -> AttrDict:
     'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
-    # `sections*3` on top of the `sections*3` litesearch applies internally cost a 9x chunk
-    # fanout and 3x the `read()` calls to return the same six
+    # litesearch already fans out sections*3; don't multiply again
     ctx = self.db.context(q, self.qemb(q), store=self.name, related=related, max_read=max_read,
                           sections=sections, where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for r in (*ctx.results, *ctx.related): r.breadcrumb = tidy_bc(r.breadcrumb)
-    # before the shelf and code legs: a ranker fitted on this shelf reorders only this shelf,
-    # and a federated code hit is never scored on features computed from other documents
+    # retune this shelf before federated legs; code hits are not scored here
     ctx = self._post(q, ctx)
     ctx.encoder, ctx.code, ctx.shelves = self.enc.note, 0, 0
     if shelves:
@@ -268,8 +263,7 @@ def read(self:Vault, node_id:str, max_chars:int=6000, store:str=None) -> dict:
 @patch
 def doc(self:Vault, ref:str) -> dict:
     'One document row, by `doc_id`, exact `source`, or a title substring; `meta` already decoded.'
-    # Without this, `ref=None` becomes `title LIKE '%%'` and returns the newest document, so a
-    # hit carrying no doc_id (a federated code section) gets an unrelated document's marks
+    # empty ref must not become title LIKE '%%' (would mark the newest doc)
     if not str(ref or '').strip(): return None
     q = str(ref or '').replace("'", "''")
     for w in (f"id='{q}'", f"source='{q}'", f"title LIKE '%{q}%'"):
@@ -314,6 +308,7 @@ def set_meta(self:Vault, doc_id:str, **kv) -> dict:
     self.t.docs.update(dict(id=doc_id, meta=json.dumps(m, default=str)))
     return m
 
+
 # %% ../nbs/00_core.ipynb #d5a90c48
 @patch
 def _stores(self:Vault):
@@ -343,24 +338,19 @@ def shelf(self:Vault, name:str, encoder:str=None, **kw) -> Vault:
     '''A sibling vault in the same file: its own store, its own tree, its own ANN index.'''
     was = first(self._stores()(where=f'store={name!r}')) or {}
     enc = encoder or was.get('encoder')
-    # Reuse the parent's *live* encoder when the shelf wants the one already loaded: either
-    # nothing is registered yet, or what is registered is what the parent is holding
+    # reuse the live encoder when the shelf wants the one already loaded
     if enc is None or enc == self.enc.name: enc = self.enc
     if enc == 'hash': enc, kw = None, dict(kw, offline=True)   # nothing to load; do not try
     return Vault(self.path, encoder=enc, store=name, db=self.db, **kw)
 
 @patch
 def drop_shelf(self:Vault, name:str, force:bool=False) -> dict:
-    '''Delete a shelf outright: its chunks, nodes, docs, entity graph, ANN index and registry row.
-
-    An ANN index holds exactly one vector space, so writing 256d vectors into a shelf built at 512d does not migrate it: it makes every distance across the two meaningless, which is what `_register` warns about.
-    '''
+    """Delete a shelf (chunks, nodes, docs, graph, ANN, registry). Refuses the main `store`."""
     if name == 'store' and not force: raise ValueError("refusing to drop the main shelf; pass force=True")
     pre = '' if name == 'store' else f'{name}_'
     have = {r['name'] for r in self.db.q("select name from sqlite_master where type='table'")}
     gone = []
-    # the FTS virtual tables first: dropping one takes its shadow tables with it, and dropping
-    # the content table out from under it first leaves them orphaned
+    # drop FTS virtual tables before content (shadow tables follow)
     for tn in (f'{name}_fts', f'{pre}entities_fts', name, f'{pre}nodes', f'{pre}docs',
                f'{pre}entities', f'{pre}mentions', f'{pre}edges'):
         if tn in have:
@@ -389,13 +379,13 @@ SHELVES = ('store',      # the main shelf: notes, pages, anything unrouted
            'code',       # source filed as prose; kosha is the real code index, reached by federate
            'data')       # API harvests and record dumps
 
+
 # %% ../nbs/00_core.ipynb #f7898394
-#: The keys `doc_marks` carries. A judgement about a document is not a property of the ingest.
 MARK_COLS = ('noisy', 'noisy_reason', 'pii_override', 'pii_reason')
 
 @patch
 def _marks(self:Vault):
-    """Per-document judgements, in their own table because `meta` belongs to whoever ingested."""
+    """Per-document judgements; `meta` belongs to ingest, so marks live here."""
     t = self.db.t.doc_marks
     t.create(doc_id=str, store=str, noisy=int, noisy_reason=str, pii_override=str, pii_reason=str,
              at=float, pk=('doc_id', 'store'), if_not_exists=True)
@@ -413,7 +403,7 @@ def _noisy_sql(self:Vault) -> str|None:
 
 @patch
 def mark(self:Vault, ref, **kv) -> dict:
-    "Record a judgement about one document. Unknown keys are refused rather than silently kept."
+    "Record a judgement about one document; unknown keys raise."
     if bad := set(kv) - set(MARK_COLS): raise ValueError(f'not a mark: {sorted(bad)}; expected {MARK_COLS}')
     d = self.doc(ref)
     if not d: raise ValueError(f'no document in the vault matching {ref!r}')
@@ -433,7 +423,7 @@ def marks(self:Vault, ref=None) -> dict|L:
 
 @patch
 def _migrate_marks(self:Vault) -> int:
-    "Lift judgements written into `meta` by 0.1.4 into `doc_marks`, once, on first open."
+    "Copy noisy/pii marks from document `meta` into `doc_marks` (legacy rows)."
     n = 0
     for r in self.t.docs(where="json_extract(meta,'$.noisy') IS NOT NULL "
                                "OR json_extract(meta,'$.pii_override') IS NOT NULL"):
@@ -468,10 +458,7 @@ def is_sanskrit_file(path) -> bool:
 
 _facets_on = False
 def sanskrit_facets() -> bool:
-    '''Re-register litesearch's Sanskrit profiles *with* lemmas and Monier-Williams glosses.
-
-    Putting the English behind the Sanskrit into `metadata` is the single largest measured gain on this corpus, larger than changing the encoder: a static encoder *with* glosses beats a 300M ONNX transformer without them.
-    '''
+    '''Re-register Sanskrit profiles with lemmas and Monier-Williams glosses in metadata.'''
     global _facets_on
     if _facets_on: return True
     try:
@@ -506,6 +493,7 @@ def elsewhere(self:Vault,
             doc_id=r['node_id'].split('#')[0], store=nm, title=r['title'], breadcrumb=f"{nm} › {r['breadcrumb']}",
             filename=None, pages=r['pages'], via=f'shelf:{nm}', text=' '.join(r['snippets'])[:max_read]))
     return out
+
 
 # %% ../nbs/00_core.ipynb #36eaae10
 def _paged(tbl, batch:int=2000):
@@ -598,8 +586,7 @@ def topic_tree(self:Vault,
     cid_doc = {}
     for w in _sql_in('id', {c for cs in by_topic.values() for c in cs}):
         for r in self.store(select='id, doc_id', where=w): cid_doc[r['id']] = r['doc_id']
-    # two documents can share a title (every `index.ipynb` in a tree of repos), and identical
-    # rows under one topic read as a duplicate rather than as two sources agreeing
+    # same title can appear in many repos; keep both under one topic
     drows = {r['id']: r for r in self.t.docs(select='id, title, source')}
     dupes = Counter(r['title'] for r in drows.values())
     def _name(d):
@@ -667,3 +654,4 @@ def stats(self:Vault) -> dict:
     return dict(docs=self.t.docs.count, nodes=self.t.nodes.count, chunks=self.store.count, encoder=self.enc.method,
                 entities=ents, path=self.path,
                 by_kind={r['kind']: r['n'] for r in self.db.q(f'select kind, count(*) as n from {p}docs group by kind order by n desc')})
+

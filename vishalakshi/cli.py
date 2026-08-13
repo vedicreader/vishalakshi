@@ -42,12 +42,11 @@ def cmd(name:str, vault_fn=vault):
     'A `Vault` method as a plain function: `self`, `**kw` and callable arguments dropped, docments kept.'
     f = getattr(Vault, name)
     g = wraps(f)(lambda **kw: getattr(vault_fn(), name)(**kw))
-    # nothing takes a callable default any more: `chat=Chat` was the last, and it is now the
-    # plain `chat_kw` dict
-    ps = [p for p in signature(f).parameters.values() if _spellable(p)]
+    ps = L(signature(f).parameters.values()).filter(_spellable)
     g.__signature__, g.__delwrap__ = Signature(ps), f
     g.__annotations__ = {p.name: p.annotation for p in ps if p.annotation is not Parameter.empty}
     return g
+
 
 # %% ../nbs/04_cli.ipynb #f0a650d6
 def jsonable(o):

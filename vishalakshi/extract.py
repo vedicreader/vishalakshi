@@ -68,7 +68,7 @@ _LAW_INST = re.compile(
 )
 
 def _noun_ents(text:str, limit:int=40) -> L:
-    'ORG, PERSON and LAW entities via regex: 89% of spaCy recall, zero model weight.'
+    'ORG, PERSON and LAW entities via regex; no model weight.'
     seen, out = set(), L()
     def _add(t, label):
         n = re.sub(r'\s+', ' ', t.strip())[:60]
@@ -92,14 +92,14 @@ def signals(text:str,            # the document text
     ).filter(lambda e: e.text and e.label not in {'ORG', 'PERSON', 'LAW', 'PRODUCT', 'GPE'})
     found = noun + kws
     labels = dict(Counter(e.label.lower() for e in found))
-    # `labels` is counted over everything found and `limit` caps only what is *shown*, because
-    # `cue_scores` reads the labels: a display cap that silently moved a score would be a
+    # labels count everything found; limit caps display only (cue_scores reads labels)
     if noun:
         counts = {k: counts.get(k, 0) + (labels.get(k, 0) if k not in counts else 0)
                   for k in (*counts, *(l for l in labels if l not in ('keyphrase', 'term')))}
     return AttrDict(counts={k: v for k, v in counts.items() if v}, labels=labels,
                     ents=found.sorted(key=lambda e: e.label in ('KEYPHRASE', 'TERM'))[:limit],
                     method=('ner+regex' if noun else 'keyphrase+regex' if kws else 'regex'))
+
 
 # %% ../nbs/06_extract.ipynb #5c2e8b14
 DOCTYPES = {
@@ -145,8 +145,7 @@ DOCTYPES = {
         r'\bq[1-4] \d{4}\b|\bfiscal year\b|\bfy\d{2}\b|\bquarter\b',
         r'\btable \d+\b|\bfigure \d+\b|\bappendix\b',
         r'\byear[- ]on[- ]year\b|\brevenue\b|\bmargin\b')),
-    # --- what an organisation writes about its own work, as opposed to what arrives from
-    # outside
+    # --- work-product labels ---
     'proposal': dict(needs=(), ents=('ORG',), cues=(
         r'\bproposal\b|\brfp response\b|\brequest for proposal\b', r'\bproposed approach\b|\bour approach\b',
         r'\bscope of work\b|\bwork ?plan\b', r'\bdeliverables?\b', r'\bfees?\b|\binvestment\b',
@@ -187,9 +186,7 @@ DOCTYPES = {
         r'\broadmap\b', r'\bmilestones?\b', r'\bphase [0-9a-z]+\b|\bnow[,/ ]+next[,/ ]+later\b',
         r'\bnext (?:30|60|90) days\b|\bquarterly plan\b', r'\btarget date\b|\bplanned date\b',
         r'\bproduct backlog\b|\bdelivery plan\b|\bthemes?\b')),
-    # a claim and a clinical record were one label until the cues were written down: they
-    # share a shape (a dated record about a person) and no vocabulary at all, and a document
-    # that
+    # claim vs clinical_record share a dated-person shape; cues must separate them
     'claim': dict(needs=('date',), ents=('PERSON', 'ORG'), cues=(
         r'\bclaim (?:number|no\.?|form|reference)\b|\bclaim id\b',
         r'\bincident date\b|\bdate of loss\b', r'\bclaimant\b|\binsured\b|\bpolicyholder\b',
@@ -231,8 +228,7 @@ DOCTYPES = {
 }
 _CUES = {l: [re.compile(c, re.I|re.M) for c in d['cues']] for l, d in DOCTYPES.items()}
 
-# What acquired a document is evidence about what it is, and better evidence than any cue
-# phrase: a YouTube ingest *is* a transcript
+# arrival kind is strong evidence (youtube -> transcript)
 KIND_HINT = dict(youtube='transcript', arxiv='paper', code='code')
 MIN_SCORE, MIN_MARGIN, KIND_BONUS = 0.4, 0.12, 0.2
 
@@ -266,6 +262,7 @@ def guess_type(text:str,             # the document text
     return AttrDict(doctype=top if best else 'other', score=best, margin=round(best-second, 3),
                     decisive=best >= min_score and best-second >= min_margin,
                     scores=dict(ranked[:5]), method=sig.method)
+
 
 # %% ../nbs/06_extract.ipynb #c93f1d68
 TYPE_SP = """You label one document with what kind of thing it is.
@@ -306,8 +303,7 @@ def categorize(self:Vault,
         lbls = L(labels.split(',') if isinstance(labels, str) else labels or list(DOCTYPES)).map(str.strip)
         mid = model or dflt_model
         try:
-            # `auto` is allowed to *use* a model, not to go and fetch one: a vault of ten
-            # thousand documents must not turn a one-line note into a multi-gigabyte download
+            # auto may use a model already loaded; it must not download one
             if mode == 'auto' and is_stock_chat() and infer_runtime(mid) != 'remote' and not model_cached(mid):
                 by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
@@ -315,8 +311,7 @@ def categorize(self:Vault,
                 if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "rishi default"})'
                 else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
         except Exception as e:
-            # There may be no weights and no network, and a corpus 90% typed by cues alone is
-            # worth far more than a traceback, so the cue verdict stands, and says why
+            # keep the cue verdict when the model leg fails
             if mode == 'always': raise
             by = f'cues ({g.method}); no model available ({type(e).__name__})'
     res = AttrDict(doc_id=d.doc_id, title=d.title, kind=d.kind, doctype=dt, score=g.score,
@@ -357,8 +352,7 @@ def of_type(self:Vault, doctype:str, kind:str=None) -> L:
     'Every document categorised as `doctype`, newest first.'
     return self.sources(kind).filter(lambda r: (r['meta'] or {}).get('doctype') == doctype)
 
-# What a document turned out to *be*, as opposed to how it arrived, which is what
-# `KIND_SHELF` covers
+# doctype routing (KIND_SHELF is arrival kind)
 DOCTYPE_SHELF = {'paper': 'papers', 'code': 'code', 'catalogue': 'data'}
 
 @patch
@@ -392,6 +386,7 @@ def ner(self:Vault,
     sig = signals(d.text, limit=limit)
     return AttrDict(doc_id=d.doc_id, title=d.title, method=sig.method, counts=sig.counts,
                     labels=sig.labels, ents=sig.ents)
+
 
 # %% ../nbs/06_extract.ipynb #8d1c6a35
 @dataclass
@@ -512,8 +507,7 @@ class Summary:
     numbers:list[str] = None
     open_questions:list[str] = None
 
-# A purchase order and a quotation carry an invoice's fields under other names, so they share
-# its schema rather than getting a near-duplicate of it
+# PO and quotation share the Invoice schema
 SCHEMAS = dict(invoice=Invoice, purchase_order=Invoice, quote=Invoice, receipt=Receipt,
                catalogue=Catalogue, contract=Contract, resume=Resume, paper=Paper,
                meeting_notes=MeetingNotes, other=Summary)
@@ -580,6 +574,7 @@ def structured(ch,                # a `rishi.Chat`, e.g. from `new_chat`
         warnings.warn(f'{type(e).__name__} on a constrained call for {schema.__name__} '
                       f'({str(e)[:150]}); retrying as a JSON reply.')
         return _norm(_json_reply(ch, prompt, schema, sp), schema)
+
 
 # %% ../nbs/06_extract.ipynb #b6a25c19
 EXTRACT_SP = """You pull structured fields out of one document.
