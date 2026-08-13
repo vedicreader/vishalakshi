@@ -435,6 +435,22 @@ def _job_watch(self:Vault, payload:dict) -> dict:
     _done('skipped' if isinstance(res, dict) and res.get('skipped') else 'ok')
     return res
 
+def _intervals(w:dict,      # a watch row
+               now:float    # the moment being scheduled for
+) -> int:
+    'Whole intervals of `w` that have come and gone by `now`. 1 when it has only just come due.'
+    return int((now - w['next_run']) // max(w['every'], 1.)) + 1
+
+@patch
+def _advance(self:Vault,
+             w:dict,        # the watch row as it was read
+             n:int,         # intervals that came due, from `_intervals`
+             ran:int        # how many of them are being run; the rest are counted as missed
+):
+    'Move `next_run` past the intervals that came due, from when they were due rather than from now.'
+    self._w().update(dict(id=w['id'], next_run=w['next_run'] + n * max(w['every'], 1.),
+                          missed=(w['missed'] or 0) + n - ran))
+
 @patch
 def run_watch(self:Vault, w:dict) -> dict:
     'Fire one watch now, off the queue, and record the outcome. Failures come back, they do not raise.'
@@ -443,6 +459,8 @@ def run_watch(self:Vault, w:dict) -> dict:
         res = self._job_watch(dict(watch_id=w['id']))
         status = 'skipped' if isinstance(res, dict) and res.get('skipped') else 'ok'
     except Exception as e: res, status = dict(error=f'{type(e).__name__}: {str(e)[:200]}'), 'error'
+    # a due watch run by hand consumes its slot, or it stays due and the next poll runs it again
+    if w['next_run'] <= t0: self._advance(w, _intervals(w, t0), 1)
     return dict(watch_id=w['id'], action=w['action'], target=w['target'], status=status,
                 took=round(time.time()-t0, 2), result=res)
 
@@ -451,15 +469,13 @@ def schedule(self:Vault, at:float=None) -> L:
     'Enqueue a job for every watch that has come due, and advance its next run without drift.'
     now, out = (time.time() if at is None else at), L()
     for w in self.watches(due_only=True, at=now):
-        ev = max(w['every'], 1.)
-        n = int((now - w['next_run']) // ev) + 1          # whole intervals that have come and gone
+        n = _intervals(w, now)
         take = max(1, min(n, w['catchup'] or 1))
         for i in range(take):
-            sched = w['next_run'] + (n - take + i) * ev   # the most recent `take` of them
+            sched = w['next_run'] + (n - take + i) * max(w['every'], 1.)   # the most recent `take`
             out.append(self.q.enqueue('watch', dict(watch_id=w['id'], scheduled_at=sched),
                                       key=f"{w['id']}@{int(sched)}"))
-        self._w().update(dict(id=w['id'], next_run=w['next_run'] + n*ev,
-                              missed=(w['missed'] or 0) + (n - take)))
+        self._advance(w, n, take)
     return out
 
 @patch
