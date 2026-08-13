@@ -103,7 +103,9 @@ document-disjoint split showed it.
 
 Recall is 1.000 on every planted kind in the harness (email, card, iban, ssn, nhs, phone, dob,
 account). The residual false positives are Luhn collisions on long digit runs. API keys (`secret`)
-gate with the identifying set; names and addresses are out of scope and need `mark_pii`.
+gate with the identifying set. Names are an opt-in pass (`ner=True`) anchored on an honorific, so a
+bare name and an address still need `mark_pii`; `scanned_ner` in the report says whether names were
+looked for at all.
 
 ## 4. What this means for switching things on
 

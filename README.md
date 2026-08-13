@@ -45,7 +45,7 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate, decided by arithmetic: checksums take precision from 0.664 to 0.948 at recall 1.000. API keys count; names do not, so those take `mark_pii`. Junk is the other loop: `suggest_noisy` scores 0.988 AUC with no labels, and `mark_noisy` is what acts on it. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
+`ask`, `extract` and `explain` share one gate, decided by arithmetic: checksums take precision from 0.664 to 0.948 at recall 1.000. API keys count. Names are a separate pass, off by default: `pii(ner=True)` finds the honorific-anchored ones and `scanned_ner` says whether it looked, and `mark_pii` covers the rest. Junk is the other loop: `suggest_noisy` scores 0.988 AUC with no labels, and `mark_noisy` is what acts on it. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
 
 ``` python
 from vishalakshi.pii import pii_report
@@ -63,8 +63,8 @@ v.add('Cookie policy. All rights reserved. Privacy. Terms. Contact us.',
 v.mark_pii('/inbox/letter.md', reason='address')            # private even though nothing matched
 v.mark_noisy('/inbox/footer.md', reason='site furniture')   # out of search, sections, context, ask
 
-r = v.pii('/inbox/letter.md')
-r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v.search('cookie policy'))
+r = v.pii('/inbox/letter.md', ner=True)   # scanned_ner says whether names were looked for
+r.scanned_ner, r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v.search('cookie policy'))
 ```
 
 | `pii=` | what happens |
