@@ -120,7 +120,7 @@ def claim(self:Queue,
 
 @patch
 def _held(self:Queue, job) -> dict|None:
-    'The row as it stands, if `job`\'s worker still holds the lease on it. Call inside a `write_txn`.'
+    "The row as it stands, or None if this worker no longer holds it. Call inside a `write_txn`."
     cur = first(self.db.q('SELECT * FROM jobs WHERE id=?', [job['id']]))
     if cur is None or cur['state'] != 'running' or cur['worker'] != job.get('worker'): return None
     return cur

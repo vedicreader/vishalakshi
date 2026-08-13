@@ -243,7 +243,8 @@ def enqueue_tree(self:Vault, dir, types:str=DOC_EXTS, code:bool=True, kind:str=N
     out += self.enqueue_files(docs, kind=kind, batch=batch, **kw)
     srcs = dir2files(p, types=code_exts) if code else L()
     if srcs: out.append(self.q.enqueue('index_code', dict(dir=str(p)), key=f'index_code:{p}'))
-    # priority 1 sorts it behind the batches, and the handler waits for the ones it did not outrank
+    # priority 1 sorts it behind the batches, and the handler waits for the ones it did not outrank.
+    # the key has no tree in it because the graph is of the whole vault: one pending job covers every
     if connect and out: out.append(self.q.enqueue('connect', {}, priority=1, key='connect',
                                                   max_attempts=8))
     return AttrDict(dir=str(p), n_docs=len(docs), n_code=len(srcs), queued=len(out),
@@ -435,9 +436,7 @@ def _job_watch(self:Vault, payload:dict) -> dict:
     _done('skipped' if isinstance(res, dict) and res.get('skipped') else 'ok')
     return res
 
-def _intervals(w:dict,      # a watch row
-               now:float    # the moment being scheduled for
-) -> int:
+def _intervals(w:dict, now:float) -> int:
     'Whole intervals of `w` that have come and gone by `now`. 1 when it has only just come due.'
     return int((now - w['next_run']) // max(w['every'], 1.)) + 1
 
