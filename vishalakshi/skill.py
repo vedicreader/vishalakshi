@@ -44,6 +44,19 @@ v.extract_all(doctype='invoice')
 
 `decisive=True` means cues decided without a model.
 
+## Pictures
+
+```python
+v.add_image(path, labels=['Superb Fairywren'])   # metadata is the text; pixels stay on disk
+v.add_images(dir)
+v.label_images(dir, 'aussie-birds')              # anya classifies, the vault files the result
+v.tag_image(ref, labels=[...], caption='...')    # write a later model run onto a picture
+v.images(); v.search(q, kind='image')
+```
+
+`kind='image'`. What is searchable is the filename, folder, dimensions, camera, capture date, GPS,
+plus any labels or caption. `label_images` needs [anya](https://github.com/vedicreader/anya).
+
 ## Code
 
 ```python
@@ -99,9 +112,10 @@ from .cli import vault
 # Everything a sandboxed agent may call: read the vault, and add to it
 READ = ('search sections context related read toc doc document sources stats shelves elsewhere map '
         'doctypes of_type ner categorize extract extract_all ask ask_doc explain doc_context topic_tree show_topics '
-        'code_search symbol where_to_add grep federate watches apis assets').split()
+        'code_search symbol where_to_add grep federate watches apis assets images').split()
 WRITE = ('add add_file add_files add_dir add_tree add_records add_code note grab url web crawl arxiv '
          'pdf youtube github gh_file code connect index_code harvest watch poll run_watch '
-         'categorize_all set_meta reshelf shelf route').split()
+         'categorize_all set_meta reshelf shelf route '
+         'add_image add_images tag_image label_images').split()
 
 allow(vault, {Vault: READ + WRITE})
