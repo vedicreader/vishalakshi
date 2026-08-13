@@ -91,7 +91,7 @@ Yours:
 ```python
 v.mark_noisy(doc_id, reason='site furniture')   # excluded from search, sections, context, ask
 v.mark_not_pii(doc_id, reason='my own invoice') # a false positive, cleared
-v.pii(doc_id, ner=True)                         # also look for names; read `scanned_ner`, not just the count
+v.pii(doc_id, ner=True)                         # also look for names; read `scanned_ner`, not the count alone
 v.mark_pii(doc_id, reason='address book')       # force private when arithmetic finds nothing
 v.suggest_noisy(k=20)                           # ranked candidates, suggestions only
 v.accept_noisy(k=10)                            # mark the current top suggestions

@@ -51,10 +51,24 @@ POSITIVE = {
     'phone':  lambda r: f"Call +44 20 7946 {r.randrange(1000,9999)} before noon.",
     'dob':    lambda r: f"Date of birth 14/03/{r.randrange(1940,2005)}, confirmed.",
     'account':lambda r: f"Account number {r.randrange(10**7, 10**8)} was debited.",
+    'address':lambda r: r.choice([
+        f"Deliver to {r.randrange(1,300)} Elm Street, London.",
+        f"The registered office is 221B Baker Street, London NW1 {r.randrange(1,9)}XE.",
+        f"Ship to {r.randrange(100,999)} Market St, San Francisco CA 941{r.randrange(10,99)}.",
+        f"Collected from {r.randrange(1,99)} Victoria Road on the 3rd.",
+        f"Returned to {r.randrange(1,99)} Kings Court, Leeds.",
+    ]),
 }
 
 #: Things that look like identity and are not. This is the list the claim lives or dies on.
 NEGATIVE = [
+    # a bare number in front of a common noun is not a street line, and this is where a loose
+    # address pattern does its damage: every numbered heading in every report would fire
+    lambda r: f"Chapter {r.randrange(1,9)} Court decisions are summarised below.",
+    lambda r: f"Table {r.randrange(1,9)} Road traffic figures for the quarter.",
+    lambda r: f"Figure {r.randrange(1,9)} Way of working, as adopted.",
+    lambda r: f"Section {r.randrange(1,99)} Place of performance is unchanged.",
+    lambda r: f"Item {r.randrange(1,99)} Drive belt replaced under warranty.",
     lambda r: f"Order number {r.randrange(10**15, 10**16)} shipped on Tuesday.",
     lambda r: f"ISBN 978-{r.randrange(0,9)}-{r.randrange(10000,99999)}-{r.randrange(100,999)}-{r.randrange(0,9)} is out of print.",
     lambda r: f"Part {r.randrange(10**12, 10**13)} supersedes the previous revision.",
@@ -126,6 +140,14 @@ def run(n=400, seed=0):
     print(f'\nrecall by kind (with checksums):')
     for k, (hit, miss) in sorted(rows[0][6].items()):
         print(f'  {k:<10} {hit}/{hit+miss}  {hit/(hit+miss):.2f}')
+
+    # The name pass is opt-in, so the number that decides whether to switch it on is not its
+    # recall on names: it is how often it invents one in ordinary prose.
+    spurious = sum(bool(P.pii_report(t, ner=True).kinds.get('person')) for t, want in corpus(n, seed) if not want)
+    n_neg = sum(1 for _, want in corpus(n, seed) if not want)
+    print(f'\nner=True on the {n_neg} lookalike documents: {spurious} gained a spurious person')
+    for t in ('Dr Charles Babbage signed it.', 'Ada Lovelace signed it.'):
+        print(f'  {t:32} -> {P.pii_report(t, ner=True).identifying or "nothing"}')
     return rows
 
 

@@ -170,22 +170,25 @@ def _pii_marks(self:Vault):
     forced  = {(r['store'], r['doc_id']) for r in rows if r['pii_override']=='force'}
     return cleared, forced
 
-def _section_private(r, cleared, forced, store:str) -> bool:
+def _section_private(r, cleared, forced, store:str, ner:bool=False) -> bool:
     did = getattr(r, 'doc_id', None)
     key = (getattr(r, 'store', None) or store, did) if did else None
     if key and key in cleared: return False
     if key and key in forced: return True
-    return pii_report(str(getattr(r, 'text', '') or '')).has_pii
+    return pii_report(str(getattr(r, 'text', '') or ''), ner=ner).has_pii
 
-def _scrub_answer(out, private:bool):
-    "Mask what the model reproduced anyway, in a prose answer or in structured fields."
+def _scrub_answer(out, private:bool, ner:bool=True):
+    """Mask what the model reproduced anyway, in a prose answer or in structured fields.
+
+    `ner` is on here and off on the way in: an answer is a few hundred characters, and this is the backstop for a local model that was told not to repeat a name.
+    """
     if not private: return out
     if out.get('fields') is not None:
-        r = pii_report(str(out.fields))
-        if r.has_pii: out.fields, out.leaked = redact_obj(out.fields), r.identifying
+        r = pii_report(str(out.fields), ner=ner)
+        if r.has_pii: out.fields, out.leaked = redact_obj(out.fields, ner=ner), r.identifying
     elif out.get('answer'):
-        r = pii_report(out.answer)
-        if r.has_pii: out.answer, out.leaked = redact(out.answer), r.identifying
+        r = pii_report(out.answer, ner=ner)
+        if r.has_pii: out.answer, out.leaked = redact(out.answer, ner=ner), r.identifying
     return out
 
 @patch
@@ -206,6 +209,7 @@ def ask(self:Vault,
         mk_chat=None,          # build chats with this instead of `new_chat`; same signature
         pii:str='local',       # what to do when the sections hold personal information (local|redact|refuse|off)
         pii_model:str=None,    # the local model that answers then; None -> $VISHALAKSHI_PII_MODEL
+        pii_ner:bool=False,    # gate on names too, which costs an entity pass over every section
         instruction:str='',    # an instruction from the questioner, for a second turn
         **kw                   # forwarded to Vault.context
 ) -> AttrDict:
@@ -221,13 +225,13 @@ def ask(self:Vault,
     report = None
     if pii != 'off':
         cleared, forced = _pii_marks(self)
-        _priv = lambda r: _section_private(r, cleared, forced, self.name)
+        _priv = lambda r: _section_private(r, cleared, forced, self.name, ner=pii_ner)
         keep = int(ctx.get('n_docs') or 0)
         ctx.related = L(r for r in ctx.related if not _priv(r))
         if keep: ctx.results = L(ctx.results[:keep]) + L(r for r in ctx.results[keep:] if not _priv(r))
         _seen = lambda r: (getattr(r, 'store', None) or self.name, getattr(r, 'doc_id', None)) in cleared
         report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not _seen(r)),
-                                  related=L(r for r in ctx.related if not _seen(r))))
+                                  related=L(r for r in ctx.related if not _seen(r))), ner=pii_ner)
         # `mark_pii` gates a document arithmetic cannot see anything wrong with
         if not report.has_pii and any(_priv(r) for r in (*ctx.results, *ctx.related)):
             report.has_pii, report.identifying = True, {'marked': 1}

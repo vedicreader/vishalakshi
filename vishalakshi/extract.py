@@ -632,7 +632,8 @@ def extract(self:Vault,
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=None,
                         fields={}, skipped='pii', refused=True, pii=report, runtime=ch.runtime)
     flds = structured(ch, prompt, sch, sp=sys_sp)
-    if private and pii_report(str(flds)).has_pii: flds = redact_obj(flds)
+    # the same backstop `ask` applies to an answer: fields are short, so names are looked for
+    if private and pii_report(str(flds), ner=True).has_pii: flds = redact_obj(flds, ner=True)
     if save and d.doc_id: self.set_meta(d.doc_id, extracted=flds, extracted_as=sch.__name__)
     return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=sch.__name__,
                     fields=flds, chars=len(d.text), truncated=d.truncated, model=mid or dflt_model,
