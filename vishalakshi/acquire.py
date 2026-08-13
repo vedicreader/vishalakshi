@@ -188,7 +188,8 @@ def add_tree(self:Vault,
     '''Ingest a whole tree, each half to the index that can actually answer questions about it.'''
     p = Path(dir)
     if not p.is_dir(): raise ValueError(f'not a directory: {dir}')
-    if queue: return self.enqueue_tree(p, types=types, code=code, kind=kind, batch=batch, **kw)
+    if queue: return self.enqueue_tree(p, types=types, code=code, kind=kind, batch=batch,
+                                       connect=connect, **kw)
     docs = self.add_dir(p, types=types, kind=kind, **kw)
     srcs = dir2files(p, types=code_exts) if code else L()
     out = AttrDict(dir=str(p), docs=docs, n_docs=len(docs), n_code=len(srcs), code=None)
@@ -235,13 +236,16 @@ def enqueue_files(self:Vault,
 
 @patch
 def enqueue_tree(self:Vault, dir, types:str=DOC_EXTS, code:bool=True, kind:str=None,
-                 batch:int=50, **kw) -> AttrDict:
+                 batch:int=50, connect:bool=False, **kw) -> AttrDict:
     'Enqueue a whole tree: one job per batch of documents, one more for the code half.'
     p, out = Path(dir), L()
     docs = dir2files(p, types=types)
     out += self.enqueue_files(docs, kind=kind, batch=batch, **kw)
     srcs = dir2files(p, types=code_exts) if code else L()
     if srcs: out.append(self.q.enqueue('index_code', dict(dir=str(p)), key=f'index_code:{p}'))
+    # priority 1 sorts it behind the batches, and the handler waits for the ones it did not outrank
+    if connect and out: out.append(self.q.enqueue('connect', {}, priority=1, key='connect',
+                                                  max_attempts=8))
     return AttrDict(dir=str(p), n_docs=len(docs), n_code=len(srcs), queued=len(out),
                     jobs=list(out.attrgot('id')))
 
@@ -258,6 +262,13 @@ def _job_ingest(self:Vault, payload:dict) -> dict:
 def _job_index_code(self:Vault, payload:dict) -> dict:
     "Queue handler for the kosha half of a tree. A kosha failure dead-letters rather than filing source as prose."
     return dict(dir=payload['dir'], code=self.index_code(payload['dir']))
+
+@patch
+def _job_connect(self:Vault, payload:dict) -> dict:
+    'Queue handler rebuilding the entity graph, once the ingests it should cover have landed.'
+    # the graph is of the whole vault, so any pending ingest is one this should wait for
+    if (n := self.q.pending('ingest')): raise Retry(f'{n} ingest jobs still to run')
+    return dict(graph=self.connect())
 
 # %% ../nbs/01_acquire.ipynb #bd035852
 def records_md(recs, title_keys=('name', 'title', 'displayName', 'productName', 'label', 'sku', 'id')) -> str:
@@ -342,7 +353,8 @@ def q(self:Vault) -> Queue:
     # a shelf may reach it first; the main store rebinds the handlers to itself when it arrives
     if self.name == 'store' or not q.handlers:
         for k, fn in (('watch', self._job_watch), ('ingest', self._job_ingest),
-                      ('index_code', self._job_index_code)): q.register(k, fn)
+                      ('index_code', self._job_index_code), ('connect', self._job_connect)):
+            q.register(k, fn)
     return q
 
 @patch

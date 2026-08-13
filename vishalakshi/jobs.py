@@ -188,19 +188,20 @@ def _ran(self:Queue, job, status:str, t0:float, error:str=None, result=None) -> 
 def run_one(self:Queue, job) -> AttrDict:
     'Dispatch one claimed job, then ack or fail it, and record the run either way.'
     t0 = time.time()
+    # ack and fail are fenced, so a call that lost its lease changed nothing and the run says `lost`
+    def _rep(out, status, error=None, result=None):
+        if out['state'] == 'lost': status, error = 'lost', 'the lease was reclaimed mid-handler'
+        return self._ran(job, status, t0, error, result)
     if (fn := self.handlers.get(job['kind'])) is None:
         err = f"no handler for {job['kind']!r}"
-        return self._ran(self.fail(job, err), 'error', t0, err)
+        return _rep(self.fail(job, err), 'error', err)
     try: res = fn(job['payload'])
-    except Retry as e:
-        return self._ran(self.fail(job, f'Retry: {e}', after=e.after), 'retry', t0, str(e))
+    except Retry as e: return _rep(self.fail(job, f'Retry: {e}', after=e.after), 'retry', str(e))
     except Exception as e:
         err = f'{type(e).__name__}: {str(e)[:200]}'
-        return self._ran(self.fail(job, err), 'error', t0, err)
-    if self.ack(job)['state'] == 'lost':
-        return self._ran(job, 'lost', t0, 'the lease expired mid-handler and the job was reclaimed', res)
-    return self._ran(job, 'skipped' if isinstance(res, dict) and res.get('skipped') else 'ok',
-                     t0, None, res)
+        return _rep(self.fail(job, err), 'error', err)
+    return _rep(self.ack(job), 'skipped' if isinstance(res, dict) and res.get('skipped') else 'ok',
+                None, res)
 
 @patch
 def drain(self:Queue,
@@ -231,6 +232,12 @@ def jobs(self:Queue, state:str=None, kind:str=None, limit:int=100) -> L:
 def dead(self:Queue, limit:int=100) -> L:
     'Jobs that used up their attempts, with the error that finished them off.'
     return self.jobs(state='dead', limit=limit)
+
+@patch
+def pending(self:Queue, kind:str=None) -> int:
+    'How many jobs are ready or running: what is left to do, counted rather than listed.'
+    w, a = ('AND kind=? ', [kind]) if kind else ('', [])
+    return first(self.db.q(f"SELECT count(*) n FROM jobs WHERE state IN ('ready','running') {w}", a))['n']
 
 @patch
 def retry(self:Queue, job_id:str, after:float=0) -> AttrDict:
