@@ -25,7 +25,7 @@ def tidy_bc(bc:str) -> str:
     return ' › '.join(dict.fromkeys(p for p in map(str.strip, (bc or '').split('›')) if p and not _window.match(p)))
 
 def kinds(kind) -> L:
-    "A kind filter as a list — `'note'`, `'note,web'` and `['note','web']` all work."
+    "A kind filter as a list: `'note'`, `'note,web'` and `['note','web']` all work."
     return L(kind.split(',') if isinstance(kind, str) else kind).filter()
 
 # Across four encoders litesearch measures a spread of 0.018–0.046 weighted MRR, and the
@@ -64,7 +64,7 @@ def mk_encoder(model=None,          # an ENCODERS alias, a model2vec id, a lites
     '''The best encoder available as `AttrDict(model, dims, method, name, note)`.'''
     if offline:
         return AttrDict(model=HashEmbed(dims, dtype), dims=dims, method='hash', name='hash',
-        note=f'char-n-gram hashing ({dims}d) — lexical only; pass encoder= or restore network access for real semantics')
+        note=f'char-n-gram hashing ({dims}d): lexical only; pass encoder= or restore network access for real semantics')
     spec, how = enc_spec(model)
     nm = spec['model'] if isinstance(spec, dict) else (spec if isinstance(spec, str) else type(spec).__name__)
     try:
@@ -87,7 +87,7 @@ class Vault(Index):
                  dims:int=256,        # dims for the hashing fallback
                  db=None):            # an open litesearch Database to share; shelves pass the vault's
         # The env var is read here rather than only in the CLI, because a library caller on a
-        # machine with no network is the case it exists for -- and `Vault()` was ignoring it
+        # machine with no network is the case it exists for, and `Vault()` was ignoring it
         offline = bool(os.getenv('VISHALAKSHI_OFFLINE')) if offline is None else offline
         self.enc = encoder if _is_enc(encoder) else mk_encoder(encoder, dims=dims, offline=offline)
         super().__init__(ifnone(path, Path.home()/'.vishalakshi'/'vault.db'),
@@ -115,7 +115,7 @@ def add(self:Vault,
         src,                  # text, `[(page_no, text)]`, a file path, or a directory
         title:str=None,       # document title; defaults to the filename, or the first line of text
         source:str=None,      # url or path; defaults to the title. Identity is hashed over it
-        kind:str=None,        # one of KINDS — the facet you filter and report on
+        kind:str=None,        # one of KINDS: the facet you filter and report on
         meta:dict=None,       # provenance: the query that found it, when, which tier fetched it
         force:bool=False,     # re-ingest a source already present
         **kw                  # forwarded to litesearch add_doc (chunker, summarize, with_heading)
@@ -130,7 +130,7 @@ def add(self:Vault,
                            emb_fn=self.emb, meta=meta, force=force, **kw)
 
 def _first_line(src, n:int=80) -> str:
-    'A title for text that came without one — the first non-empty line, as `toc()` will show it.'
+    'A title for text that came without one: the first non-empty line, as `toc()` will show it.'
     txt = src if isinstance(src, str) else '\n'.join(t for _, t in (src or []))
     return next((l.strip().lstrip('# ') for l in txt.splitlines() if l.strip()), 'untitled')[:n]
 
@@ -205,7 +205,7 @@ def search(self:Vault,
 
 @patch
 def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False, include_noisy:bool=False, **kw) -> list:
-    'Ranked *sections* rather than chunks — noisy documents are excluded unless requested.'
+    'Ranked *sections* rather than chunks. Noisy documents are excluded unless requested.'
     secs = self.db.sections(q, self.qemb(q), limit=limit, per=per, store=self.name, dtype=DTYPE,
                             where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for s in secs: s['breadcrumb'] = tidy_bc(s.get('breadcrumb'))
@@ -283,7 +283,7 @@ def document(self:Vault,
              headings:bool=True,    # put the node titles back as markdown headings
              disk:bool=True,        # fall back to a path on disk the vault has never seen
 ) -> AttrDict:
-    'One whole document, reassembled in document order — the unit a model reads to extract from.'
+    'One whole document, reassembled in document order: the unit a model reads to extract from.'
     d = self.doc(ref)
     if d is None:
         p = Path(ref or '')
@@ -343,7 +343,7 @@ def shelf(self:Vault, name:str, encoder:str=None, **kw) -> Vault:
     '''A sibling vault in the same file: its own store, its own tree, its own ANN index.'''
     was = first(self._stores()(where=f'store={name!r}')) or {}
     enc = encoder or was.get('encoder')
-    # Reuse the parent's *live* encoder when the shelf wants the one already loaded -- either
+    # Reuse the parent's *live* encoder when the shelf wants the one already loaded: either
     # nothing is registered yet, or what is registered is what the parent is holding
     if enc is None or enc == self.enc.name: enc = self.enc
     if enc == 'hash': enc, kw = None, dict(kw, offline=True)   # nothing to load; do not try
@@ -353,7 +353,7 @@ def shelf(self:Vault, name:str, encoder:str=None, **kw) -> Vault:
 def drop_shelf(self:Vault, name:str, force:bool=False) -> dict:
     '''Delete a shelf outright: its chunks, nodes, docs, entity graph, ANN index and registry row.
 
-    An ANN index holds exactly one vector space, so writing 256d vectors into a shelf built at 512d does not migrate it — it makes every distance across the two meaningless, which is what `_register` warns about.
+    An ANN index holds exactly one vector space, so writing 256d vectors into a shelf built at 512d does not migrate it: it makes every distance across the two meaningless, which is what `_register` warns about.
     '''
     if name == 'store' and not force: raise ValueError("refusing to drop the main shelf; pass force=True")
     pre = '' if name == 'store' else f'{name}_'
@@ -385,10 +385,9 @@ def shelves(self:Vault) -> L:
 # Shelf names, not encoder assignments
 SHELVES = ('store',      # the main shelf: notes, pages, anything unrouted
            'papers',     # arXiv and papers
-           'sanskrit',   # veda, commentary, translation — Devanagari and IAST alike
+           'sanskrit',   # veda, commentary, translation: Devanagari and IAST alike
            'code',       # source filed as prose; kosha is the real code index, reached by federate
            'data')       # API harvests and record dumps
-
 
 # %% ../nbs/00_core.ipynb #f7898394
 #: The keys `doc_marks` carries. A judgement about a document is not a property of the ingest.
@@ -471,7 +470,7 @@ _facets_on = False
 def sanskrit_facets() -> bool:
     '''Re-register litesearch's Sanskrit profiles *with* lemmas and Monier-Williams glosses.
 
-    Putting the English behind the Sanskrit into `metadata` is the single largest measured gain on this corpus — larger than changing the encoder: a static encoder *with* glosses beats a 300M ONNX transformer without them.
+    Putting the English behind the Sanskrit into `metadata` is the single largest measured gain on this corpus, larger than changing the encoder: a static encoder *with* glosses beats a 300M ONNX transformer without them.
     '''
     global _facets_on
     if _facets_on: return True
@@ -546,7 +545,7 @@ def connect(self:Vault,
     return res
 
 def _map_from_graph(db, store, store_table, members:int=24) -> AttrDict|None:
-    'Read topic clusters persisted by `connect()` — instant DB read, no re-clustering.'
+    'Read topic clusters persisted by `connect()`: instant DB read, no re-clustering.'
     try: g = db.get_graph(store)
     except Exception: return None
     try: ents = L(g.entities(where="kind='topic'", order_by='freq desc'))
@@ -568,7 +567,7 @@ def _map_from_graph(db, store, store_table, members:int=24) -> AttrDict|None:
 
 @patch
 def map(self:Vault, min_count:int=2, force:bool=False, **kw) -> AttrDict:
-    'Cluster the corpus into labelled topics — the shape of what you have collected. Fast after `connect()` has run: reads the persisted topic nodes rather than re-clustering.'
+    'Cluster the corpus into labelled topics: the shape of what you have collected. Fast after `connect()` has run: reads the persisted topic nodes rather than re-clustering.'
     if not force:
         cached = _map_from_graph(self.db, self.name, self.store)
         if cached is not None: return cached
@@ -624,7 +623,7 @@ def topic_tree(self:Vault,
 
 def fmt_topics(tree, width:int=44) -> str:
     "A `topic_tree` as an indented listing. Plain ASCII, so it survives a terminal, a notebook and a prompt."
-    if not tree: return 'no topics — run connect() first'
+    if not tree: return 'no topics: run connect() first'
     lines = []
     for t in tree:
         lines.append(f"{t['label'][:width]:<{width}} ({t['chunks']} chunks, {t['docs']} docs)")

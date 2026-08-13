@@ -1,4 +1,4 @@
-"""Does the noise score find the noise — and does it spare the surveys?
+"""Does the noise score find the noise, and does it spare the surveys?
 
 Two questions, and the second is the one worth running.
 
@@ -96,7 +96,7 @@ def fitted(seeds=(0, 1, 2, 3), n_mark=6, folds=3, seed=7):
 
     The fit never sees the documents it is scored on: the marked documents are split into folds,
     weights are fitted on the rest, and AUC is computed over the held-out fold plus every unmarked
-    document. `n_mark` is deliberately small — six confirmations is a realistic afternoon, and the
+    document. `n_mark` is deliberately small: six confirmations is a realistic afternoon, and the
     question is whether six is enough to beat a table of constants.
     """
     import numpy as np, random

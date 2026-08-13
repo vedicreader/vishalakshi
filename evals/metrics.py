@@ -2,8 +2,8 @@
 
 A bare delta between two rankers on ninety queries means nothing on its own: the variance across
 queries is larger than almost any effect a reranker produces, and the same experiment run on a
-different sample of queries routinely reverses sign. So every comparison here is paired — both
-systems are scored on *the same* queries — and reported as a mean difference with a bootstrap
+different sample of queries routinely reverses sign. So every comparison here is paired (both
+systems are scored on *the same* queries) and reported as a mean difference with a bootstrap
 confidence interval over queries. If the interval spans zero, the honest report is "no difference
 measured", and this module makes that the easy thing to write down.
 """
@@ -34,7 +34,7 @@ def precision(rels, k=10):
     return (sum(1 for r in rels if r > 0) / len(rels)) if rels else 0.0
 
 def noise_at_k(is_noise, k=10):
-    "The fraction of what came back that ground truth calls noise — the metric this work is for."
+    "The fraction of what came back that ground truth calls noise: the metric this work is for."
     v = list(is_noise)[:k]
     return (sum(1 for x in v if x) / len(v)) if v else 0.0
 
@@ -72,7 +72,7 @@ def compare(name_a, sa, name_b, sb, keys=('ndcg', 'mrr', 'recall', 'noise'), **k
         d, lo, hi, p = paired(sa[k], sb[k], **kw)
         rows.append(dict(metric=k, a=float(np.mean(sa[k])), b=float(np.mean(sb[k])),
                          delta=d, lo=lo, hi=hi, p=p,
-                         verdict='—' if lo <= 0 <= hi else ('better' if d > 0 else 'worse')))
+                         verdict='same' if lo <= 0 <= hi else ('better' if d > 0 else 'worse')))
     return rows
 
 def show(rows, name_a='A', name_b='B'):
@@ -82,7 +82,7 @@ def show(rows, name_a='A', name_b='B'):
         print(f'{r["metric"]:<10}{r["a"]:>9.4f}{r["b"]:>9.4f}{r["delta"]:>+9.4f}{ci:>20}{r["p"]:>8.3f}  {r["verdict"]}')
 
 def auc(scores, labels):
-    "Rank AUC — how well a score separates two classes, with no threshold to argue about."
+    "Rank AUC: how well a score separates two classes, with no threshold to argue about."
     s, y = np.asarray(scores, float), np.asarray(labels, bool)
     n_p, n_n = int(y.sum()), int((~y).sum())
     if not n_p or not n_n: return float('nan')

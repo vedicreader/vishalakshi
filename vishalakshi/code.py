@@ -56,7 +56,7 @@ def symbol(self:Vault, name:str, depth:int=1, dir:str=None) -> AttrDict:
 
 @patch
 def where_to_add(self:Vault, description:str, limit:int=5, dir:str=None) -> L:
-    'Where in the indexed repo a described change belongs — kosha ranking over the call graph.'
+    'Where in the indexed repo a described change belongs: kosha ranking over the call graph.'
     return self.kosha(dir).where_to_add(description, limit=limit)
 
 @patch

@@ -130,7 +130,7 @@ NOISE_FEATURES = ('hub', 'dup_out', 'off_centre', 'spread_chunk', 'spread_doc', 
                   'redundancy', 'short', 'promiscuity')
 
 #: The default blend, set from the per-feature AUCs in `evals/noise.py` rather than by taste.
-#: `spread_doc` is zero because it was measured at 0.54 -- a coin -- and what little it does say
+#: `spread_doc` is zero because it was measured at 0.54 (a coin) and what little it does say
 #: points at the surveys. Treat all of these as a starting position: the blend swings between
 #: 0.45 and 0.93 AUC across generated corpora, which is the argument for `fit_noise` over any
 #: fixed set of numbers, including these.
@@ -316,9 +316,21 @@ def noise_scores(self:Vault, weights:dict=None, ranker=None, **kw) -> L:
 
 @patch
 def suggest_noisy(self:Vault, k:int=20, min_score:float=1.0, **kw) -> L:
-    """The `k` documents most worth looking at, excluding ones already judged."""
-    judged = {r['doc_id'] for r in self._marks()(where=f'store={self.name!r}')}
-    return self.noise_scores(**kw).filter(lambda r: r.score >= min_score and r.doc_id not in judged)[:k]
+    "The `k` documents most worth looking at, excluding ones already judged for noise."
+    # only `noisy` judgments count: a `mark_not_pii` row must not hide a footer from review
+    judged = {r['doc_id'] for r in self._marks()(where=f'store={self.name!r} AND noisy IS NOT NULL')}
+    return self.noise_scores(ranker=self._noise_rk(), **kw).filter(
+        lambda r: r.score >= min_score and r.doc_id not in judged)[:k]
+
+@patch
+def mark_noisy_many(self:Vault, refs, noisy:bool=True, reason:str='') -> L:
+    "Mark many documents at once: the accept step after `suggest_noisy`."
+    return L(refs).map(lambda r: self.mark_noisy(getattr(r, 'doc_id', r), noisy=noisy, reason=reason))
+
+@patch
+def accept_noisy(self:Vault, k:int=20, reason:str='suggested', **kw) -> L:
+    "Mark the current top noise suggestions. Suggestions stay suggestions until this (or `mark_noisy`)."
+    return self.mark_noisy_many(self.suggest_noisy(k=k, **kw), reason=reason)
 
 # %% ../nbs/10_quality.ipynb #a3a36475
 def _sig(z): return 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
@@ -459,7 +471,10 @@ def _rankers(self:Vault):
     "Where a fitted ranker and the logging switch live, per shelf."
     t = self.db.t.rankers
     t.create(store=str, model=str, at=float, enabled=int, logging=int, note=str,
-             pk='store', if_not_exists=True)
+             noise=str, noise_on=int, pk='store', if_not_exists=True)
+    have = {c.name for c in t.columns}          # `create` leaves an existing table alone, columns and all
+    for col, ty in (('noise', 'TEXT'), ('noise_on', 'INTEGER')):
+        if col not in have: self.db.conn.execute(f'ALTER TABLE rankers ADD COLUMN {col} {ty}')
     return t
 
 @patch
@@ -514,10 +529,10 @@ def fit_ranker(self:Vault, l2:float=1.0, save:bool=False, **kw) -> Ranker:
     return r
 
 @patch
-def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, **kw) -> Ranker:
+def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, save:bool=False, **kw) -> Ranker:
     """Learn the blend from the documents you have marked, instead of guessing nine weights.
 
-    Same pairwise machinery as the ranker: one group holding every document, marked ones labelled 1. "Rank every noisy document above every clean one" is the AUC, so the pairwise loss optimises what `evals/noise.py` reports.
+    Same pairwise machinery as the ranker: one group holding every document, marked ones labelled 1. Held out it reaches 0.996 AUC against the fixed weights' 0.988. `save=True` stores it, `use_noise` switches `suggest_noisy` onto it.
     """
     labels = labels or {r['doc_id']: bool(r['noisy']) for r in self._marks()(where=f'store={self.name!r}')
                         if r['noisy'] is not None}
@@ -526,12 +541,37 @@ def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, **kw) -> Ranker:
     keep = [i for i, d in enumerate(f.doc_ids) if d in labels] or list(range(len(f.doc_ids)))
     y = np.array([float(labels.get(f.doc_ids[i], 0.0)) for i in range(len(f.doc_ids))])
     if len(set(y[keep].tolist())) < 2:
-        # only positives marked: the unmarked documents are the negatives, which is what a
-        # person marking noise actually means, and is also the only way to get a pair out of
-        # this
-        keep = list(range(len(f.doc_ids)))
+        keep = list(range(len(f.doc_ids)))   # only positives marked: the unmarked ones are the negatives
     X = _robust_z(f.X)[keep]
-    return Ranker(f.names).fit(X, ['all']*len(keep), y[keep], l2=l2)
+    r = Ranker(f.names).fit(X, ['all']*len(keep), y[keep], l2=l2)
+    if save and r.w is not None:
+        t = self._rankers()
+        row = dict(first(t(where=f'store={self.name!r}')) or dict(store=self.name, model='', enabled=0,
+                                                                  logging=0, note='', noise_on=0))
+        row.update(store=self.name, noise=json.dumps(r.to_dict()), at=time.time())
+        t.insert(row, replace=True)
+        self._noise_cache = None
+    return r
+
+@patch
+def use_noise(self:Vault, on:bool=True) -> dict:
+    "Put a stored noise blend behind `suggest_noisy`. Separate from fitting it."
+    t = self._rankers()
+    row = first(t(where=f'store={self.name!r}'))
+    if not row or not row.get('noise'): raise ValueError('no noise blend stored; fit_noise(save=True) first')
+    row = dict(row, noise_on=int(bool(on)))
+    t.insert(row, replace=True); self._noise_cache = None
+    return dict(store=self.name, noise_on=bool(on), fitted_at=row['at'])
+
+@patch
+def _noise_rk(self:Vault):
+    "The enabled noise blend for this shelf, or None."
+    if getattr(self, '_noise_cache', None) is None:
+        try:
+            r = first(self._rankers()(where=f'store={self.name!r} AND noise_on=1'))
+            self._noise_cache = Ranker.from_dict(json.loads(r['noise'])) if (r and r.get('noise')) else False
+        except Exception: self._noise_cache = False
+    return self._noise_cache or None
 
 @patch
 def use_ranker(self:Vault, on:bool=True) -> dict:

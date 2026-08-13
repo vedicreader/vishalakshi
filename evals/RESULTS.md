@@ -19,7 +19,7 @@ Per-feature AUC against ground truth, 72 documents of which 8 are boilerplate by
 | `off_centre` | 0.881 | +1.19 | −1.56 | cosine distance from the corpus centroid |
 | `dup_out` | 0.800 | +0.94 | −1.12 | chunks near-duplicated in *another* document |
 | `low_idf` | 0.602 | +0.32 | −0.07 | mean term specificity, negated |
-| `promiscuity` | 0.500 | — | — | distinct past queries retrieving it (needs a feedback log) |
+| `promiscuity` | 0.500 | n/a | n/a | distinct past queries retrieving it (needs a feedback log) |
 | `redundancy` | 0.498 | −0.01 | −0.24 | chunks near-duplicated inside the same document |
 | `spread_doc` | 0.453 | −0.15 | **+0.83** | entropy of the document's chunks over clusters |
 | `short` | 0.422 | −0.24 | +0.55 | fraction of very short chunks |
@@ -28,15 +28,15 @@ Blended: **0.988 mean AUC** over three corpora (0.967–1.000). Fitted from mark
 fixed weights, held out: **0.996** (0.990–1.000), better on all four corpora tried, from six
 marked documents and eighteen confirmed keepers.
 
-### "Spread across clusters means generic" — measured
+### "Spread across clusters means generic", measured
 
 `spread_doc` is that hypothesis, and it scores **0.453 AUC. Below chance.** Worse, look at which
 documents it indicts: the corpus plants `Survey` documents that range over every topic and are
 *not* noise, and `spread_doc` scores them +0.83 against boilerplate's −0.15. It ranks the surveys
 as noisier than the footers.
 
-Measuring the same idea one level down — the entropy of a *single chunk* over topic centroids
-rather than of a document over cluster assignments — gets **0.982**, the second-best feature in the
+Measuring the same idea one level down, the entropy of a *single chunk* over topic centroids
+rather than of a document over cluster assignments, gets **0.982**, the second-best feature in the
 table. That is the difference between broad and generic: a survey is broad at the document level
 and specific in each paragraph, and boilerplate is generic in every chunk it has. But even that
 correction only partly separates surveys (gap +0.83); what cleanly does is `hub` (+3.17) and
@@ -46,7 +46,7 @@ anything about topics.
 ### An incidental finding
 
 `usearch.index.kmeans` does not honour its `seed`. Called twice on identical input it returns
-different assignments, and `spread_doc` — an entropy over those assignments — drifted across its
+different assignments, and `spread_doc`, an entropy over those assignments, drifted across its
 whole range between two calls on the same vault, taking `spread_chunk` from 0.807 to 0.982 once
 fixed. `quality._centroids` is now a seeded k-means++ plus Lloyd in numpy, at comparable cost since
 both are dominated by one `V @ C.T` per iteration.
@@ -61,8 +61,8 @@ Known-item queries (one document answers each, different every time), **document
 | `+noise` (unsupervised filter) | **+0.001** | **+0.005** | −0.015 | 1 / 0 |
 | `+linear` fused at α=0.25 | −0.001 | −0.004 | +0.007 | 0 / 0 |
 | `+gbdt` (replaces order) | −0.005 | +0.019 | −0.093 | 1 / 1 |
-| `+forest` (replaces order) | −0.085 | −0.051 | — | 0 / 2 |
-| `+prior` (Beta posterior) | −0.043 | −0.065 | — | 0 / **3** |
+| `+forest` (replaces order) | −0.085 | −0.051 | n/a | 0 / 2 |
+| `+prior` (Beta posterior) | −0.043 | −0.065 | n/a | 0 / **3** |
 | `+linear` (replaces order) | −0.127 | −0.082 | −0.274 | 0 / 2 |
 
 Three things to take from this.
@@ -77,7 +77,7 @@ reciprocal rank. Fusion does not make a weak model good; it makes it harmless. `
 `alpha=0.25` for that reason.
 
 **The Beta prior is regime-dependent, and the two regimes disagree sharply.** On `mode='topic'`
-queries — the same material relevant again and again — it was worth +0.020 nDCG and +0.116 recall.
+queries, the same material relevant again and again, it was worth +0.020 nDCG and +0.116 recall.
 On known-item queries it was significantly worse on MRR on all three corpora. It remembers which
 documents were useful, which is precisely wrong for a question whose answer you have never been
 shown.
@@ -88,19 +88,54 @@ The first run had the linear model at recall 0.47 against a baseline of 0.80, wi
 largest weight by a factor of two. The `prior` feature was computed from the same feedback log the
 labels came from: the feature was a summary of the label. `training_data` now computes it
 out-of-fold, excluding each question's own rows. That alone moved forest and gbdt from
-significantly worse to indistinguishable, and it is invisible on a query-disjoint split — only the
+significantly worse to indistinguishable, and it is invisible on a query-disjoint split: only the
 document-disjoint split showed it.
 
-## 3. What this means for switching things on
+## 3. PII detection
+
+`python -m evals.pii`: 400 documents, half with planted identity and half with lookalikes
+(order numbers, ISBNs, part numbers, build strings, numbered headings). Checksums are the claim:
+
+| detector | precision | recall | F1 | false positives |
+|---|---|---|---|---|
+| regex only | 0.738 | 1.000 | 0.849 | 71/200 |
+| with checksums | 0.962 | 1.000 | 0.980 | 8/200 |
+
+Recall is 1.000 on every planted kind in the harness (email, card, iban, ssn, nhs, phone, dob,
+account, address). The residual false positives are Luhn collisions on long digit runs.
+
+### The street line, and why it needs a street name
+
+`address` is what makes "John Smith, 12 Elm Street" private: no pattern finds the name, and one
+identifying hit is all a section needs. Written as a number followed by an optional street name and
+a suffix, it reads `Chapter 4 Court`, `Table 3 Road` and `Figure 2 Way` as addresses and takes
+precision to **0.746** (68/200 false positives). Requiring at least one capitalised word between the
+number and the suffix is the whole difference: **0.962** at the same recall. A US ZIP needs its
+state for the same reason, since five digits alone are a quantity.
+
+### Names
+
+Names are the one kind no pattern finds, so they are the one kind behind `ner=True`. The extractor
+is the honorific-anchored regex in `extract._noun_ents`, not a model: no weights, and 21 ms over
+180,000 characters. `Dr Charles Babbage` is found and a bare `Ada Lovelace` is not, which is a
+recall limit and the reason `mark_pii` stays. The number that decides whether to switch it on is
+what it invents in ordinary prose: **0 of the 200 lookalike documents** gained a spurious person.
+
+`scanned_ner` is in every report, because a zero `person` count means nothing without knowing
+whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps its meaning.
+
+## 4. What this means for switching things on
 
 | piece | default | why |
 |---|---|---|
-| `mark_noisy` / `mark_not_pii` | active | a person's decision, not a model's |
-| `suggest_noisy` | suggests only | 0.988 AUC is good; it is not good enough to delete things unasked |
+| `mark_noisy` / `mark_not_pii` / `mark_pii` | active | a person's decision, not a model's |
+| `suggest_noisy` / `accept_noisy` | suggests only | 0.988 AUC is good; it is not good enough to delete things unasked |
+| `fit_noise` / `use_noise` | off until saved and switched | fitted blend 0.996 AUC; same save/use seam as the ranker |
 | feedback logging (`learn()`) | **off** | nothing is recorded until you say so |
 | `fit_ranker` | manual | fitting is free and cheap to inspect |
 | `use_ranker` | **off** | nothing here beat RRF reproducibly; measure on your own corpus first |
+| `ask` / `extract` / `explain` `pii=` | `local` | arithmetic gate; structured fields scrubbed on the way out |
 
 The honest summary is that the infrastructure is worth having and the models are not yet. Three
-generated corpora is not a real vault, and every number here should be re-measured against yours —
+generated corpora is not a real vault, and every number here should be re-measured against yours:
 `evals/gold.py` builds a gold set from a real one for exactly that.

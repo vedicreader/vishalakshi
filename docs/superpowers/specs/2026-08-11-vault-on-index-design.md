@@ -32,7 +32,7 @@ The answers, from reading both sources:
   against *vishalakshi's own Sanskrit shelf*, that "a static encoder with glosses beat a 300M ONNX
   transformer without them, at a fraction of the cost." vishalakshi currently pays for the ONNX
   model (`SHELVES['sanskrit'] = 'gemma'`) and gets no glosses: `register_profiles()` runs at import
-  with `nlp=None, mw=None`, so `sanskrit_meta` returns `verse_meta` alone — metre, no lemmas, no
+  with `nlp=None, mw=None`, so `sanskrit_meta` returns `verse_meta` alone: metre, no lemmas, no
   glosses.
 - **Rerank is the one lever worth a decision.** +0.026 to +0.077 weighted MRR, positive in all
   twelve paired cells, at ~10x query latency. It needs a fanout of 30 candidates; reranking ten
@@ -56,7 +56,7 @@ The answers, from reading both sources:
 | Migration | none; stale shelves are deleted via a new `drop_shelf` |
 | Entity graph | code stays, documentation gains "when this pays off" |
 
-## Part A — litesearch (0.1.24)
+## Part A: litesearch (0.1.24)
 
 ### A1. `Index` gains `db=`
 
@@ -66,7 +66,7 @@ def __init__(self, path=':memory:', encoder=None, name='store', ann=True, db=Non
     self.db = db if db is not None else database(path)
 ```
 
-This is the only addition needed. With every shelf now at 256d, `ndim=` is unnecessary —
+This is the only addition needed. With every shelf now at 256d, `ndim=` is unnecessary:
 `Index` already relies on `get_store(ndim=None)`. Shelves in one vault file share one connection,
 and vishalakshi's `:memory:` tests depend on that sharing: a second `database(':memory:')` is a
 different database.
@@ -79,7 +79,7 @@ gain `rerank:bool=False`. Each fans out to `max(limit, RERANK_FANOUT)` internall
 chunk hits *before* they are grouped into sections, so grouping sees the reordered list.
 
 `RERANK_FANOUT = 30` moves somewhere both `api.py` and `tree.py` can import it. `Database.context`
-needs no change — it already forwards `**kw` to `sections`. `Index.search` drops its hand-rolled
+needs no change: it already forwards `**kw` to `sections`. `Index.search` drops its hand-rolled
 `n = max(limit, RERANK_FANOUT)` branch in favour of the shared one.
 
 Rationale: the fanout discipline is a measured property of reranking, not of any one caller. Put in
@@ -97,7 +97,7 @@ The api page is correct. Reconcile all three to the code.
 `nbdev-prepare`, then release 0.1.24. Part B cannot begin before this lands, because it imports the
 new kwargs.
 
-## Part B — vishalakshi core (`nbs/00_core.ipynb`)
+## Part B: vishalakshi core (`nbs/00_core.ipynb`)
 
 ### B1. `class Vault(Index)`
 
@@ -155,8 +155,8 @@ calls directly.
 forwarded to A2. One search behaviour under one name; the flat non-breadcrumb path is not reachable
 by accident.
 
-`sections` and `context` stay as overrides — they add the `kind` filter, `tidy_bc`, and (for
-`context`) the cross-shelf and code legs — and both forward `rerank`.
+`sections` and `context` stay as overrides (they add the `kind` filter, `tidy_bc`, and (for
+`context`) the cross-shelf and code legs) and both forward `rerank`.
 
 ### B4. `ENCODERS` and `SHELVES` collapse
 
@@ -207,14 +207,14 @@ The markdown above `search` stops promising `related` sections reached "by the e
 `related` is vector-reached. No `graph=True` is added anywhere: −0.070 to −0.160 on ordinary
 queries.
 
-## Part C — `03_code.ipynb`
+## Part C: `03_code.ipynb`
 
 `Vault.kosha(share_encoder=True)` reads `self.enc.model`. That field survives B1, so this does not
-break — but `Index` now holds the same object as `self.encoder`, which is the one to read:
+break, but `Index` now holds the same object as `self.encoder`, which is the one to read:
 `kw['efn'] = lambda: self.encoder`. One line, but it means the code notebook is touched by the
 port, and the `share_encoder` path needs a test since nothing currently exercises it.
 
-## Part D — the front door (`nbs/index.ipynb`, `README.md`)
+## Part D: the front door (`nbs/index.ipynb`, `README.md`)
 
 110 cells to roughly 35, and README from 1037 lines to ~300, on litesearch's structure. The cut
 criterion is litesearch's: a section goes only if it already has its own page. vishalakshi has
@@ -222,19 +222,19 @@ pages for core, acquire, ask, code, cli, mcp, extract and concepts, so most of i
 
 Kept inline:
 
-- **One route** — `grab` → `ask` → `read`, with every `[n]` in an answer resolving to a `node_id`.
+- **One route**: `grab` → `ask` → `read`, with every `[n]` in an answer resolving to a `node_id`.
 - **A decided-vs-opt-in table.** Decided: chunk size, `pre()`, ANN, the tree, the encoder, the FTS
   ASCII fold. Opt-in: `rerank`, shelves, `graph`. Automatic when relevant: Sanskrit glosses. This
   states the "opt-in but never cumbersome" contract once, in a table.
-- **Extract** — fields, not prose, with the cue table and `decisive`, because that is the seam
+- **Extract**: fields, not prose, with the cue table and `decisive`, because that is the seam
   showing no model was needed.
-- **Asking questions about one document with the vault as context** — kept whole; it is what
+- **Asking questions about one document with the vault as context**: kept whole; it is what
   `document()` and `context()` exist for.
-- **Watches** — `watch`/`poll` as the "keeping it current" close.
-- **When `connect()` and `map()` pay off** — multi-hop and cross-shelf discovery, and seeing the
+- **Watches**: `watch`/`poll` as the "keeping it current" close.
+- **When `connect()` and `map()` pay off**: multi-hop and cross-shelf discovery, and seeing the
   shape of what you have collected; explicitly *not* ranking. `map()` reads the persisted topic
   nodes after `connect()`, so it is the cheap call.
-- **Two cells for the wrapped tools** — `v.grab(target)` for the fossick side, and
+- **Two cells for the wrapped tools**: `v.grab(target)` for the fossick side, and
   `v.index_code(dir)` then `v.context(q, code=4)` for the kosha side, showing code sections
   numbered alongside prose ones in one answer.
 
@@ -264,14 +264,14 @@ litesearch: `Index(db=…)` shares the passed connection; `rerank=True` on `doc_
 vishalakshi, in `00_core`:
 
 - `isinstance(v, Index)`
-- a shelf shares `v.db` — the existing `:memory:` assertion must keep passing
+- a shelf shares `v.db`: the existing `:memory:` assertion must keep passing
 - `add()` dispatch across text, a file path and a directory, including the backward-compatible
   `v.add(text, 'Title', kind=…)` form
 - every shelf reports 256d in `shelves()`
 - `search` hits carry a tidied breadcrumb, and `read(node_id)` opens what the snippet came from
 - `drop_shelf` removes the tables, the index and the registry row, and refuses `'store'`
 
-Marked `#| eval: false` — rerank (flashrank is a 4 MB download on first use) and the gloss facets
+Marked `#| eval: false`: rerank (flashrank is a 4 MB download on first use) and the gloss facets
 (vidyut data is ~83 MB). The gloss test asserts `register_profiles` fired once and that a Sanskrit
 chunk's `metadata` gained a `gloss` key.
 

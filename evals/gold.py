@@ -1,7 +1,7 @@
 """A gold set from a real vault, so the numbers in RESULTS.md can be re-measured against yours.
 
-The generated corpora settle questions about the *features* — they have ground truth and can be
-resampled — but they cannot tell you whether any of this helps on your own material. That needs
+The generated corpora settle questions about the *features*: they have ground truth and can be
+resampled, but they cannot tell you whether any of this helps on your own material. That needs
 queries with known answers over your own documents, and nobody is going to write three hundred of
 those by hand.
 

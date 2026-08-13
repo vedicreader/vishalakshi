@@ -2,24 +2,24 @@
 
 Five systems on the same queries, scored against ground truth from `corpus.py`:
 
-- **base** — `v.sections`, which is litesearch's hybrid retrieval and the thing to beat.
-- **+noise** — the same, with the documents the *unsupervised* score flags excluded. No labels used.
-- **+prior** — the same, rescored by the per-document Beta posterior from the training feedback.
-- **+linear** — the pairwise `Ranker`, fitted on the training half of the feedback log.
-- **+forest / +gbdt** — the same features under scikit-learn, if it is installed. Present so that
+- **base**: `v.sections`, which is litesearch's hybrid retrieval and the thing to beat.
+- **+noise**: the same, with the documents the *unsupervised* score flags excluded. No labels used.
+- **+prior**: the same, rescored by the per-document Beta posterior from the training feedback.
+- **+linear**: the pairwise `Ranker`, fitted on the training half of the feedback log.
+- **+forest / +gbdt**: the same features under scikit-learn, if it is installed. Present so that
   "a forest would do better" is a measurement rather than an argument.
 
 Two splits, and the second is the one that catches self-deception:
 
-- **query-disjoint** — train and test on different queries. The usual split.
-- **document-disjoint** — test only on queries whose relevant documents were never in training. A
+- **query-disjoint**: train and test on different queries. The usual split.
+- **document-disjoint**: test only on queries whose relevant documents were never in training. A
   model that has quietly memorised *which documents are good*, rather than what makes a section
   relevant, scores well on the first and collapses on the second. Since a third of the features
   are document-level, that is a live risk here rather than a hypothetical one.
 
 Feedback is simulated the way `ask` produces it: for each training query the relevant sections are
 logged `cited` and the rest `shown`. That models the citation channel and inherits its position
-bias, which is the point — it is what the real log will look like.
+bias, which is the point: it is what the real log will look like.
 
     python -m evals.run
 """
@@ -89,7 +89,7 @@ def _sk(name, X, g, y, w):
         """Score by round robin: item i scores the mean P(i beats j) over the others.
 
         A pairwise model consumes a *difference*, so it cannot score one item in isolation. For a
-        linear model that does not matter -- w.(x - 0) = w.x, so feeding it the item works -- and
+        linear model that does not matter (w.(x - 0) = w.x, so feeding it the item works) and
         doing the same to a forest asks it about a point it was never trained near. That is a bug
         in the harness, not a fact about forests, and it is the sort of bug that produces a
         confident negative result about whichever model you were least inclined to adopt."""
@@ -109,7 +109,7 @@ def _split(items, key, train_frac, seed):
 
     With `key` the gold document, this is the document-disjoint split: every document a test query
     is about was invisible during training. A model that has learned *which documents are good* --
-    and a third of these features are document-level, so that is the standing temptation -- scores
+    and a third of these features are document-level, so that is the standing temptation: scores
     well on a query split and loses its advantage entirely on this one. The gap between the two
     numbers is the measurement of how much was memorisation."""
     ks = sorted({key(x) for x in items})
@@ -122,11 +122,11 @@ def run(seed=0, n_queries=90, train_frac=0.5, encoder='retrieval', boot=5000,
         mode='known', split='document'):
     """One rung-by-rung comparison. `mode` picks the query regime, `split` picks the honesty level.
 
-    `mode='topic'`   — a whole topic is relevant. The regime where you return to the same material,
+    `mode='topic'`:   a whole topic is relevant. The regime where you return to the same material,
                        and the one the Beta prior exists for.
-    `mode='known'`   — exactly one document answers each query, and it differs every time. Nothing
+    `mode='known'`:   exactly one document answers each query, and it differs every time. Nothing
                        document-level transfers, so a ranker has to have learned about matching.
-    `split='query'`  — train and test queries differ. `split='document'` additionally guarantees the
+    `split='query'`:  train and test queries differ. `split='document'` additionally guarantees the
                        gold documents differ, which is the split that catches memorisation.
     """
     from vishalakshi import Vault
@@ -215,7 +215,7 @@ def run(seed=0, n_queries=90, train_frac=0.5, encoder='retrieval', boot=5000,
 
 
 def ladder(seed=0, **kw):
-    "Both regimes and both splits — the whole table, which is the only honest way to read any of it."
+    "Both regimes and both splits: the whole table, which is the only honest way to read any of it."
     out = {}
     for mode in ('topic', 'known'):
         for split in ('query', 'document'):

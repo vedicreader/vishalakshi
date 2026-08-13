@@ -14,7 +14,7 @@ from inspect import Parameter, Signature, signature
 from fastcore.all import L
 from fastcore.script import anno_parser
 from .core import Vault
-from . import acquire, ask, code, extract   # noqa: F401 — these patch the Vault methods the CLI exposes
+from . import acquire, ask, code, extract   # noqa: F401; these patch the Vault methods the CLI exposes
 
 # %% ../nbs/04_cli.ipynb #11ed4c4a
 CMDS = ('stats search sections context ask explain read related toc map topic_tree show_topics sources doc document shelves '
@@ -23,7 +23,9 @@ CMDS = ('stats search sections context ask explain read related toc map topic_tr
         'apis harvest add_records watch watches unwatch pause poll index_code code_search symbol '
         'where_to_add grep federate drop_shelf categorize categorize_all doctypes of_type ner reshelf '
         'extract '
-        'extract_all ask_doc').split()
+        'extract_all ask_doc '
+        'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks '
+        'suggest_noisy accept_noisy learn fit_noise use_noise').split()
 
 @cache
 def vault(path:str=None) -> Vault:
@@ -40,7 +42,7 @@ def cmd(name:str, vault_fn=vault):
     'A `Vault` method as a plain function: `self`, `**kw` and callable arguments dropped, docments kept.'
     f = getattr(Vault, name)
     g = wraps(f)(lambda **kw: getattr(vault_fn(), name)(**kw))
-    # nothing takes a callable default any more — `chat=Chat` was the last, and it is now the
+    # nothing takes a callable default any more: `chat=Chat` was the last, and it is now the
     # plain `chat_kw` dict
     ps = [p for p in signature(f).parameters.values() if _spellable(p)]
     g.__signature__, g.__delwrap__ = Signature(ps), f
