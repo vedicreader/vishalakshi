@@ -6,8 +6,7 @@
 ## Install
 
 ``` sh
-pip install 'vishalakshi[all]'   # + rishi to answer, + kosha & rgapi for code, + mcp for the server
-pip install vishalakshi          # vault + acquisition only; no LLM, no MCP
+pip install vishalakshi
 ```
 
 ## The loop
@@ -67,7 +66,9 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate, decided by arithmetic: checksums take precision from 0.664 to 0.948 at recall 1.000. API keys count; names do not, so those take `mark_pii`. Junk is the other loop: `suggest_noisy` scores 0.988 AUC with no labels, and `mark_noisy` is what acts on it. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
+`ask`, `extract` and `explain` share one gate: 0.962 precision at recall 1.000 over emails, cards, keys and street lines (`evals/pii.py`). Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
+
+Junk is separate: `suggest_noisy` scores 0.988 AUC with no labels; `mark_noisy` excludes. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
 
 ``` python
 from vishalakshi.pii import pii_report
@@ -82,15 +83,15 @@ r.has_pii, r.identifying, r.kinds
 
 ``` python
 # a person's judgement, over the top of the arithmetic
-v.add('A letter about Jane at 12 High Street; nothing arithmetic can catch.',
+v.add('A letter about Jane, and what she said on Tuesday.',
       title='letter', source='/inbox/letter.md')
 v.add('Cookie policy. All rights reserved. Privacy. Terms. Contact us.',
       title='footer', source='/inbox/footer.md')
-v.mark_pii('/inbox/letter.md', reason='address')            # private even though nothing matched
+v.mark_pii('/inbox/letter.md', reason='names a person')     # private even though nothing matched
 v.mark_noisy('/inbox/footer.md', reason='site furniture')   # out of search, sections, context, ask
 
-r = v.pii('/inbox/letter.md')
-r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v.search('cookie policy'))
+r = v.pii('/inbox/letter.md', ner=True)   # scanned_ner says whether names were looked for
+r.scanned_ner, r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v.search('cookie policy'))
 ```
 
 | `pii=` | what happens |
@@ -312,6 +313,6 @@ MCP client config is on [mcp](05_mcp.ipynb). Retrieval trade-offs and measured d
 The notebooks in `nbs/` are the source; the modules are generated.
 
 ``` sh
-pip install -e '.[all]'
+pip install -e .
 nbdev-prepare
 ```

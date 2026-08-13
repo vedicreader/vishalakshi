@@ -94,16 +94,35 @@ document-disjoint split showed it.
 ## 3. PII detection
 
 `python -m evals.pii`: 400 documents, half with planted identity and half with lookalikes
-(order numbers, ISBNs, part numbers, build strings). Checksums are the claim:
+(order numbers, ISBNs, part numbers, build strings, numbered headings). Checksums are the claim:
 
 | detector | precision | recall | F1 | false positives |
 |---|---|---|---|---|
-| regex only | 0.664 | 1.000 | 0.798 | 101/200 |
-| with checksums | 0.948 | 1.000 | 0.973 | 11/200 |
+| regex only | 0.738 | 1.000 | 0.849 | 71/200 |
+| with checksums | 0.962 | 1.000 | 0.980 | 8/200 |
 
 Recall is 1.000 on every planted kind in the harness (email, card, iban, ssn, nhs, phone, dob,
-account). The residual false positives are Luhn collisions on long digit runs. API keys (`secret`)
-gate with the identifying set; names and addresses are out of scope and need `mark_pii`.
+account, address). The residual false positives are Luhn collisions on long digit runs.
+
+### The street line, and why it needs a street name
+
+`address` is what makes "John Smith, 12 Elm Street" private: no pattern finds the name, and one
+identifying hit is all a section needs. Written as a number followed by an optional street name and
+a suffix, it reads `Chapter 4 Court`, `Table 3 Road` and `Figure 2 Way` as addresses and takes
+precision to **0.746** (68/200 false positives). Requiring at least one capitalised word between the
+number and the suffix is the whole difference: **0.962** at the same recall. A US ZIP needs its
+state for the same reason, since five digits alone are a quantity.
+
+### Names
+
+Names are the one kind no pattern finds, so they are the one kind behind `ner=True`. The extractor
+is the honorific-anchored regex in `extract._noun_ents`, not a model: no weights, and 21 ms over
+180,000 characters. `Dr Charles Babbage` is found and a bare `Ada Lovelace` is not, which is a
+recall limit and the reason `mark_pii` stays. The number that decides whether to switch it on is
+what it invents in ordinary prose: **0 of the 200 lookalike documents** gained a spurious person.
+
+`scanned_ner` is in every report, because a zero `person` count means nothing without knowing
+whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps its meaning.
 
 ## 4. What this means for switching things on
 

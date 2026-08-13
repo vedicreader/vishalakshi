@@ -93,11 +93,12 @@ def is_stock_chat() -> bool:
 
 @contextmanager
 def use_chat(f):
-    """Build chats with `f` for the duration, instead of `rishi.Chat`. The seam the recording harness needs, now that there is no `chat=` argument to swap: the notebooks replay `CachedChat`'s recorded replies through it, with no weights and no network. Process-global and scoped to a block, which is right for a notebook and wrong for anything long-lived or threaded. A caller that is not a script passes `mk_chat=` to `ask` instead: the same factory contract, one call at a time."""
+    """Swap `rishi.Chat` for `f` inside the block. Process-global; for threaded hosts pass `mk_chat=` to `ask` instead."""
     global CHAT
     old, CHAT = CHAT, f
     try: yield
     finally: CHAT = old
+
 
 # %% ../nbs/02_ask.ipynb #b9d2ac88
 def mk_prompt(question:str,        # what you want to know
@@ -170,22 +171,22 @@ def _pii_marks(self:Vault):
     forced  = {(r['store'], r['doc_id']) for r in rows if r['pii_override']=='force'}
     return cleared, forced
 
-def _section_private(r, cleared, forced, store:str) -> bool:
+def _section_private(r, cleared, forced, store:str, ner:bool=False) -> bool:
     did = getattr(r, 'doc_id', None)
     key = (getattr(r, 'store', None) or store, did) if did else None
     if key and key in cleared: return False
     if key and key in forced: return True
-    return pii_report(str(getattr(r, 'text', '') or '')).has_pii
+    return pii_report(str(getattr(r, 'text', '') or ''), ner=ner).has_pii
 
-def _scrub_answer(out, private:bool):
-    "Mask what the model reproduced anyway, in a prose answer or in structured fields."
+def _scrub_answer(out, private:bool, ner:bool=True):
+    """Mask identifiers the model reproduced anyway. Returns `(out, leaked)` kinds."""
     if not private: return out
     if out.get('fields') is not None:
-        r = pii_report(str(out.fields))
-        if r.has_pii: out.fields, out.leaked = redact_obj(out.fields), r.identifying
+        r = pii_report(str(out.fields), ner=ner)
+        if r.has_pii: out.fields, out.leaked = redact_obj(out.fields, ner=ner), r.identifying
     elif out.get('answer'):
-        r = pii_report(out.answer)
-        if r.has_pii: out.answer, out.leaked = redact(out.answer), r.identifying
+        r = pii_report(out.answer, ner=ner)
+        if r.has_pii: out.answer, out.leaked = redact(out.answer, ner=ner), r.identifying
     return out
 
 @patch
@@ -206,6 +207,7 @@ def ask(self:Vault,
         mk_chat=None,          # build chats with this instead of `new_chat`; same signature
         pii:str='local',       # what to do when the sections hold personal information (local|redact|refuse|off)
         pii_model:str=None,    # the local model that answers then; None -> $VISHALAKSHI_PII_MODEL
+        pii_ner:bool=False,    # gate on names too, which costs an entity pass over every section
         instruction:str='',    # an instruction from the questioner, for a second turn
         **kw                   # forwarded to Vault.context
 ) -> AttrDict:
@@ -221,13 +223,13 @@ def ask(self:Vault,
     report = None
     if pii != 'off':
         cleared, forced = _pii_marks(self)
-        _priv = lambda r: _section_private(r, cleared, forced, self.name)
+        _priv = lambda r: _section_private(r, cleared, forced, self.name, ner=pii_ner)
         keep = int(ctx.get('n_docs') or 0)
         ctx.related = L(r for r in ctx.related if not _priv(r))
         if keep: ctx.results = L(ctx.results[:keep]) + L(r for r in ctx.results[keep:] if not _priv(r))
         _seen = lambda r: (getattr(r, 'store', None) or self.name, getattr(r, 'doc_id', None)) in cleared
         report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not _seen(r)),
-                                  related=L(r for r in ctx.related if not _seen(r))))
+                                  related=L(r for r in ctx.related if not _seen(r))), ner=pii_ner)
         # `mark_pii` gates a document arithmetic cannot see anything wrong with
         if not report.has_pii and any(_priv(r) for r in (*ctx.results, *ctx.related)):
             report.has_pii, report.identifying = True, {'marked': 1}
@@ -311,6 +313,7 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
     out = AttrDict(node_id=node_id, answer=answer.strip(), thinking=thinking or thought(res),
                    section=sec, related=rel, model=mid, runtime=ch.runtime, pii=report)
     return _scrub_answer(out, private)
+
 
 # %% ../nbs/02_ask.ipynb #b5b57ec3744bc877
 CHAT_CACHE = 'chatcache'   # a diskcache directory; the one under nbs/ is committed, for CI

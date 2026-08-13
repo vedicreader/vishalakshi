@@ -10,10 +10,11 @@ __all__ = ['ACTIONS', 'clip', 'md_title', 'what_is', 'records_md', 'secs']
 # %% ../nbs/01_acquire.ipynb #903dae85
 import json, re, time, uuid, warnings
 from urllib.parse import urlparse
-from fastcore.all import AttrDict, L, Path, first, patch
+from fastcore.all import AttrDict, L, Path, patch
 from fossick import json_records
 from litesearch import code_exts, dir2files, pdf_parse, DOC_EXTS
 from .core import Vault, KINDS, is_sanskrit_file
+
 
 # %% ../nbs/01_acquire.ipynb #39b87feb
 def clip(s:str, n:int=120) -> str:
@@ -71,10 +72,10 @@ def web(self:Vault,
     added = srcs.map(lambda s: dict(self.add(s['md'], clip(s['title']), source=s['href'], kind='web',
                                              meta=dict(url=s['href'], query=query, fetched_at=time.time())),
                                     url=s['href']))
-    # what `research` could not read is the difference between "the web is quiet on this" and "five
-    # pages bot-walled us", and only one of those is worth re-running
+    # dropped pages: bot walls vs empty results; only the former is worth retrying
     return AttrDict(query=query, n_found=len(res['sources']), added=added,
                     dropped=L(res.get('dropped') or []))
+
 
 # %% ../nbs/01_acquire.ipynb #0f3e4c14
 @patch
