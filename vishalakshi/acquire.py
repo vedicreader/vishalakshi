@@ -10,10 +10,11 @@ __all__ = ['ACTIONS', 'clip', 'md_title', 'what_is', 'records_md', 'secs']
 # %% ../nbs/01_acquire.ipynb #903dae85
 import json, re, time, uuid, warnings
 from urllib.parse import urlparse
-from fastcore.all import AttrDict, L, Path, patch
+from fastcore.all import AttrDict, L, Path, first, patch
 from fossick import json_records
 from litesearch import code_exts, dir2files, pdf_parse, DOC_EXTS
 from .core import Vault, KINDS, is_sanskrit_file
+from .jobs import Queue, Retry
 
 
 # %% ../nbs/01_acquire.ipynb #39b87feb
@@ -275,12 +276,24 @@ def secs(every) -> float:
     if not (ms := _DUR.findall(str(every))): raise ValueError(f'not a duration: {every!r}')
     return sum(float(n) * _MULT[u.lower()] for n, u in ms)
 
+@patch(as_prop=True)
+def q(self:Vault) -> Queue:
+    "The vault's job queue, on its database, with the acquisition handlers registered."
+    if (q := getattr(self.db, '_vq', None)) is None: q = self.db._vq = Queue(self.db)
+    # a shelf may reach it first; the main store rebinds the handlers to itself when it arrives
+    if self.name == 'store' or not q.handlers: q.register('watch', self._job_watch)
+    return q
+
 @patch
 def _w(self:Vault):
     'The watches table, created on first use.'
     t = self.db.t.watches
     t.create(id=str, action=str, target=str, params=str, every=float, note=str, enabled=int,
-             last_run=float, last_status=str, next_run=float, runs=int, pk='id', if_not_exists=True)
+             last_run=float, last_status=str, next_run=float, runs=int, catchup=int, missed=int,
+             pk='id', if_not_exists=True)
+    have = set(t.columns_dict)
+    for c, d in dict(catchup='INTEGER DEFAULT 1', missed='INTEGER DEFAULT 0').items():
+        if c not in have: self.db.conn.execute(f'ALTER TABLE watches ADD COLUMN {c} {d}')
     return t
 
 @patch
@@ -290,21 +303,29 @@ def watch(self:Vault,
           every:str='1d',     # interval: '30m', '6h', '1d', '1w', or seconds
           note:str=None,      # why you are watching
           start:float=None,   # first run time (epoch); defaults to now
+          catchup:int=1,      # missed intervals to make up after a gap; the rest count as `missed`
           **params            # forwarded to the action (n=, pattern=, pages=, sel=, ...)
 ) -> dict:
     'Register a recurring job: re-read a page, re-run a search, re-harvest an API, or remind you.'
     assert action in ACTIONS, f'action must be one of {ACTIONS}'
     row = dict(id=uuid.uuid4().hex[:12], action=action, target=target, params=json.dumps(params),
-               every=secs(every), note=note or '', enabled=1, next_run=start or time.time(), runs=0)
+               every=secs(every), note=note or '', enabled=1, next_run=start or time.time(), runs=0,
+               catchup=max(1, catchup), missed=0)
     self._w().insert(row, replace=True)
     return dict(row, params=params)
 
 @patch
 def watches(self:Vault, due_only:bool=False, at:float=None) -> L:
     'Every registered watch, soonest first; `due_only` keeps the ones whose next run has arrived.'
-    where = f'enabled=1 AND next_run<={at or time.time()}' if due_only else None
+    where = f'enabled=1 AND next_run<={time.time() if at is None else at}' if due_only else None
     return L(self._w()(where=where, order_by='next_run')).map(
         lambda r: dict(r, params=json.loads(r['params'] or '{}')))
+
+@patch
+def _watch_row(self:Vault, wid:str) -> dict|None:
+    'One watch by id, with its params parsed.'
+    r = first(self._w()(where='id=?', where_args=[wid]))
+    return dict(r, params=json.loads(r['params'] or '{}')) if r else None
 
 @patch
 def unwatch(self:Vault, watch_id:str):
@@ -317,28 +338,74 @@ def pause(self:Vault, watch_id:str, enabled:bool=False):
     self._w().update(dict(id=watch_id, enabled=int(enabled)))
 
 @patch
-def run_watch(self:Vault, w:dict) -> dict:
-    'Fire one watch and record the outcome.'
-    t0 = time.time()
-    try:
-        params = dict(w['params'])
-        if w['action'] in ('url', 'arxiv', 'youtube', 'path'): params.setdefault('force', True)
-        res = (self.note(w['target'], title=w.get('note') or None, tags=['reminder'])
-               if w['action'] == 'remind' else self.grab(w['target'], **params)
-               if w['action'] == 'path' else getattr(self, w['action'])(w['target'], **params))
-        status = 'skipped' if isinstance(res, dict) and res.get('skipped') else 'ok'
-    except Exception as e: res, status = dict(error=f'{type(e).__name__}: {str(e)[:200]}'), 'error'
-    now = time.time()
-    self._w().update(dict(id=w['id'], last_run=now, last_status=status, runs=w['runs']+1,
-                          next_run=now + w['every']))
-    return dict(watch_id=w['id'], action=w['action'], target=w['target'], status=status,
-                took=round(now-t0, 2), result=res)
+def _do_watch(self:Vault, w:dict):
+    'Perform one watch action. Raises on failure, and `Retry` where the failure is worth another try.'
+    params = dict(w['params'])
+    if w['action'] in ('url', 'arxiv', 'youtube', 'path'): params.setdefault('force', True)
+    res = (self.note(w['target'], title=w.get('note') or None, tags=['reminder'])
+           if w['action'] == 'remind' else self.grab(w['target'], **params)
+           if w['action'] == 'path' else getattr(self, w['action'])(w['target'], **params))
+    # a bot wall is a skip worth retrying; 'no transcript' is a skip that will never change
+    if isinstance(res, dict) and res.get('skipped') and (res.get('status') or 0) >= 400:
+        raise Retry(res['skipped'])
+    return res
 
 @patch
-def poll(self:Vault, at:float=None, limit:int=None, connect:bool=True) -> dict:
-    'Run every watch that is due. This is the tick a scheduler, a cron or a frontend calls.'
-    ran = self.watches(due_only=True, at=at)[:limit].map(self.run_watch)
+def _job_watch(self:Vault, payload:dict) -> dict:
+    'Queue handler for a due watch: run it, and record the outcome on its row. `next_run` is the scheduler\'s.'
+    if (w := self._watch_row(payload['watch_id'])) is None:
+        return dict(skipped=f"watch {payload['watch_id']} is gone")
+    def _done(st): self._w().update(dict(id=w['id'], last_run=time.time(), last_status=st, runs=w['runs']+1))
+    try: res = self._do_watch(w)
+    except Exception:
+        _done('error'); raise
+    _done('skipped' if isinstance(res, dict) and res.get('skipped') else 'ok')
+    return res
+
+@patch
+def run_watch(self:Vault, w:dict) -> dict:
+    'Fire one watch now, off the queue, and record the outcome. Failures come back, they do not raise.'
+    t0 = time.time()
+    try:
+        res = self._job_watch(dict(watch_id=w['id']))
+        status = 'skipped' if isinstance(res, dict) and res.get('skipped') else 'ok'
+    except Exception as e: res, status = dict(error=f'{type(e).__name__}: {str(e)[:200]}'), 'error'
+    return dict(watch_id=w['id'], action=w['action'], target=w['target'], status=status,
+                took=round(time.time()-t0, 2), result=res)
+
+@patch
+def schedule(self:Vault, at:float=None) -> L:
+    'Enqueue a job for every watch that has come due, and advance its next run without drift.'
+    now, out = (time.time() if at is None else at), L()
+    for w in self.watches(due_only=True, at=now):
+        ev = max(w['every'], 1.)
+        n = int((now - w['next_run']) // ev) + 1          # whole intervals that have come and gone
+        take = max(1, min(n, w['catchup'] or 1))
+        for i in range(take):
+            sched = w['next_run'] + (n - take + i) * ev   # the most recent `take` of them
+            out.append(self.q.enqueue('watch', dict(watch_id=w['id'], scheduled_at=sched),
+                                      key=f"{w['id']}@{int(sched)}"))
+        self._w().update(dict(id=w['id'], next_run=w['next_run'] + n*ev,
+                              missed=(w['missed'] or 0) + (n - take)))
+    return out
+
+@patch
+def poll(self:Vault, at:float=None, limit:int=None, connect:bool=True, worker:str='poll') -> dict:
+    'Reclaim, schedule and drain. This is the tick a scheduler, a cron or a frontend calls.'
+    back = self.q.reclaim()
+    self.schedule(at=at)
+    ran = self.q.drain(worker, limit=limit or 1000)
     if connect and ran.filter(lambda r: r['status'] == 'ok'): self.connect()
     pending = self.watches()
-    return dict(checked=len(pending), ran=len(ran), results=ran,
-                next_due=pending[0]['next_run'] if pending else None)
+    return dict(checked=len(pending), ran=len(ran), results=list(ran), reclaimed=len(back),
+                dead=self.q.stats()['dead'], next_due=pending[0]['next_run'] if pending else None)
+
+@patch
+def jobs(self:Vault, state:str=None, kind:str=None, limit:int=50) -> L:
+    'Jobs in the vault queue; `state="dead"` is the ones that used up their attempts.'
+    return self.q.jobs(state=state, kind=kind, limit=limit)
+
+@patch
+def retry_job(self:Vault, job_id:str) -> dict:
+    'Put a dead or pending job back on the queue now, with its attempt count reset.'
+    return self.q.retry(job_id)

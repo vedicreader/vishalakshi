@@ -20,7 +20,7 @@ from . import acquire, ask, code, extract   # noqa: F401; these patch the Vault 
 CMDS = ('stats search sections context ask explain read related toc map topic_tree show_topics sources doc document shelves '
         'elsewhere '
         'grab url web crawl arxiv pdf youtube github gh_file add_file add_dir add_tree note code connect forget '
-        'apis harvest add_records watch watches unwatch pause poll index_code code_search symbol '
+        'apis harvest add_records watch watches unwatch pause poll schedule jobs retry_job index_code code_search symbol '
         'where_to_add grep federate drop_shelf categorize categorize_all doctypes of_type ner reshelf '
         'extract '
         'extract_all ask_doc '
