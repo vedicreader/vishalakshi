@@ -71,7 +71,7 @@ class Queue:
 
     def __repr__(self):
         s = self.stats()
-        return (f"Queue({s['ready']} ready, {s['running']} running, {s['done']} done, {s['dead']} dead)")
+        return f"Queue({s['ready']} ready, {s['running']} running, {s['done']} done, {s['dead']} dead)"
 
 # %% ../nbs/11_jobs.ipynb #7cc41a60
 @patch
@@ -108,7 +108,7 @@ def claim(self:Queue,
           n:int=1,              # how many jobs to take
           now:float=None
 ) -> L:
-    '''Take up to `n` due jobs, atomically. 0 double-claims over 400 jobs and 8 processes, `evals/jobs.py`.'''
+    'Take up to `n` due jobs, atomically. 0 double-claims over 400 jobs and 8 processes, `evals/jobs.py`.'
     now = time.time() if now is None else now
     with write_txn(self.db):
         rows = self.db.q(
@@ -119,10 +119,19 @@ def claim(self:Queue,
     return L(sorted(rows, key=lambda r: (r['priority'], r['run_at']))).map(_row)
 
 @patch
+def _held(self:Queue, job) -> dict|None:
+    "The row as it stands, or None if this worker no longer holds it. Call inside a `write_txn`."
+    cur = first(self.db.q('SELECT * FROM jobs WHERE id=?', [job['id']]))
+    if cur is None or cur['state'] != 'running' or cur['worker'] != job.get('worker'): return None
+    return cur
+
+@patch
 def ack(self:Queue, job) -> AttrDict:
-    'Mark a claimed job finished.'
-    self.db.q('UPDATE jobs SET state=?, error=NULL, worker=NULL, lease_until=0, updated_at=? WHERE id=?',
-              ['done', time.time(), job['id']])
+    "Mark a claimed job finished. A worker whose lease was reclaimed cannot: it comes back `lost`."
+    with write_txn(self.db):
+        if self._held(job) is None: return _row(dict(job, state='lost'))
+        self.db.q('UPDATE jobs SET state=?, error=NULL, worker=NULL, lease_until=0, updated_at=? WHERE id=?',
+                  ['done', time.time(), job['id']])
     return _row(dict(job, state='done'))
 
 @patch
@@ -134,8 +143,7 @@ def fail(self:Queue,
     'Back off and retry, or dead-letter once the attempts are spent.'
     now, err = time.time(), str(error)[:500]
     with write_txn(self.db):
-        cur = first(self.db.q('SELECT * FROM jobs WHERE id=?', [job['id']]))
-        if cur is None: return _row(dict(job, state='gone'))
+        if (cur := self._held(job)) is None: return _row(dict(job, state='lost'))
         att = cur['attempt'] + 1
         dead = att >= (cur['max_attempts'] or self.max_attempts)
         nxt = cur['run_at'] if dead else now + (backoff(att, base=self.base) if after is None else after)
@@ -148,7 +156,8 @@ def reclaim(self:Queue, now:float=None) -> L:
     'Return jobs whose lease expired to the queue: a worker killed mid-job loses its claim, not its job.'
     now = time.time() if now is None else now
     exp = self.db.q('SELECT * FROM jobs WHERE state=? AND lease_until>0 AND lease_until<=?', ['running', now])
-    return L(exp).map(lambda j: self.fail(j, 'lease expired'))
+    # two pollers can read the same expired row; the fence in `fail` means only one of them counts it
+    return L(exp).map(lambda j: self.fail(j, 'lease expired')).filter(lambda j: j['state'] != 'lost')
 
 # %% ../nbs/11_jobs.ipynb #06be5c39
 @patch
@@ -179,18 +188,20 @@ def _ran(self:Queue, job, status:str, t0:float, error:str=None, result=None) -> 
 def run_one(self:Queue, job) -> AttrDict:
     'Dispatch one claimed job, then ack or fail it, and record the run either way.'
     t0 = time.time()
+    # ack and fail are fenced, so a call that lost its lease changed nothing and the run says `lost`
+    def _rep(out, status, error=None, result=None):
+        if out['state'] == 'lost': status, error = 'lost', 'the lease was reclaimed mid-handler'
+        return self._ran(job, status, t0, error, result)
     if (fn := self.handlers.get(job['kind'])) is None:
         err = f"no handler for {job['kind']!r}"
-        return self._ran(self.fail(job, err), 'error', t0, err)
+        return _rep(self.fail(job, err), 'error', err)
     try: res = fn(job['payload'])
-    except Retry as e:
-        return self._ran(self.fail(job, f'Retry: {e}', after=e.after), 'retry', t0, str(e))
+    except Retry as e: return _rep(self.fail(job, f'Retry: {e}', after=e.after), 'retry', str(e))
     except Exception as e:
         err = f'{type(e).__name__}: {str(e)[:200]}'
-        return self._ran(self.fail(job, err), 'error', t0, err)
-    self.ack(job)
-    return self._ran(job, 'skipped' if isinstance(res, dict) and res.get('skipped') else 'ok',
-                     t0, None, res)
+        return _rep(self.fail(job, err), 'error', err)
+    return _rep(self.ack(job), 'skipped' if isinstance(res, dict) and res.get('skipped') else 'ok',
+                None, res)
 
 @patch
 def drain(self:Queue,
@@ -223,25 +234,31 @@ def dead(self:Queue, limit:int=100) -> L:
     return self.jobs(state='dead', limit=limit)
 
 @patch
+def pending(self:Queue, kind:str=None) -> int:
+    'How many jobs are ready or running: what is left to do, counted rather than listed.'
+    w, a = ('AND kind=? ', [kind]) if kind else ('', [])
+    return first(self.db.q(f"SELECT count(*) n FROM jobs WHERE state IN ('ready','running') {w}", a))['n']
+
+@patch
 def retry(self:Queue, job_id:str, after:float=0) -> AttrDict:
     'Put a dead or pending job back on the queue now, with its attempt count reset.'
+    now = time.time()
     self.db.q('UPDATE jobs SET state=?, attempt=0, run_at=?, error=NULL, worker=NULL, lease_until=0, '
-              'updated_at=? WHERE id=?', ['ready', time.time()+after, time.time(), job_id])
-    return first(self.jobs(limit=1) and L(self.db.q('SELECT * FROM jobs WHERE id=?', [job_id])).map(_row))
+              'updated_at=? WHERE id=?', ['ready', now+after, now, job_id])
+    return first(L(self.db.q('SELECT * FROM jobs WHERE id=?', [job_id])).map(_row))
 
 @patch
 def history(self:Queue, job_id:str=None, limit:int=50) -> L:
     'Run history, newest first.'
-    if job_id: return L(self.db.q('SELECT * FROM job_runs WHERE job_id=? ORDER BY started_at DESC LIMIT ?',
-                                  [job_id, limit]))
-    return L(self.db.q('SELECT * FROM job_runs ORDER BY started_at DESC LIMIT ?', [limit]))
+    w, a = ('WHERE job_id=? ', [job_id]) if job_id else ('', [])
+    return L(self.db.q(f'SELECT * FROM job_runs {w}ORDER BY started_at DESC LIMIT ?', a + [limit]))
 
 @patch
 def stats(self:Queue) -> dict:
     'How many jobs in each state, and when the next one is due.'
     by = {r['state']: r['n'] for r in self.db.q('SELECT state, count(*) n FROM jobs GROUP BY state')}
     nxt = first(self.db.q("SELECT min(run_at) t FROM jobs WHERE state='ready'"))
-    return dict({s: by.get(s, 0) for s in STATES}, next_due=(nxt or {}).get('t'))
+    return dict({s: by.get(s, 0) for s in STATES}, next_due=nxt['t'])
 
 @patch
 def purge(self:Queue, before:float=None) -> dict:
