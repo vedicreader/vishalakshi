@@ -207,7 +207,7 @@ def ask(self:Vault,
         mk_chat=None,          # build chats with this instead of `new_chat`; same signature
         pii:str='local',       # what to do when the sections hold personal information (local|redact|refuse|off)
         pii_model:str=None,    # the local model that answers then; None -> $VISHALAKSHI_PII_MODEL
-        pii_ner:bool=False,    # gate on names too, which costs an entity pass over every section
+        pii_ner:bool=True,     # gate on titled names too; a regex pass, not a model
         instruction:str='',    # an instruction from the questioner, for a second turn
         **kw                   # forwarded to Vault.context
 ) -> AttrDict:
@@ -238,7 +238,8 @@ def ask(self:Vault,
         note = (f"{note}These sections hold personal information ({', '.join(sorted(report.identifying))}). " if pii == 'local' else note)
         # an exempted section is not masked either, or `mark_not_pii` means nothing here
         if pii == 'redact':
-            ctx.results = L(r if _seen(r) else AttrDict(r, text=redact(r.text)) for r in ctx.results)
+            ctx.results = L(r if _seen(r) else AttrDict(r, text=redact(r.text, ner=pii_ner))
+                            for r in ctx.results)
     if instruction: question = f'{question}\n\nInstruction from the questioner: {instruction}'
     prompt = mk_prompt(question, ctx, max_chars=mc, related=bool(related), note=note)
     if private and pii == 'local':
@@ -286,18 +287,19 @@ def ask(self:Vault,
 
 @patch
 def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_chars:int=6000,
-            sp:str=VAULT_SP, mk_chat=None, pii:str='local', pii_model:str=None) -> AttrDict:
+            sp:str=VAULT_SP, mk_chat=None, pii:str='local', pii_model:str=None,
+            pii_ner:bool=True) -> AttrDict:
     "Have a model explain one section in the context of what the vault connects it to."
     sec, rel = self.read(node_id, max_chars=max_chars), self.related(node_id, limit=6)
     text = sec.get('text', '')
-    report = pii_report(text) if pii != 'off' else None
+    report = pii_report(text, ner=pii_ner) if pii != 'off' else None
     private = bool(report and report.has_pii)
     mid = model or dflt_model
     sys_sp = sp
     if private and pii == 'local':
         mid, sys_sp = pii_model or pii_model_, PII_SP
     elif private and pii == 'redact':
-        text = redact(text)
+        text = redact(text, ner=pii_ner)
     elif private and pii == 'refuse':
         return AttrDict(answer=f"held back: section holds personal information ({', '.join(sorted(report.identifying))})",
                         refused=True, pii=report, node_id=node_id)
