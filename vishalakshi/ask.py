@@ -93,11 +93,12 @@ def is_stock_chat() -> bool:
 
 @contextmanager
 def use_chat(f):
-    """Build chats with `f` for the duration, instead of `rishi.Chat`. The seam the recording harness needs, now that there is no `chat=` argument to swap: the notebooks replay `CachedChat`'s recorded replies through it, with no weights and no network. Process-global and scoped to a block, which is right for a notebook and wrong for anything long-lived or threaded. A caller that is not a script passes `mk_chat=` to `ask` instead: the same factory contract, one call at a time."""
+    """Swap `rishi.Chat` for `f` inside the block. Process-global; for threaded hosts pass `mk_chat=` to `ask` instead."""
     global CHAT
     old, CHAT = CHAT, f
     try: yield
     finally: CHAT = old
+
 
 # %% ../nbs/02_ask.ipynb #b9d2ac88
 def mk_prompt(question:str,        # what you want to know
@@ -178,10 +179,7 @@ def _section_private(r, cleared, forced, store:str, ner:bool=False) -> bool:
     return pii_report(str(getattr(r, 'text', '') or ''), ner=ner).has_pii
 
 def _scrub_answer(out, private:bool, ner:bool=True):
-    """Mask what the model reproduced anyway, in a prose answer or in structured fields.
-
-    `ner` is on here and off on the way in: an answer is a few hundred characters, and this is the backstop for a local model that was told not to repeat a name.
-    """
+    """Mask identifiers the model reproduced anyway. Returns `(out, leaked)` kinds."""
     if not private: return out
     if out.get('fields') is not None:
         r = pii_report(str(out.fields), ner=ner)
@@ -315,6 +313,7 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
     out = AttrDict(node_id=node_id, answer=answer.strip(), thinking=thinking or thought(res),
                    section=sec, related=rel, model=mid, runtime=ch.runtime, pii=report)
     return _scrub_answer(out, private)
+
 
 # %% ../nbs/02_ask.ipynb #b5b57ec3744bc877
 CHAT_CACHE = 'chatcache'   # a diskcache directory; the one under nbs/ is committed, for CI

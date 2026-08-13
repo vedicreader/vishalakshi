@@ -12,6 +12,7 @@ from fastcore.all import AttrDict, L, Path, patch
 from litesearch import rrf_all
 from .core import Vault
 
+
 # %% ../nbs/03_code.ipynb #85effdc0
 @patch
 def kosha(self:Vault,
@@ -69,6 +70,7 @@ def grep(self:Vault,
     'Exact matches in the files on disk, through ripgrep. `.gitignore` applies.'
     from rgapi import rg
     return _rg(rg(pattern, root=dir, max_results=limit, smart_case=True, **kw))
+
 
 # %% ../nbs/03_code.ipynb #c89161e3
 def _prose(v, q, n, kind=None, source:str='prose') -> L:

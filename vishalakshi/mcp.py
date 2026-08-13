@@ -12,13 +12,12 @@ import json, sys
 from functools import wraps
 from .cli import cmd, jsonable, vault
 
-# mcp 2.0 renamed FastMCP to MCPServer and moved it; the constructor, the `tool` decorator and
-# the `run` transports are unchanged, so one alias covers both SDKs rather than pinning
 try: from mcp.server.mcpserver import MCPServer
 except ImportError:
     try: from mcp.server.fastmcp import FastMCP as MCPServer
     except ImportError as e:
         raise ImportError('vishalakshi-mcp needs the `mcp` package: `pip install mcp`') from e
+
 
 # %% ../nbs/05_mcp.ipynb #fad2b047
 TOOLS = ('stats search sections context ask read related toc map topic_tree sources document shelves elsewhere grab url '

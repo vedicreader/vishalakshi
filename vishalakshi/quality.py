@@ -15,9 +15,7 @@ from fastcore.all import AttrDict, L, patch, first
 from .core import Vault, DTYPE
 
 # %% ../nbs/10_quality.ipynb #63c65614
-#: signal -> (label, weight). `shown` is the weak negative every implicit log needs and most
-#: implicit logs omit. The weights are a starting prior, not a measurement: `evals/run.py`
-#: refits with them varied, and they are cheap to change because nothing downstream caches them.
+#: signal -> (label, weight). `shown` is the 0.35 weak negative.
 SIGNALS = dict(up=(1.0, 3.0), good=(1.0, 3.0), read=(1.0, 1.5), cited=(1.0, 1.0),
                shown=(0.0, 0.35), bad=(0.0, 3.0), down=(0.0, 3.0))
 
@@ -58,6 +56,7 @@ def ratings(self:Vault, doc_id:str=None, limit:int=None) -> L:
     w = f'store={self.name!r}' + (f' AND doc_id={doc_id!r}' if doc_id else '')
     return L(self._fb()(where=w, order_by='at desc', limit=limit))
 
+
 # %% ../nbs/10_quality.ipynb #a5dd0e68
 @patch
 def log_ask(self:Vault,
@@ -66,10 +65,7 @@ def log_ask(self:Vault,
             down:list=None,  # section numbers you thought were bad
             weak:bool=True,  # log the uncited sections as weak negatives
 ) -> int:
-    """Turn one answered question into labels. Returns how many rows were written.
-
-    The numbers in `up`/`down` are the ones in the answer and in `mk_prompt`: `[1]` is the first section: so a person can say `v.log_ask(out, down=[2])` while reading, without looking anything up.
-    """
+    """Write feedback rows for one answered question. Prefer `learn()` when you have `ask`'s `out`."""
     up, down = set(up or ()), set(down or ())
     res = L((out.get('context') or {}).get('results') or ())
     cited = {c['n'] for c in (out.get('cited') or L())}
@@ -94,6 +90,7 @@ def _observe(self:Vault, out):
         try: self.log_ask(out)
         except Exception as e: warnings.warn(f'feedback not logged ({type(e).__name__}: {e})')
     return out
+
 
 # %% ../nbs/10_quality.ipynb #82baf5e1
 @patch
@@ -124,16 +121,11 @@ def doc_prior(self:Vault,
     return out
 
 # %% ../nbs/10_quality.ipynb #97325dbf
-#: Every feature is oriented so that larger means noisier, and every one is a document-level
-#: aggregate of a chunk-level quantity except where noted.
+#: Features oriented larger=noisier; document-level aggregates of chunk quantities.
 NOISE_FEATURES = ('hub', 'dup_out', 'off_centre', 'spread_chunk', 'spread_doc', 'low_idf',
                   'redundancy', 'short', 'promiscuity')
 
-#: The default blend, set from the per-feature AUCs in `evals/noise.py` rather than by taste.
-#: `spread_doc` is zero because it was measured at 0.54 (a coin) and what little it does say
-#: points at the surveys. Treat all of these as a starting position: the blend swings between
-#: 0.45 and 0.93 AUC across generated corpora, which is the argument for `fit_noise` over any
-#: fixed set of numbers, including these.
+#: Default blend from per-feature AUCs (`evals/noise.py`); `spread_doc` is 0.54 so weight 0.
 NOISE_W = dict(hub=1.0, spread_chunk=0.8, dup_out=0.8, off_centre=0.5, low_idf=0.3,
                promiscuity=0.5, redundancy=0.1, spread_doc=0.0, short=0.0)
 
@@ -149,6 +141,7 @@ def chunk_matrix(self:Vault, limit:int=None, seed:int=0) -> tuple:
     V /= np.linalg.norm(V, axis=1, keepdims=True) + 1e-9
     return (L(r['id'] for r in rows), L(r['doc_id'] for r in rows),
             L(r['content'] or '' for r in rows), V)
+
 
 # %% ../nbs/10_quality.ipynb #c972a50c
 def _knn(V:np.ndarray, k:int=10, exact_max:int=30_000, block:int=1024) -> tuple:
@@ -241,9 +234,7 @@ def noise_features(self:Vault,
         redund = (close & same).any(1).astype(np.float32)    # the document repeating itself
     else: dup_out = redund = np.zeros(len(V), np.float32)
 
-    # Measured the other way round it scores 0.12 AUC: a survey spanning every topic sits
-    # *near* the mean of the corpus and boilerplate sits a long way from it, so proximity to
-    # the
+    # boilerplate sits far from the corpus mean; proximity is a noise signal (0.12 AUC inverted)
     cen = V.mean(0); cen /= np.linalg.norm(cen) + 1e-9
     off_centre = 1.0 - V @ cen
     C_ = _centroids(V, k=topics, seed=seed)
@@ -280,10 +271,7 @@ def noise_features(self:Vault,
     return AttrDict(doc_ids=doc_ids, X=np.array(rows, np.float32), names=names)
 
 def _robust_z(X:np.ndarray) -> np.ndarray:
-    """Per-feature normalisation by rank, centred on zero and spanning roughly [-1.7, 1.7].
-
-    Boilerplate makes a feature bimodal: with 40% of documents carrying a glued-on footer the median of `dup_out` sits inside the noisy mode and its MAD is near zero, so a perfectly separating feature z-scores to nothing.
-    """
+    """Rank-normalise features to ~[-1.7, 1.7]. Rank beats z here: one hub outlier dropped AUC 0.988→0.55."""
     X = np.asarray(X, np.float64)
     if len(X) < 3: return np.zeros_like(X)
     out = np.empty_like(X)
@@ -331,6 +319,7 @@ def mark_noisy_many(self:Vault, refs, noisy:bool=True, reason:str='') -> L:
 def accept_noisy(self:Vault, k:int=20, reason:str='suggested', **kw) -> L:
     "Mark the current top noise suggestions. Suggestions stay suggestions until this (or `mark_noisy`)."
     return self.mark_noisy_many(self.suggest_noisy(k=k, **kw), reason=reason)
+
 
 # %% ../nbs/10_quality.ipynb #a3a36475
 def _sig(z): return 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
@@ -489,10 +478,7 @@ def learn(self:Vault, on:bool=True) -> dict:
 
 @patch
 def training_data(self:Vault, min_group:int=2) -> AttrDict:
-    """The feedback log as `(X, groups, y, weights)`, one group per question.
-
-    In fold it is target leakage: the feature summarises the label, the fit puts its largest weight on it, and the result scored recall 0.47 against a baseline of 0.80 on a document-disjoint split.
-    """
+    """Feedback as `(X, groups, y, weights)`. Drops all-positive groups (pairwise LTR learns nothing)."""
     by = defaultdict(list)
     for r in self._fb()(where=f'store={self.name!r}', order_by='at'): by[r['ask_id']].append(r)
     Xs, gs, ys, ws = [], [], [], []
@@ -530,10 +516,7 @@ def fit_ranker(self:Vault, l2:float=1.0, save:bool=False, **kw) -> Ranker:
 
 @patch
 def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, save:bool=False, **kw) -> Ranker:
-    """Learn the blend from the documents you have marked, instead of guessing nine weights.
-
-    Same pairwise machinery as the ranker: one group holding every document, marked ones labelled 1. Held out it reaches 0.996 AUC against the fixed weights' 0.988. `save=True` stores it, `use_noise` switches `suggest_noisy` onto it.
-    """
+    """Fit noise weights from marked docs. Does not enable scoring; call `use_noise(True)`."""
     labels = labels or {r['doc_id']: bool(r['noisy']) for r in self._marks()(where=f'store={self.name!r}')
                         if r['noisy'] is not None}
     if not labels: raise ValueError('nothing marked: mark_noisy a few documents first')
@@ -595,10 +578,7 @@ def _rk(self:Vault):
 
 @patch
 def retune(self:Vault, q:str, hits, ranker=None, alpha:float=0.25, rrf_k:int=60) -> L:
-    """Reorder one question's hits, fused with the order they arrived in by reciprocal rank.
-
-    A ranker that sorts by its own score discards the baseline, so a mediocre model does not degrade the ranking, it destroys it: over three corpora, substituting cost a mean nDCG@10 of -0.127 and lost significantly on two, where the same model at `alpha=0.25` came out at -0.001 and was never.
-    """
+    """Reorder hits fused with baseline RRF (`alpha=0.25`: -0.001 ΔnDCG@10 vs -0.127 substitute)."""
     rk = ranker or self._rk()
     if rk is None or not len(hits): return L(hits)
     s = rk.score(self.pair_X(q, hits))
@@ -616,3 +596,4 @@ def _post(self:Vault, q:str, ctx):
     try: ctx.results, ctx.tuned = self.retune(q, ctx.results), True
     except Exception as e: warnings.warn(f'ranker not applied ({type(e).__name__}: {e})')
     return ctx
+
