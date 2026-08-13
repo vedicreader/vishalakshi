@@ -10,7 +10,7 @@ __all__ = ['STATES', 'Retry', 'backoff', 'Queue']
 # %% ../nbs/11_jobs.ipynb #2e6f30bb
 import json, random, time, uuid
 from fastcore.all import AttrDict, L, first, patch, store_attr
-from litesearch import write_txn
+from litesearch import write_txn, BUSY_TIMEOUT_MS
 
 STATES = ('ready', 'running', 'done', 'dead')
 
@@ -44,13 +44,16 @@ class Queue:
                  lease:float=600,        # seconds a claim is held before another worker may take the job
                  max_attempts:int=5,     # attempts before a job is dead-lettered
                  base:float=30,          # first retry delay; doubles per attempt
-                 keep:float=604800):     # how long finished jobs and run history survive `purge`, 7d
+                 keep:float=604800,      # how long finished jobs and run history survive `purge`, 7d
+                 busy_ms:int=BUSY_TIMEOUT_MS):  # lock wait before a write gives up; apsw's stock default is 100ms
         store_attr()
         self.handlers = {}
         self._mk()
 
     def _mk(self):
         'The two tables and their indexes, created on first use.'
+        # 8 workers on one file exceed apsw's 100ms default and fail the write instead of waiting
+        self.db.conn.set_busy_timeout(self.busy_ms)
         self.t = self.db.t.jobs
         self.t.create(id=str, kind=str, payload=str, key=str, state=str, priority=int, run_at=float,
                       lease_until=float, worker=str, attempt=int, max_attempts=int, error=str,
@@ -105,7 +108,7 @@ def claim(self:Queue,
           n:int=1,              # how many jobs to take
           now:float=None
 ) -> L:
-    'Take up to `n` due jobs, atomically. Concurrent callers get disjoint sets.'
+    '''Take up to `n` due jobs, atomically. 0 double-claims over 400 jobs and 8 processes, `evals/jobs.py`.'''
     now = time.time() if now is None else now
     with write_txn(self.db):
         rows = self.db.q(

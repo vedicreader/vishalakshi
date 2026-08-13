@@ -8,9 +8,9 @@ Docs: https://vedicreader.github.io/vishalakshi/acquire.html.md"""
 __all__ = ['ACTIONS', 'clip', 'md_title', 'what_is', 'records_md', 'secs']
 
 # %% ../nbs/01_acquire.ipynb #903dae85
-import json, re, time, uuid, warnings
+import hashlib, json, re, time, uuid, warnings
 from urllib.parse import urlparse
-from fastcore.all import AttrDict, L, Path, first, patch
+from fastcore.all import AttrDict, L, Path, chunked, first, patch
 from fossick import json_records
 from litesearch import code_exts, dir2files, pdf_parse, DOC_EXTS
 from .core import Vault, KINDS, is_sanskrit_file
@@ -181,11 +181,14 @@ def add_tree(self:Vault,
              kind:str=None,          # override the kind for the prose half
              connect:bool=False,     # rebuild the entity graph at the end; see below
              verbose:bool=False,
+             queue:bool=False,       # enqueue the work instead of doing it; `poll` or `drain` runs it
+             batch:int=50,           # files per job when queueing
              **kw                    # forwarded to add_file
 ) -> AttrDict:
     '''Ingest a whole tree, each half to the index that can actually answer questions about it.'''
     p = Path(dir)
     if not p.is_dir(): raise ValueError(f'not a directory: {dir}')
+    if queue: return self.enqueue_tree(p, types=types, code=code, kind=kind, batch=batch, **kw)
     docs = self.add_dir(p, types=types, kind=kind, **kw)
     srcs = dir2files(p, types=code_exts) if code else L()
     out = AttrDict(dir=str(p), docs=docs, n_docs=len(docs), n_code=len(srcs), code=None)
@@ -199,6 +202,62 @@ def add_tree(self:Vault,
             out.docs = docs + srcs.map(self.add_file, kind='code', **kw)
     if connect and (out.n_docs or out.code): out.graph = self.connect()
     return out
+
+# %% ../nbs/01_acquire.ipynb #f2b96c53
+def _batch_key(paths) -> str:
+    'A stable name for a batch of paths, so enqueueing the same batch twice while it is pending is a no-op.'
+    return hashlib.sha256('\n'.join(sorted(paths)).encode()).hexdigest()[:16]
+
+@patch
+def enqueue_files(self:Vault,
+                  files,            # paths to ingest
+                  kind:str=None,    # override the kind inferred from the extension
+                  batch:int=50,     # files per job; one job is one `add_files` call
+                  route:bool=True,  # send Sanskrit sources to the Sanskrit shelf
+                  priority:int=0,
+                  **kw              # forwarded to add_files
+) -> L:
+    'Enqueue an ingest as one job per `batch` files, so a crash resumes at the last batch.'
+    fs = L(files).map(Path)
+    if not fs: return L()
+    if route and self.name == 'store':
+        sa, rest = L(), L()
+        for f in fs: (sa if is_sanskrit_file(f) else rest).append(f)
+        groups = [('sanskrit', sa), (self.name, rest)]
+    else: groups = [(self.name, fs)]
+    out = L()
+    for store, g in groups:
+        for ch in chunked(g, batch):
+            ps = [str(p) for p in ch]
+            out.append(self.q.enqueue('ingest', dict(store=store, kind=kind, files=ps, kw=kw),
+                                      priority=priority, key=f'ingest:{store}:{_batch_key(ps)}'))
+    return out
+
+@patch
+def enqueue_tree(self:Vault, dir, types:str=DOC_EXTS, code:bool=True, kind:str=None,
+                 batch:int=50, **kw) -> AttrDict:
+    'Enqueue a whole tree: one job per batch of documents, one more for the code half.'
+    p, out = Path(dir), L()
+    docs = dir2files(p, types=types)
+    out += self.enqueue_files(docs, kind=kind, batch=batch, **kw)
+    srcs = dir2files(p, types=code_exts) if code else L()
+    if srcs: out.append(self.q.enqueue('index_code', dict(dir=str(p)), key=f'index_code:{p}'))
+    return AttrDict(dir=str(p), n_docs=len(docs), n_code=len(srcs), queued=len(out),
+                    jobs=list(out.attrgot('id')))
+
+@patch
+def _job_ingest(self:Vault, payload:dict) -> dict:
+    'Queue handler for one batch of files.'
+    v = self if payload['store'] == self.name else self.shelf(payload['store'])
+    fs = L(payload['files']).map(Path).filter(lambda p: p.exists())
+    if not fs: return dict(skipped='every file in the batch is gone')
+    docs = v.add_files(fs, kind=payload.get('kind'), **(payload.get('kw') or {}))
+    return dict(store=payload['store'], files=len(fs), added=len(docs))
+
+@patch
+def _job_index_code(self:Vault, payload:dict) -> dict:
+    "Queue handler for the kosha half of a tree. A kosha failure dead-letters rather than filing source as prose."
+    return dict(dir=payload['dir'], code=self.index_code(payload['dir']))
 
 # %% ../nbs/01_acquire.ipynb #bd035852
 def records_md(recs, title_keys=('name', 'title', 'displayName', 'productName', 'label', 'sku', 'id')) -> str:
@@ -281,7 +340,9 @@ def q(self:Vault) -> Queue:
     "The vault's job queue, on its database, with the acquisition handlers registered."
     if (q := getattr(self.db, '_vq', None)) is None: q = self.db._vq = Queue(self.db)
     # a shelf may reach it first; the main store rebinds the handlers to itself when it arrives
-    if self.name == 'store' or not q.handlers: q.register('watch', self._job_watch)
+    if self.name == 'store' or not q.handlers:
+        for k, fn in (('watch', self._job_watch), ('ingest', self._job_ingest),
+                      ('index_code', self._job_index_code)): q.register(k, fn)
     return q
 
 @patch
