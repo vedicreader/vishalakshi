@@ -18,7 +18,7 @@ from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, bu
 
 
 # %% ../nbs/00_core.ipynb #a9628282
-KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note')
+KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'image')
 _window, DFLT_ENC = re.compile(r'^Pages \d+(?:–\d+)?:'), 'minishlab/potion-multilingual-128M'
 
 def tidy_bc(bc:str) -> str:

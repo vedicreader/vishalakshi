@@ -25,6 +25,7 @@ TOOLS = ('stats search sections context ask read related toc map topic_tree sour
          'poll unwatch index_code code_search symbol where_to_add grep federate categorize '
          'categorize_all doctypes of_type ner reshelf extract extract_all ask_doc '
          'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks '
+         'add_image add_images images tag_image label_images '
          'suggest_noisy accept_noisy learn fit_noise use_noise').split()
 
 mcp = MCPServer('vishalakshi', instructions=(

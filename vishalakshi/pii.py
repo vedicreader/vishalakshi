@@ -81,8 +81,6 @@ PATTERNS = {
 #: `person` is the one kind arithmetic cannot find, and the only one gated behind `ner=True`.
 IDENTIFYING = frozenset({'email', 'card', 'iban', 'ssn', 'nhs', 'phone', 'dob', 'passport', 'licence', 'account',
                          'sortcode', 'medical', 'secret', 'address', 'person'})
-#: Kinds whose pattern reads capitalisation as evidence. Case-folded, `\b[A-Z]{2} \d{5}\b`
-#: matches "as 12345" and every numbered heading becomes somebody's address.
 CASED = frozenset({'address'})
 _COMPILED = {k: (re.compile(p, 0 if k in CASED else re.I), v) for k, (p, v) in PATTERNS.items()}
 
