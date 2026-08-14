@@ -22,7 +22,7 @@ except ImportError:
 # %% ../nbs/05_mcp.ipynb #fad2b047
 TOOLS = ('stats search sections context ask read related toc map topic_tree sources document shelves elsewhere grab url '
          'web arxiv youtube github gh_file add_file add_dir add_tree note connect forget apis harvest watch watches '
-         'poll unwatch index_code code_search symbol where_to_add grep federate categorize '
+         'poll schedule jobs retry_job unwatch index_code code_search symbol where_to_add grep federate categorize '
          'categorize_all doctypes of_type ner reshelf extract extract_all ask_doc '
          'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks '
          'add_image add_images images tag_image label_images '

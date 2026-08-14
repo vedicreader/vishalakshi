@@ -1,7 +1,7 @@
 # What the evals actually said
 
 Everything below is from `evals/`, on generated corpora (`evals/corpus.py`) with the
-`retrieval` static encoder. Reproduce with `python -m evals.noise` and `python -m evals.run`.
+`retrieval` static encoder. Reproduce with `python -m evals.noise`, `python -m evals.run` and `python -m evals.jobs`.
 Every comparison is paired over queries with a 5,000-sample bootstrap; a CI spanning zero is
 reported as no difference rather than as a small win.
 
@@ -124,13 +124,67 @@ what it invents in ordinary prose: **0 of the 200 lookalike documents** gained a
 `scanned_ner` is in every report, because a zero `person` count means nothing without knowing
 whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps its meaning.
 
-## 4. What this means for switching things on
+## 4. The job queue
+
+`python -m evals.jobs`, three runs, identical on every correctness number; only throughput moves.
+One SQLite file, separate OS processes, `job_runs` as the audit trail and a `side` table written by
+the handler before the ack so redelivery is visible as a duplicate side effect rather than inferred.
+
+| measurement | result |
+|---|---|
+| 8 workers, 400 jobs, no failures | 400 done, **0 lost, 0 double-claimed, 0 side effects applied twice** |
+| 4 workers SIGKILLed mid-handler, 200 jobs | 200 done, **0 lost**, 4 jobs stranded by the kills, all 4 recovered |
+| price of at-least-once, same run | 204 side effects for 200 jobs: **4 applied twice, one per kill** |
+| 6 of 24 handlers outliving their lease | **0 jobs acked by two workers**, 18 acks refused, 6 dead-lettered |
+| throughput | 9,900 enqueue/s, 53,000–66,000 claim/s |
+| empty poll | **0.030 ms** |
+
+Four of these decided a design question.
+
+**The claim is sound; the busy timeout was not.** `UPDATE ... RETURNING` through a partial index
+never handed one job to two workers, in any run. The first run still lost 2 of 400, to
+`apsw.BusyError` on the *history* write: apsw's stock busy timeout is 100 ms and 8 processes on one
+file exceed it, so the write failed instead of waiting and took the worker with it. `Queue` now
+sets `BUSY_TIMEOUT_MS` (30 s) on its connection, which is what litesearch already does on its own
+write paths. Nothing was wrong with the claim; the queue was simply not waiting its turn.
+
+**One instance of that is not the queue's to fix, and the harness was hiding it.** apsw's
+bestpractice runs `pragma optimize` while *opening* a connection, before any queue code exists to
+raise the timeout, so 1 to 3 of 8 workers died in `database()` in 4 of 5 runs. The measurement
+reported `workers=8` regardless, because it printed the number of processes it asked for rather than
+the number that ran, and fewer workers is less contention: the harness was quietly making the
+result better. `workers` is now the count that did work, `_open` retries the connect, and every
+measurement asserts on worker exit codes.
+
+**A lease is not enough on its own; `ack` has to be fenced.** A handler slower than its lease is
+reclaimed underneath it and handed to a second worker, and the first worker then finishes and acks a
+job it no longer holds. 6 slow handlers of 24 produced **2 jobs acked by two workers each**, and a
+late `fail` from the real holder took a `done` job back to `ready` for a third run. `ack` and `fail`
+now check state and worker inside the same transaction as the update. The same 6 handlers now give 0
+double acks, 18 refused acks recorded as `lost`, and 6 dead letters, which is the honest outcome: a
+lease shorter than the work cannot be completed, and it should fail loudly rather than book two
+successes.
+
+**0.030 ms per empty poll is why there is no watcher here.** honker earns its `PRAGMA data_version`
+thread by making cross-process wake sub-millisecond, which matters when a job is a function call.
+Here a job is a page fetch on a schedule measured in hours, so a one-second poll costs 0.003% of a
+core and the watcher buys nothing. That is the whole argument for a table over the extension, and
+it is a number rather than a preference.
+
+The 4-in-200 redelivery rate is not a defect to fix. It is what at-least-once means, and it is
+safe here only because ingest is idempotent: litesearch skips a source it already holds, so a
+redelivered batch re-does the work it missed and nothing else. A handler that is not idempotent
+has to carry its own key.
+
+## 5. What this means for switching things on
 
 | piece | default | why |
 |---|---|---|
 | `mark_noisy` / `mark_not_pii` / `mark_pii` | active | a person's decision, not a model's |
 | `suggest_noisy` / `accept_noisy` | suggests only | 0.988 AUC is good; it is not good enough to delete things unasked |
 | `fit_noise` / `use_noise` | off until saved and switched | fitted blend 0.996 AUC; same save/use seam as the ranker |
+| queue retries / dead letter | active | 0 lost of 200 across 4 kills; the 4 redeliveries are the price |
+| queue lease fence on `ack` | active | without it, 2 of 6 slow handlers had two workers ack one job |
 | feedback logging (`learn()`) | **off** | nothing is recorded until you say so |
 | `fit_ranker` | manual | fitting is free and cheap to inspect |
 | `use_ranker` | **off** | nothing here beat RRF reproducibly; measure on your own corpus first |
