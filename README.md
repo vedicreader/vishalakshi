@@ -264,9 +264,12 @@ L(v.grep('rrf_all', root, limit=4)).attrgot('where')   # ripgrep; no kosha neede
 
     ['README.md:125', 'nbs/index.ipynb:573', 'vishalakshi/code.py:12', 'vishalakshi/code.py:128']
 
-## Watches
+## Watches and the queue
 
-An action is an acquisition method name. `poll()` is the tick (cron, scheduler, or button). See [acquire](01_acquire.ipynb) for `harvest` and `apis`.
+An action is an acquisition method name. `poll()` is the tick (cron, scheduler, or button): it
+reclaims what a dead worker was holding, enqueues what has come due, and drains. A failed fetch
+retries with backoff and dead-letters after five attempts, so `jobs(state='dead')` is where work
+goes when it will not succeed, rather than nowhere. See [jobs](11_jobs.ipynb).
 
 ``` python
 v.watch('https://example.com/changelog', action='url', every='6h')
@@ -291,6 +294,7 @@ L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['para
 | [concepts](07_concepts.ipynb) | encoders, shelves, backends, `reshelf` |
 | [skill](08_skill.ipynb) | agent cheat sheet (exported skill) |
 | [pii](09_pii.ipynb) | patterns, checksums, `secret`, `mark_pii` / `mark_not_pii`, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) |
+| [jobs](11_jobs.ipynb) | [`Queue`](https://vedicreader.github.io/vishalakshi/jobs.html#queue), retries, leases, the dead letter |
 | [quality](10_quality.ipynb) | `suggest_noisy` / `accept_noisy`, `fit_noise`, ranker |
 
 ``` sh
