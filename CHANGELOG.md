@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.8
+image support and job queues
+
 ## 0.1.7
 ner should not be done for code and fixing addresses
 
