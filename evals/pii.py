@@ -1,21 +1,21 @@
 """What do the checksums buy, and what does the detector miss.
 
-`pii.py` says a checksum is what separates a detector from a superstition. That is a claim about a
-false-positive rate, so it needs a corpus of things that look like PII and are not: order numbers,
-ISBNs, part numbers, timestamps, version strings, long digit runs. The negatives are the whole
-experiment. Positives are easy to detect and easy to fake being good at.
+A checksum is a claim about a false-positive rate. Measuring it needs lookalikes: order numbers,
+ISBNs, part numbers, timestamps, version strings, long digit runs. The negatives are the experiment.
+Positives are easy to detect and easy to fake being good at.
 
-Half the negatives are adversarial by construction: the digits carry a *valid* checksum and sit in
-a context that says they are not identity. A checksum-passing number under `Order` or inside a URL
-is the failure a random corpus finds one time in eleven and a spec document finds on every page.
+Half the negatives are adversarial by construction. The digits carry a *valid* checksum and sit
+under a word that says they are not identity. A random corpus meets that one time in eleven. A spec
+document meets it on every page.
 
-Four of the negative groups were not thought of here. `money`, `citation`, `celex` and `about` are
-the shapes that actually broke the detector on 2.3 M characters of real legislation, distilled back
-into ground truth so they stay measured after the fix (`evals/pii_real.py`).
+Eight groups were not thought of here. `money`, `citation`, `celex`, `about`, `apac_money`,
+`apac_ref`, `apac_cued` and `apac_invalid` are shapes that broke the detector on 5 M characters of
+real legislation, distilled back into ground truth (`evals/pii_real.py`).
 
-Measured per kind, per negative class, and again with every validator disabled.
+Measured per kind, per negative class, and again with every guard removed.
 
     python -m evals.pii
+    python -m evals.pii --ablate
 """
 import sys, random, re, argparse
 from pathlib import Path
@@ -62,39 +62,39 @@ def _rand(rng, n, alphabet=_ALNUM): return ''.join(rng.choice(alphabet) for _ in
 
 
 def _check(fn, body, alpha=_DIGIT):
-    """The character that makes `body` pass `pii.<fn>`, found by trying all of them.
+    """The character that makes `body` pass `pii.<fn>`.
 
-    Unlike `luhn_number` and `nhs_number` above, these do not reimplement the checksum, so they
-    cannot catch a validator that is wrong in the same direction twice. What catches that is the
-    published example for every one of them in `nbs/09_pii.ipynb`."""
+    These ask the validator instead of reimplementing it, so they cannot catch one that is wrong.
+    The published example per kind in `nbs/09_pii.ipynb` is what catches that."""
     from vishalakshi import pii as P
     ok = getattr(P, fn)
     return next(body + c for c in alpha if ok(body + c))
 
 
 def aadhaar(rng): return _check('_aadhaar_ok', str(rng.randrange(2, 10)) + _rand(rng, 10, _DIGIT))
-def tfn(rng):
-    "One body in eleven has no ninth digit that satisfies the weighted mod-11, so redraw."
-    from vishalakshi import pii as P
-    while True:
-        b = _rand(rng, 8, _DIGIT)
-        if (c := next((c for c in _DIGIT if P._tfn_ok(b + c)), None)): return b + c
 def thai_id(rng): return _check('_thai_id_ok', str(rng.randrange(1, 9)) + _rand(rng, 11, _DIGIT))
 def nric(rng):    return _check('_nric_ok', rng.choice('STFG') + _rand(rng, 7, _DIGIT), _UPPER)
 def pan(rng):     return _rand(rng, 5, _UPPER) + _rand(rng, 4, _DIGIT) + rng.choice(_UPPER)
 def ifsc(rng):    return _rand(rng, 4, _UPPER) + '0' + _rand(rng, 6, _DIGIT + _UPPER)
 
+def tfn(rng):
+    "One body in eleven has no valid ninth digit. Redraw."
+    from vishalakshi import pii as P
+    while True:
+        b = _rand(rng, 8, _DIGIT)
+        if (c := next((c for c in _DIGIT if P._tfn_ok(b + c)), None)): return b + c
+
 def gstin(rng):
     return _check('_gstin_ok', f'{rng.randrange(1, 38):02d}{pan(rng)}1Z', _DIGIT + _UPPER)
 
 def abn(rng):
-    "The ABN's check lives in its first two digits, so it is those that get searched."
+    "The ABN's check lives in its first two digits, so search those."
     from vishalakshi import pii as P
     rest = _rand(rng, 9, _DIGIT)
     return next(f'{p}{rest}' for p in range(10, 100) if P._abn_ok(f'{p}{rest}'))
 
 def medicare(rng):
-    "Ten digits: eight, then the check over them, then the issue number, which is not checked."
+    "Eight digits, the check over them, then an unchecked issue number."
     from vishalakshi import pii as P
     body = str(rng.randrange(2, 7)) + _rand(rng, 7, _DIGIT)
     return next(f'{body}{c}{rng.randrange(1, 10)}' for c in _DIGIT if P._medicare_ok(body + c + '1'))
@@ -104,7 +104,7 @@ def mykad(rng):
             f'-{rng.randrange(1, 60):02d}-{rng.randrange(1000, 9999)}')
 
 def nik(rng):
-    "PPRRSS DDMMYY NNNN, with the birth date in the middle and no checksum anywhere."
+    "PPRRSS DDMMYY NNNN. No checksum anywhere."
     return (f'{rng.randrange(11, 95)}{rng.randrange(1, 99):02d}{rng.randrange(1, 99):02d}'
             f'{rng.randrange(1, 28):02d}{rng.randrange(1, 13):02d}{rng.randrange(60, 99)}'
             f'{rng.randrange(1000, 9999)}')
@@ -127,8 +127,8 @@ POSITIVE = {
         f"Collected from {r.randrange(1,99)} Victoria Road on the 3rd.",
         f"Returned to {r.randrange(1,99)} Kings Court, Leeds.",
     ]),
-    # five kinds that shipped with a pattern and no positive to measure it. `passport`, `licence`
-    # and `medical` are the three the real corpus caught firing on cue words alone.
+    # five kinds that shipped with a pattern and no positive. the real corpus caught three of
+    # them firing on a cue word alone
     'passport':lambda r: r.choice([
         f"Passport number {r.randrange(10**8, 10**9)} was checked at the gate.",
         f"Passport No. {r.choice('XKJ')}{r.randrange(10**6, 10**7)} expires in June.",
@@ -173,8 +173,7 @@ POSITIVE = {
     'thai_id':lambda r: f"Thai national ID {thai_id(r)} was checked on arrival.",
 }
 
-#: `ip` is the one pattern that is reportable and does not gate, so it cannot sit in `POSITIVE`
-#: without counting as a miss on `has_pii`. Measured on its own in `run`.
+#: `ip` reports without gating, so it would count as a miss on `has_pii`. Measured in `run`.
 REPORTABLE = {
     'ip': lambda r: f"The request came from 203.0.113.{r.randrange(1,254)} at 09:12.",
 }
@@ -182,8 +181,8 @@ REPORTABLE = {
 #: Things that look like identity and are not, grouped so a residual false positive has a name.
 #: The `standard`, `link` and `cued` groups carry *valid* checksums: they are the whole point.
 NEGATIVE = {
-    # a bare number in front of a common noun is not a street line, and this is where a loose
-    # address pattern does its damage: every numbered heading in every report would fire
+    # a bare number in front of a common noun is not a street line. Where a loose address pattern
+    # does its damage: every numbered heading in every report
     'heading': [
         lambda r: f"Chapter {r.randrange(1,9)} Court decisions are summarised below.",
         lambda r: f"Table {r.randrange(1,9)} Road traffic figures for the quarter.",
@@ -248,8 +247,7 @@ NEGATIVE = {
         lambda r: f"Page {nhs_number(r)} of the export was truncated.",
     ],
     # A space is the thousands separator in most of Europe, so every large budget line carries a
-    # `0`-leading group of three, which is the UK trunk-number pattern. Every one of these has one
-    # by construction. Nine of the fifteen real false positives were this.
+    # `0`-leading group of three: the UK trunk-number pattern. Nine of fifteen real failures
     'money': [
         lambda r: f"an amount of up to EUR {r.randrange(1,999)} 000 000 000 as referred to in point (b).",
         lambda r: f"EUR {r.randrange(1,20)} 0{r.randrange(10,99)} {r.randrange(100,999)} 000 in current prices.",
@@ -257,8 +255,7 @@ NEGATIVE = {
         lambda r: f"The budget is set at {r.randrange(1,9)} {r.randrange(100,999)} 000 000 EUR over seven years.",
         lambda r: f"Total assets of {r.randrange(10,99)} 0{r.randrange(10,99)} {r.randrange(100,999)} 000 were reported.",
     ],
-    # US legal citation, from 45 CFR 164: a different set of digit shapes from EU numbering, and
-    # the reason the corpus is not all one jurisdiction.
+    # US legal citation, from 45 CFR 164. Different digit shapes from EU numbering
     'citation': [
         lambda r: f"42 U.S.C. {r.randrange(1000,9999)}(a) and 42 U.S.C. 1320d-1320d-9 apply.",
         lambda r: f"sec. {r.randrange(100,999)}, Pub. L. {r.randrange(100,119)}-{r.randrange(1,999)}, "
@@ -280,9 +277,8 @@ NEGATIVE = {
         lambda r: f"Article {r.randrange(1,99)}({r.randrange(1,9)}), point (b), of Regulation (EU) "
                   f"2018/{r.randrange(1000,9999)} applies.",
     ],
-    # A document about identifiers is not a document containing one. This is what a privacy notice,
-    # a data schema and a data protection act all look like, and the class that broke `medical`,
-    # `passport` and `licence`, none of which required a value after the cue word.
+    # A document about identifiers is not a document containing one. What a privacy notice, a data
+    # schema and a data protection act look like, and the class that broke three patterns
     'about': [
         lambda r: "Medical record numbers; Health plan beneficiary numbers; Account numbers.",
         lambda r: "the place entered as such in a passport, identity card or other document",
@@ -293,8 +289,7 @@ NEGATIVE = {
         lambda r: f"An account number shall be recorded for each of the {r.randrange(2,40)} transfers.",
         lambda r: "the sort code and account number of the payee are held by the bank",
     ],
-    # Indian digit grouping is 2-2-3, not 3-3-3, and an Australian budget line is in dollars. Both
-    # are money in a jurisdiction whose identifiers are now patterns.
+    # Indian digit grouping is 2-2-3, not 3-3-3
     'apac_money': [
         lambda r: f"The penalty shall not exceed Rs. {r.randrange(1,99)},{r.randrange(0,99):02d},"
                   f"{r.randrange(0,999):03d} in any case.",
@@ -315,8 +310,7 @@ NEGATIVE = {
         lambda r: f"Notification No. {r.randrange(1,99)}/2017-Central Tax dated 28.06.2017",
         lambda r: f"SI {r.randrange(2000,2024)} No. {r.randrange(1000,9999)} was laid before Parliament.",
     ],
-    # Valid regional checksums under a word that says the number is a reference. Same trick as
-    # `cued`, in the shapes the regional patterns answer to.
+    # `cued` again, in the shapes the regional patterns answer to
     'apac_cued': [
         lambda r: f"Order {(a := abn(r))[:2]} {a[2:5]} {a[5:8]} {a[8:]} shipped on Tuesday.",
         lambda r: f"Invoice {(a := aadhaar(r))[:4]} {a[4:8]} {a[8:]} was raised.",
@@ -324,7 +318,7 @@ NEGATIVE = {
         lambda r: f"Serial {thai_id(r)} was returned under warranty.",
         lambda r: f"Batch {(t := tfn(r))[:3]} {t[3:6]} {t[6:]} cleared inspection.",
     ],
-    # The cue is right there and the checksum is wrong, which is the case the checksum exists for.
+    # cue present, checksum broken: the case the checksum exists for
     'apac_invalid': [
         lambda r: f"ABN {(a := abn(r))[:2]} {a[2:5]} {a[5:8]} {int(a[8:]) ^ 1:03d} is malformed.",
         lambda r: f"Tax file number {(t := tfn(r))[:3]} {t[3:6]} {int(t[6:]) ^ 1:03d} was rejected.",
@@ -354,15 +348,14 @@ def corpus(n=960, seed=0):
 
 
 def _sub(P, kind, old, new):
-    "Swap one fragment of a live pattern, so an ablation tracks edits to `PATTERNS` instead of a copy."
+    "Swap a fragment of a live pattern, so an ablation tracks `PATTERNS` and not a copy."
     p = P.PATTERNS[kind][0]
     assert old in p, (kind, old)
     P._COMPILED[kind] = (re.compile(p.replace(old, new), 0 if kind in P.CASED else re.I),
                          P._COMPILED[kind][1])
 
 
-#: Every guard in `pii.py`, and how to take it away. Each row of the ablation tables in RESULTS.md
-#: is one of these; nothing in those tables was measured by hand.
+#: Every guard in `pii.py`, and how to take it away. Each row of the RESULTS.md ablation tables.
 GUARDS = {
     'every checksum':     lambda P: P._COMPILED.update({k: (rx, None) for k, (rx, _) in P._COMPILED.items()}),
     'US_STATES ZIP':      lambda P: _sub(P, 'address', P._ZIP, r'\b[A-Z]{2} \d{5}(?:-\d{4})?\b'),
@@ -386,7 +379,7 @@ GUARDS = {
 
 
 def _decue(P, kind):
-    "Drop everything up to and including the cue word, leaving the bare digit shape behind."
+    "Drop the cue word, leaving the bare digit shape."
     p = P.PATTERNS[kind][0]
     _sub(P, kind, p[:p.index(P._CUE) + len(P._CUE)], r'\b')
 
@@ -422,10 +415,10 @@ def score(n=960, seed=0):
 
 
 def ablate(n=960, seeds=8):
-    """Precision with each guard removed on its own, and which lookalike group comes back.
+    """Precision with each guard removed on its own, and which group comes back.
 
-    Over `seeds` draws, because the residual false positive is a random checksum collision and one
-    draw of it says nothing: `bare` is 0/30 on seed 0 and 3/30 on seed 5."""
+    Over `seeds` draws. The residual is a random checksum collision, and one draw says nothing:
+    `bare` is 0/30 on seed 0 and 3/30 on seed 5."""
     print(f'\neach guard removed on its own, everything else in place, {seeds} draws of {n}:')
     print(f'  {"guard removed":<22} {"precision":>9} {"recall":>7} {"false positives":>16}   comes back')
     for g in (None, *GUARDS):

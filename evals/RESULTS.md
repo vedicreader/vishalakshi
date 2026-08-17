@@ -16,15 +16,15 @@ Per-feature AUC against ground truth, 72 documents of which 8 are boilerplate by
 
 | feature | AUC | boiler z | survey z | what it is |
 |---|---|---|---|---|
-| `hub` | 0.984 | +1.51 | −1.66 | how often a chunk is in others' k-NN lists |
+| `hub` | 0.984 | +1.51 | -1.66 | how often a chunk is in others' k-NN lists |
 | `spread_chunk` | 0.982 | +1.50 | +0.67 | entropy of one chunk's similarity over topic centroids |
-| `off_centre` | 0.881 | +1.19 | −1.56 | cosine distance from the corpus centroid |
-| `dup_out` | 0.800 | +0.94 | −1.12 | chunks near-duplicated in *another* document |
-| `low_idf` | 0.602 | +0.32 | −0.07 | mean term specificity, negated |
+| `off_centre` | 0.881 | +1.19 | -1.56 | cosine distance from the corpus centroid |
+| `dup_out` | 0.800 | +0.94 | -1.12 | chunks near-duplicated in *another* document |
+| `low_idf` | 0.602 | +0.32 | -0.07 | mean term specificity, negated |
 | `promiscuity` | 0.500 | n/a | n/a | distinct past queries retrieving it (needs a feedback log) |
-| `redundancy` | 0.498 | −0.01 | −0.24 | chunks near-duplicated inside the same document |
-| `spread_doc` | 0.453 | −0.15 | **+0.83** | entropy of the document's chunks over clusters |
-| `short` | 0.422 | −0.24 | +0.55 | fraction of very short chunks |
+| `redundancy` | 0.498 | -0.01 | -0.24 | chunks near-duplicated inside the same document |
+| `spread_doc` | 0.453 | -0.15 | **+0.83** | entropy of the document's chunks over clusters |
+| `short` | 0.422 | -0.24 | +0.55 | fraction of very short chunks |
 
 Blended: **0.988 mean AUC** over three corpora (0.967–1.000). Fitted from marks instead of the
 fixed weights, held out: **0.996** (0.990–1.000), better on all four corpora tried, from six
@@ -34,12 +34,12 @@ marked documents and eighteen confirmed keepers.
 
 `spread_doc` is that hypothesis, and it scores **0.453 AUC. Below chance.** Worse, look at which
 documents it indicts: the corpus plants `Survey` documents that range over every topic and are
-*not* noise, and `spread_doc` scores them +0.83 against boilerplate's −0.15. It ranks the surveys
+*not* noise, and `spread_doc` scores them +0.83 against boilerplate's -0.15. It ranks the surveys
 as noisier than the footers.
 
-Measuring the same idea one level down, the entropy of a *single chunk* over topic centroids
-rather than of a document over cluster assignments, gets **0.982**, the second-best feature in the
-table. That is the difference between broad and generic: a survey is broad at the document level
+Measure the same idea one level down and it gets **0.982**, the second-best feature in the table:
+the entropy of a *single chunk* over topic centroids, rather than of a document over cluster
+assignments. That is the difference between broad and generic: a survey is broad at the document level
 and specific in each paragraph, and boilerplate is generic in every chunk it has. But even that
 correction only partly separates surveys (gap +0.83); what cleanly does is `hub` (+3.17) and
 `dup_out` (+2.06). Genericness is better measured as *"this gets retrieved for everything"* than as
@@ -48,9 +48,9 @@ anything about topics.
 ### An incidental finding
 
 `usearch.index.kmeans` does not honour its `seed`. Called twice on identical input it returns
-different assignments, and `spread_doc`, an entropy over those assignments, drifted across its
-whole range between two calls on the same vault, taking `spread_chunk` from 0.807 to 0.982 once
-fixed. `quality._centroids` is now a seeded k-means++ plus Lloyd in numpy, at comparable cost since
+different assignments. `spread_doc` is an entropy over those assignments, and it drifted across its
+whole range between two calls on the same vault. Fixing it took `spread_chunk` from 0.807 to
+0.982. `quality._centroids` is now a seeded k-means++ plus Lloyd in numpy, at comparable cost since
 both are dominated by one `V @ C.T` per iteration.
 
 ## 2. The rerankers
@@ -60,21 +60,21 @@ Known-item queries (one document answers each, different every time), **document
 
 | system | nDCG@10 | MRR@10 | recall@10 | significant wins / losses |
 |---|---|---|---|---|
-| `+noise` (unsupervised filter) | **+0.001** | **+0.005** | −0.015 | 1 / 0 |
-| `+linear` fused at α=0.25 | −0.001 | −0.004 | +0.007 | 0 / 0 |
-| `+gbdt` (replaces order) | −0.005 | +0.019 | −0.093 | 1 / 1 |
-| `+forest` (replaces order) | −0.085 | −0.051 | n/a | 0 / 2 |
-| `+prior` (Beta posterior) | −0.043 | −0.065 | n/a | 0 / **3** |
-| `+linear` (replaces order) | −0.127 | −0.082 | −0.274 | 0 / 2 |
+| `+noise` (unsupervised filter) | **+0.001** | **+0.005** | -0.015 | 1 / 0 |
+| `+linear` fused at α=0.25 | -0.001 | -0.004 | +0.007 | 0 / 0 |
+| `+gbdt` (replaces order) | -0.005 | +0.019 | -0.093 | 1 / 1 |
+| `+forest` (replaces order) | -0.085 | -0.051 | n/a | 0 / 2 |
+| `+prior` (Beta posterior) | -0.043 | -0.065 | n/a | 0 / **3** |
+| `+linear` (replaces order) | -0.127 | -0.082 | -0.274 | 0 / 2 |
 
 Three things to take from this.
 
 **Gradient boosting did not win.** It beat the baseline on MRR on one corpus (+0.083, p=0.05) and
-lost on another (−0.109, p=0.01). One seed would have shipped it. That is the entire reason the
+lost on another (-0.109, p=0.01). One seed would have shipped it. That is the entire reason the
 harness resamples and reports across corpora.
 
 **Substituting the ranking is the dangerous operation, not learning.** The same linear model costs
-−0.127 nDCG when it sorts by its own score and −0.001 when it is fused with the incoming order by
+-0.127 nDCG when it sorts by its own score and -0.001 when it is fused with the incoming order by
 reciprocal rank. Fusion does not make a weak model good; it makes it harmless. `retune` defaults to
 `alpha=0.25` for that reason.
 
@@ -96,26 +96,25 @@ document-disjoint split showed it.
 ## 3. PII detection
 
 `python -m evals.pii`: 960 documents, half with planted identity and half with lookalikes, over 8
-draws. The lookalikes are grouped so a residual false positive has a name, and nine of the fifteen
-groups carry *valid* checksums or real regulatory digit shapes, because that is the case a random
-corpus meets one time in eleven and a spec document meets on every page.
+draws. The lookalikes are grouped, so a residual false positive has a name. Nine of the fifteen
+groups carry *valid* checksums or real regulatory digit shapes. A random corpus meets that case one
+time in eleven. A spec document meets it on every page.
 
 | detector | precision | recall | F1 | false positives |
 |---|---|---|---|---|
 | regex only | 0.913 | 1.000 | 0.955 | 364/3840 |
 | with checksums | **0.996** | **1.000** | **0.998** | **15/3840** |
 
-Recall is 1.000 on all 25 gating kinds, and each is reported as itself rather than as something
-else. `ip` is found 20/20 and gates 0/20, which is what "reportable but not identifying" is supposed
-to mean. Every residual false positive is a checksum collision on a random digit run: 12/240 in
-`bare` and 3/200 in `apac_invalid`.
+Recall is 1.000 on all 25 gating kinds. Each is reported as itself, not as something else. `ip` is
+found 20/20 and gates 0/20, which is what "reportable but not identifying" means. Every residual
+false positive is a checksum collision on a random digit run: 12/240 in `bare`, 3/200 in
+`apac_invalid`.
 
-Those three are worth naming, because they are a shadowing rather than a collision in the usual
-sense. A Thai national ID is thirteen digits, and `card` matches twelve to nineteen, so about one
-malformed national ID in ten passes Luhn and is reported as a card. It does not touch a *valid* one:
-spans are de-overlapped longest-first, and the cue-anchored `thai_id` span is longer than the bare
-digit run, so all 40 of 40 valid ones report as `thai_id`. The failure needs a document that
-contains a broken national ID and no real identity at all.
+Those three are a shadowing rather than a collision. A Thai national ID is thirteen digits and
+`card` matches twelve to nineteen, so about one malformed national ID in ten passes Luhn and reports
+as a card. A *valid* one is untouched. Spans de-overlap longest-first, the cue-anchored `thai_id`
+span is longer than the bare digit run, and 40 of 40 valid ones report as `thai_id`. The failure
+needs a document holding a broken national ID and no real identity.
 
 ### Reading the digits is not enough; you have to read what is around them
 
@@ -148,17 +147,16 @@ prints this table; nothing in it was measured by hand.
 
 Recall stays 1.000 in every row: none of these guards is trading recall for precision.
 
-The guards overlap, and two of them turn out to do a second job. `US_STATES` was added to stop
-`EN 60601` being a state and a ZIP; it also stops `65 FR 82802`, the US Federal Register citation,
-which has the same shape and which nobody was thinking about. The ABN's mod-89 was added to read
-Australian business numbers; the 71 `money` documents it holds back are EU budget lines, because
-`EUR 360 000 000 000` contains `60 000 000 000` and that is an ABN's shape exactly. The street-name
-requirement inside `address` is fully covered by `DESIGNATOR` here (0.996 either way); with
-`DESIGNATOR` switched off it is worth 0.965 against 0.894, so it stays.
+The guards overlap, and two do a second job. `US_STATES` went in to stop `EN 60601` being a state
+and a ZIP. It also stops `65 FR 82802`, the US Federal Register citation, which has the same shape.
+Nobody was thinking about that one. The ABN's mod-89 went in to read Australian business numbers.
+The 71 `money` documents it holds back are EU budget lines: `EUR 360 000 000 000` contains
+`60 000 000 000`, which is an ABN's shape exactly. The street-name requirement inside `address` is
+covered by `DESIGNATOR` here, 0.996 either way. With `DESIGNATOR` off it is worth 0.965 against
+0.894, so it stays.
 
-The regional cue words look cheap at 32/3840 against 15/3840, and they are, because the
-grouped-number guard already suppresses most of what they would let in. Removing both is the case
-they exist for.
+The regional cue words look cheap at 32/3840 against 15/3840. They are, because the grouped-number
+guard already suppresses most of what they would admit. Removing both is the case they exist for.
 
 `DESIGNATOR` keeps its acronyms case-sensitive, because lowercase `en` is an ordinary English word.
 `No` was in the list and is not any more: it suppressed `No. 5 Elm Street`, `No 5 Elm Street` and
@@ -182,10 +180,10 @@ header noise a real ingest carries; the other ten are fetched by `evals/regcorpu
 | Thailand | 1 | 0.20 M | Thai script and Thai numerals, which no pattern here can read |
 
 Southeast Asia is one statute rather than four. Singapore Statutes Online, AGC Malaysia and the
-Philippine Official Gazette are all outside what this sandbox's egress policy allows, and no GitHub
-mirror of their English text turned up. The Malaysian and Indonesian identifiers below are
-therefore measured on generated documents only, which is a real gap and not a small one: it is
-exactly the kind of gap the EU-only corpus had before Australia and India went in.
+Philippine Official Gazette all sit outside this sandbox's egress policy, and no GitHub mirror of
+their English text turned up. The Malaysian and Indonesian identifiers below are measured on
+generated documents only. That is a real gap, and not a small one. It is the gap the EU-only corpus
+had before Australia and India went in.
 
 The generated corpus at 0.996 precision had **15 false positives** on this material, in three
 classes, none of which anybody had thought to generate:
@@ -216,17 +214,17 @@ Four guards, each removed on its own (`python -m evals.pii_real --ablate`):
 | `medical` needs a value | 5 | `medical` 5 |
 | all four | 15 | |
 
-`licence` cost nothing on the EU-only corpus and costs 1 once Australia is in it, which is the whole
-argument for having both corpora and more than one jurisdiction in the second: each one is blind
-where the other is not.
+`licence` cost nothing on the EU-only corpus. It costs 1 once Australia is in it. That is the whole
+argument for two corpora, and for more than one jurisdiction in the second. Each is blind where the
+other is not.
 
-Recall was measured the same way and in the same place. Splicing one planted identity into a real
-regulatory passage instead of into three sentences of filler: **267/267, 1.000**, over all 25
-gating kinds. Dense legal boilerplate around a card number does not hide it.
+Recall was measured in the same place. One planted identity spliced into a real regulatory passage
+instead of into three sentences of filler: **267/267, 1.000**, over all 25 gating kinds. Dense legal
+boilerplate around a card number does not hide it.
 
-The four classes have been distilled back into `evals/pii.py` as the `money`, `citation`, `celex`
-and `about` groups, with the digits randomised and every `money` document carrying a `0`-leading
-group by construction, so they stay measured on a corpus that can be resampled.
+The four classes are distilled back into `evals/pii.py` as the `money`, `citation`, `celex` and
+`about` groups. The digits are randomised, and every `money` document carries a `0`-leading group by
+construction, so they stay measured on a corpus that resamples.
 
 ### 3c. Somebody else's digits
 
@@ -239,11 +237,11 @@ the three regions the corpus had just gained, it found **two**, and one of those
 | Australia: TFN, ABN, Medicare, `04xx` mobile | 1/4 | **4/4** |
 | SE Asia: NRIC, MyKad, NIK, Thai national ID | 0/4 | **4/4** |
 
-Ten kinds went in, and every one of them carries a checksum or an embedded date, because the shape
-on its own is not usable. `\d{3} \d{3} \d{3}` is an Australian tax file number, and it is also a
-budget line in every EU regulation: 34 of them in Regulation 2021/695 alone. `tfn`, `medicare`,
-`nik` and `thai_id` need a cue word on top of that, because their bare digit runs are nine, ten,
-sixteen and thirteen digits, which is to say a phone number, a phone number, a card and a timestamp.
+Ten kinds went in. Each decides on a checksum or an embedded date, because shape on its own is not
+usable. `\d{3} \d{3} \d{3}` is an Australian tax file number. It is also a budget line, 34 times in
+Regulation 2021/695. `tfn`, `medicare`, `nik` and `thai_id` need a cue word on top. Their bare digit
+runs are nine, ten, sixteen and thirteen digits: a phone number, a phone number, a card, a
+timestamp.
 
 | kind | what decides it | anchored on |
 |---|---|---|
@@ -270,22 +268,22 @@ generated (`python -m evals.pii_real` prints this):
 | the other ten | 0 | 0 |
 
 Twelve EU budget lines have an ABN's exact shape, and mod-89 rejects all twelve. The other ten kinds
-have nothing to say on this corpus, which is the honest reading of a zero: no EU, US, Australian,
-Indian or Thai act contains a string shaped like an Aadhaar number or writes the words "tax file
-number" followed by nine digits. What measures those is `evals/pii.py`, where `apac_money`,
-`apac_ref`, `apac_cued` and `apac_invalid` were added for it: Indian 2-2-3 money grouping, Australian
-and Indian statute references, valid regional checksums sitting under `Order` and `Invoice`, and the
-cue present with the checksum deliberately broken. Turning the regional checksums off costs
-0.996 → 0.931 and hands back 71 EU budget lines; turning the cue words off costs 0.996 → 0.992.
+have nothing to say on this corpus. That is the honest reading of a zero. No EU, US, Australian,
+Indian or Thai act holds a string shaped like an Aadhaar number, or writes "tax file number"
+followed by nine digits. `evals/pii.py` measures those instead. `apac_money`, `apac_ref`,
+`apac_cued` and `apac_invalid` went in for it: Indian 2-2-3 money grouping, Australian and Indian
+statute references, valid regional checksums under `Order` and `Invoice`, and the cue present with
+the checksum broken. Turning the regional checksums off costs 0.996 to 0.931 and hands back 71 EU
+budget lines. Turning the cue words off costs 0.996 to 0.992.
 
 ### What is in the corpus that the detector is right to want
 
-One thing in those 5 M characters is a real person: legislation is signed. `R. METSOLA` and
-`M. MICHEL` sit in the AI Act's signature block, in the shape `The President \n R. METSOLA`.
-`ner=True` finds **0 of 2**, because the anchor is an honorific and a signature block has none. It
-also invents **0** names in the other 5 M characters. That is the same trade the generated corpus
-reports, measured on prose nobody wrote as a test: it does not hallucinate, and it does not find the
-names that are actually there. It is the reason `mark_pii` exists.
+One thing in those 5 M characters is a real person. Legislation is signed. `R. METSOLA` and
+`M. MICHEL` sit in the AI Act's signature block, shaped `The President \n R. METSOLA`. `ner=True`
+finds **0 of 2**. The anchor is an honorific and a signature block has none. It also invents **0**
+names in the other 5 M characters. The generated corpus reports the same trade, and this measures it
+on prose nobody wrote as a test. It does not hallucinate. It does not find the names that are there.
+That is why `mark_pii` exists.
 
 ### Names
 
@@ -305,9 +303,9 @@ whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps
 `onnx-community/piiranha-v1-detect-personal-information-ONNX`, a DeBERTa-v3 token classifier.
 Both builds in that repo are measured, because the quantised one is the one you would reach for.
 
-Every number in this section was measured on the 480-document corpus that preceded section 3b, and
-has not been re-run since the corpus grew to 720 and the four regulatory guards went in. Re-running
-it needs the weights, which are a 1.1 GB download.
+Every number here was measured on the 480-document corpus that preceded section 3b. None has been
+re-run since the corpus grew to 960 and the regulatory guards went in. Re-running needs the weights,
+a 1.1 GB download.
 
 | system | precision | recall | F1 | false positives | ms/doc |
 |---|---|---|---|---|---|
@@ -365,9 +363,9 @@ the handler before the ack so redelivery is visible as a duplicate side effect r
 
 Four of these decided a design question.
 
-**The claim is sound; the busy timeout was not.** `UPDATE ... RETURNING` through a partial index
+**The claim is sound. The busy timeout was not.** `UPDATE ... RETURNING` through a partial index
 never handed one job to two workers, in any run. The first run still lost 2 of 400, to
-`apsw.BusyError` on the *history* write: apsw's stock busy timeout is 100 ms and 8 processes on one
+`apsw.BusyError` on the *history* write. apsw's stock busy timeout is 100 ms, and 8 processes on one
 file exceed it, so the write failed instead of waiting and took the worker with it. `Queue` now
 sets `BUSY_TIMEOUT_MS` (30 s) on its connection, which is what litesearch already does on its own
 write paths. Nothing was wrong with the claim; the queue was simply not waiting its turn.
@@ -375,18 +373,18 @@ write paths. Nothing was wrong with the claim; the queue was simply not waiting 
 **One instance of that is not the queue's to fix, and the harness was hiding it.** apsw's
 bestpractice runs `pragma optimize` while *opening* a connection, before any queue code exists to
 raise the timeout, so 1 to 3 of 8 workers died in `database()` in 4 of 5 runs. The measurement
-reported `workers=8` regardless, because it printed the number of processes it asked for rather than
+reported `workers=8` regardless. It printed the number of processes it asked for, not
 the number that ran, and fewer workers is less contention: the harness was quietly making the
 result better. `workers` is now the count that did work, `_open` retries the connect, and every
 measurement asserts on worker exit codes.
 
-**A lease is not enough on its own; `ack` has to be fenced.** A handler slower than its lease is
+**A lease is not enough on its own. `ack` has to be fenced.** A handler slower than its lease is
 reclaimed underneath it and handed to a second worker, and the first worker then finishes and acks a
 job it no longer holds. 6 slow handlers of 24 produced **2 jobs acked by two workers each**, and a
 late `fail` from the real holder took a `done` job back to `ready` for a third run. `ack` and `fail`
 now check state and worker inside the same transaction as the update. The same 6 handlers now give 0
-double acks, 18 refused acks recorded as `lost`, and 6 dead letters, which is the honest outcome: a
-lease shorter than the work cannot be completed, and it should fail loudly rather than book two
+double acks, 18 refused acks recorded as `lost`, and 6 dead letters. That is the honest outcome. A
+lease shorter than the work cannot be completed. It should fail loudly rather than book two
 successes.
 
 **0.030 ms per empty poll is why there is no watcher here.** honker earns its `PRAGMA data_version`
@@ -395,8 +393,8 @@ Here a job is a page fetch on a schedule measured in hours, so a one-second poll
 core and the watcher buys nothing. That is the whole argument for a table over the extension, and
 it is a number rather than a preference.
 
-The 4-in-200 redelivery rate is not a defect to fix. It is what at-least-once means, and it is
-safe here only because ingest is idempotent: litesearch skips a source it already holds, so a
+The 4-in-200 redelivery rate is not a defect to fix. It is what at-least-once means. It is
+safe here only because ingest is idempotent. litesearch skips a source it already holds, so a
 redelivered batch re-does the work it missed and nothing else. A handler that is not idempotent
 has to carry its own key.
 

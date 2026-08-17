@@ -1,19 +1,19 @@
-"""The detector on 2.3 M characters of real legislation, where every match is a false positive.
+"""The detector on 5 M characters of real legislation, where every match is a false positive.
 
 `evals/pii.py` measures precision against lookalikes somebody thought of. This measures it against
-lookalikes nobody thought of: eleven EU and US acts (`evals/regcorpus.py`), none of which contain a
-real person's card, account or address, so the whole corpus is a labelled negative and any match at
-all is wrong. Recall gets measured too, by splicing the `evals/pii.py` positives into real passages
-rather than into three sentences of filler.
+lookalikes nobody thought of. Eighteen acts from five jurisdictions (`evals/regcorpus.py`), none
+holding a real person's card, account or address. The whole corpus is a labelled negative, so any
+match is wrong. Recall is measured here too, by splicing the `evals/pii.py` positives into real
+passages instead of into three sentences of filler.
 
 What it found, and what the guards in `pii.py` now answer:
 
-- `EUR 360 000 000 000` matched the UK trunk-number pattern nine times across four regulations,
-  because `000 000 000` is a phone number if you do not look at the `360 ` in front of it.
-- `passport, identity card` matched `passport` and `driver's licence details` matched `licence`,
-  because `[A-Z0-9]{6,9}` under `re.I` is also every ordinary word of six to nine letters.
-- `Medical record numbers;` matched `medical` five times in 45 CFR 164, which is a regulation about
-  medical record numbers rather than a document containing one.
+- `EUR 360 000 000 000` matched the UK trunk-number pattern nine times. `000 000 000` is a phone
+  number if you do not read the `360 ` in front of it.
+- `passport, identity card` matched `passport`, and `driver's licence details` matched `licence`.
+  `[A-Z0-9]{6,9}` under `re.I` is every ordinary word of six to nine letters.
+- `Medical record numbers;` matched `medical` five times in 45 CFR 164, a regulation *about* medical
+  record numbers.
 
     python -m evals.pii_real
     python -m evals.pii_real --ablate     # each guard switched off on its own
@@ -23,21 +23,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-#: What the corpus is allowed to contain, as `(document, kind, matched)`. Empty: eleven public acts,
-#: no real identity in any of them, so a residual match is a residual false positive.
+#: What the corpus may contain, as `(document, kind, matched)`. Empty: these acts hold no identity.
 EXPECTED = set()
 
-#: The four guards this corpus asked for, switched off through `evals.pii.GUARDS` so there is one
-#: definition of what a guard is and both corpora ablate the same code.
+#: The four guards this corpus asked for. Switched off through `evals.pii.GUARDS`, so both corpora
+#: ablate one definition.
 NEW = ('grouped-number', 'passport value', 'licence value', 'medical value')
 
-#: The one thing in the corpus that *is* a real person: legislation is signed. Both names sit in the
-#: AI Act's signature block, in the shape `The President \n R. METSOLA`, with no honorific anywhere.
+#: The one real person in the corpus: legislation is signed. Both sit in the AI Act's signature
+#: block, shaped `The President \n R. METSOLA`, with no honorific.
 SIGNATORIES = {'ai_act_2024_1689': ['R. METSOLA', 'M. MICHEL']}
 
 
 def false_positives(docs, ner=False):
-    "`[(doc, kind, matched, context)]` for every span found, which on this corpus is every error."
+    "`[(doc, kind, matched, context)]` per span found. On this corpus that is every error."
     from vishalakshi import pii as P
     out = []
     for name, text in docs:
@@ -50,7 +49,7 @@ def false_positives(docs, ner=False):
 SENT = re.compile(r'(?<=[.;:])\s')
 
 def passages(docs, n=270, chars=1200, seed=0):
-    "Windows of real regulatory prose, cut on sentence boundaries, spread across the documents."
+    "Windows of real regulatory prose, cut on sentence boundaries, spread over the documents."
     rng, out = random.Random(seed), []
     for name, text in docs:
         want = max(1, round(n * len(text) / sum(len(t) for _, t in docs)))
@@ -65,7 +64,7 @@ def passages(docs, n=270, chars=1200, seed=0):
 
 
 def recall_in_context(docs, n=270, seed=0):
-    "Plant one `evals.pii` positive in the middle of a real passage, and see if it still reads it."
+    "Plant one `evals.pii` positive mid-passage and see whether it still reads."
     from vishalakshi import pii as P
     from evals.pii import POSITIVE
     rng, kinds = random.Random(seed + 1), list(POSITIVE)
@@ -117,10 +116,10 @@ def run(ablate=False, ner=False, n=270):
 
 
 def candidates(docs, kinds=None):
-    """How many times each pattern matched, and how many of those its checksum let through.
+    """How often each pattern matched, and how much of that its checksum let through.
 
-    A kind with 0 candidates is a kind this corpus cannot say anything about. A kind with many
-    candidates and 0 survivors is a checksum earning its place on material nobody generated."""
+    0 candidates means this corpus cannot speak to that kind. Many candidates and 0 survivors is a
+    checksum earning its place on material nobody generated."""
     from vishalakshi import pii as P
     print(f'\n  {"kind":10} {"pattern matched":>15} {"checksum passed":>16}')
     for k in (kinds or P.REGIONAL):
@@ -130,7 +129,7 @@ def candidates(docs, kinds=None):
 
 
 def names(docs):
-    "What `ner=True` does with the one real person in the corpus, and what it invents in the rest."
+    "What `ner=True` makes of the one real person here, and what it invents in the rest."
     from vishalakshi import pii as P
     got = [(n, k, v) for n, k, v, _ in false_positives(docs, ner=True) if k == 'person']
     want = [(n, s) for n, ss in SIGNATORIES.items() for s in ss]

@@ -55,8 +55,8 @@ def _ssn_ok(s:str) -> bool:
     a, b, c = ds[:3], ds[3:5], ds[5:]
     return a not in ('000', '666') and a[0] != '9' and b != '00' and c != '0000'
 
-# %% ../nbs/09_pii.ipynb #4f2a5fca
-#: Verhoeff's dihedral-group tables, which is what an Aadhaar number's twelfth digit is.
+# %% ../nbs/09_pii.ipynb #65c9b200
+#: Verhoeff's dihedral-group tables: an Aadhaar number's twelfth digit.
 _VD = ((0,1,2,3,4,5,6,7,8,9),(1,2,3,4,0,6,7,8,9,5),(2,3,4,0,1,7,8,9,5,6),(3,4,0,1,2,8,9,5,6,7),
        (4,0,1,2,3,9,5,6,7,8),(5,9,8,7,6,0,4,3,2,1),(6,5,9,8,7,1,0,4,3,2),(7,6,5,9,8,2,1,0,4,3),
        (8,7,6,5,9,3,2,1,0,4),(9,8,7,6,5,4,3,2,1,0))
@@ -66,7 +66,7 @@ _VP = ((0,1,2,3,4,5,6,7,8,9),(1,5,7,6,2,8,3,0,9,4),(5,8,0,3,7,9,6,1,4,2),(8,9,1,
 def _digits(s:str) -> str: return re.sub(r'\D', '', s)
 
 def _aadhaar_ok(s:str) -> bool:
-    "Aadhaar's Verhoeff check digit. UIDAI issues nothing starting 0 or 1, which is a free tenth."
+    "Aadhaar's Verhoeff check digit. UIDAI issues nothing opening 0 or 1, so that is a free tenth."
     ds = _digits(s)
     if len(ds) != 12 or ds[0] in '01': return False
     c = 0
@@ -76,7 +76,7 @@ def _aadhaar_ok(s:str) -> bool:
 _B36 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
 def _gstin_ok(s:str) -> bool:
-    "GSTIN's base-36 check character. The ten characters in the middle of one are a PAN."
+    "GSTIN's base-36 check character. Characters 3 to 12 are a PAN."
     s = s.upper()
     if len(s) != 15 or any(c not in _B36 for c in s): return False
     tot = 0
@@ -92,24 +92,24 @@ def _tfn_ok(s:str) -> bool:
     return sum(d*w for d, w in zip(ds, (1, 4, 3, 7, 5, 8, 6, 9, 10))) % 11 == 0
 
 def _abn_ok(s:str) -> bool:
-    "The ABN's mod-89, which starts by subtracting one from the first digit."
+    "The ABN's mod-89, after subtracting one from the first digit."
     ds = [int(c) for c in _digits(s)]
     if len(ds) != 11: return False
     return sum(d*w for d, w in zip([ds[0]-1] + ds[1:],
                                    (10, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19))) % 89 == 0
 
 def _medicare_ok(s:str) -> bool:
-    "Medicare's weighted mod-10 over the first eight digits, with the ninth as the check."
+    "Medicare's weighted mod-10 over eight digits. The ninth is the check, the tenth the issue."
     ds = [int(c) for c in _digits(s)]
     if len(ds) not in (10, 11) or not 2 <= ds[0] <= 6: return False
     return sum(d*w for d, w in zip(ds[:8], (1, 3, 7, 9, 1, 3, 7, 9))) % 10 == ds[8]
 
-#: NRIC/FIN check letters by prefix, which is the part a regex cannot do.
+#: NRIC/FIN check letters, by prefix.
 _NRIC_TBL = {'S': 'JZIHGFEDCBA', 'T': 'JZIHGFEDCBA', 'F': 'XWUTRQPNMLK', 'G': 'XWUTRQPNMLK',
              'M': 'XWUTRQPNJLK'}
 
 def _nric_ok(s:str) -> bool:
-    "Singapore's NRIC/FIN check letter, offset by the century and residency prefix."
+    "Singapore's NRIC/FIN check letter. The prefix picks the table and the offset."
     s = s.upper()
     if not re.fullmatch(r'[STFGM]\d{7}[A-Z]', s): return False
     tot = sum(int(d)*w for d, w in zip(s[1:8], (2, 7, 6, 5, 4, 3, 2)))
@@ -122,10 +122,10 @@ def _thai_id_ok(s:str) -> bool:
     if len(ds) != 13 or ds[0] == 0: return False
     return (11 - sum(d*(13-i) for i, d in enumerate(ds[:12])) % 11) % 10 == ds[12]
 
-def _ymd_ok(ds:str,        # six digits
-            dmy:bool=False,  # read them day-month-year (a NIK) instead of year-month-day (a MyKad)
+def _ymd_ok(ds:str,          # six digits
+            dmy:bool=False,  # day-month-year (a NIK), not year-month-day (a MyKad)
 ) -> bool:
-    "Do six digits read as a real date? Day plus 40 is how a NIK says the holder is female."
+    "Do six digits read as a real date? Day plus 40 marks a female holder."
     if len(ds) != 6: return False
     y, m, d = (ds[4:], ds[2:4], ds[:2]) if dmy else (ds[:2], ds[2:4], ds[4:])
     d = int(d)
@@ -134,12 +134,12 @@ def _ymd_ok(ds:str,        # six digits
     return True
 
 def _mykad_ok(s:str) -> bool:
-    "MyKad has no check digit: a real birth date and a real place-of-birth code is the whole of it."
+    "MyKad has no check digit. A real birth date and place-of-birth code is all of it."
     ds = _digits(s)
     return len(ds) == 12 and _ymd_ok(ds[:6]) and ds[6:8] != '00'
 
 def _nik_ok(s:str) -> bool:
-    "Indonesia's NIK, whose seventh to twelfth digits are a birth date."
+    "Indonesia's NIK. Digits 7 to 12 are a birth date."
     ds = _digits(s)
     return len(ds) == 16 and ds[:2] != '00' and _ymd_ok(ds[6:12], dmy=True)
 
@@ -169,8 +169,8 @@ URLISH = re.compile(r'[a-z][a-z0-9+.-]*://\S+|\bwww\.\S+', re.I)
 #: Kinds still worth finding inside a link: a key in a query string is still a key.
 URL_KEEP = frozenset({'email', 'secret', 'ip'})
 
-#: A digit group butting against a match, which makes the match a slice of one long space-grouped
-#: number rather than a number of its own. One EU regulation is nine of these (evals/pii_real.py).
+#: A digit group butting against a match makes it a slice of one longer number. One EU regulation
+#: is nine of these (evals/pii_real.py).
 GROUP_L, GROUP_R = re.compile(r'\d[ \u00a0\u202f]$'), re.compile(r'^[ \u00a0\u202f]\d')
 
 def _designated(s:str,  # the part being scanned
@@ -183,18 +183,17 @@ def _grouped(s:str,  # the part being scanned
              i:int,  # where the match starts
              j:int,  # where the match ends
 ) -> bool:
-    "Is `s[i:j]` a slice of a longer space-grouped digit run, as `000 000 000` is of `360 000 000 000`?"
+    "Is `s[i:j]` a slice of a longer grouped run? `000 000 000` is, inside `360 000 000 000`."
     return bool(GROUP_L.search(s[max(0, i - 2):i]) or GROUP_R.match(s[j:j + 2]))
 
 
-# %% ../nbs/09_pii.ipynb #d74b3fc3
-#: What a cue word is allowed to be followed by before the digits start.
+# %% ../nbs/09_pii.ipynb #47959948
+#: What may sit between a cue word and its digits.
 _CUE = r'(?:\s*(?:no|nos|number|card|#))?\b\W{0,8}'
 
-#: Ten kinds whose home is not Europe or North America. Every one carries a checksum or an embedded
-#: date. `tfn`, `medicare`, `nik` and `thai_id` need a cue word on top, because their bare shape is
-#: a digit run: `\d{3} \d{3} \d{3}` is a tax file number and it is also a budget line in every EU
-#: regulation, 34 times in Regulation 2021/695 alone (evals/pii_real.py).
+#: Ten kinds from outside Europe and North America. Each decides on a checksum or a date. `tfn`,
+#: `medicare`, `nik` and `thai_id` need a cue word too. `\d{3} \d{3} \d{3}` is a tax file number.
+#: It is also a budget line, 34 times in Regulation 2021/695 (evals/pii_real.py).
 REGIONAL = {
     'aadhaar': (r'\b(?:aadhaar|aadhar|uidai|uid)' + _CUE + r'\d{4}[ -]?\d{4}[ -]?\d{4}\b'
                 r'|\b\d{4}[ -]\d{4}[ -]\d{4}\b', _aadhaar_ok),
@@ -211,7 +210,7 @@ REGIONAL = {
     'thai_id': (r'\b(?:thai\s*(?:national\s*)?id|national\s*id|เลขประจำตัวประชาชน)' + _CUE +
                 r'\d[ -]?\d{4}[ -]?\d{5}[ -]?\d{2}[ -]?\d\b', _thai_id_ok),
 }
-#: Cased, because `\b[A-Z]{5}\d{4}[A-Z]\b` under `re.I` is any ten-character word with digits in it.
+#: Cased: `\b[A-Z]{5}\d{4}[A-Z]\b` under `re.I` is any ten-character word with digits in it.
 REGIONAL_CASED = frozenset({'pan', 'ifsc', 'gstin', 'nric'})
 
 
@@ -235,15 +234,13 @@ PATTERNS = {
                 r'|\b(?:phone|tel|telephone|mobile|cell|fax)\b\W{0,8}\+?[\d ().-]{7,20}\d', None),
     'ip':      (r'\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b', None),
     'dob':     (r'\b(?:date of birth|dob|born)\b\W{0,12}(?:\d{1,4}[/-]\d{1,2}[/-]\d{1,4}|\d{1,2} \w+ \d{4})', None),
-    # a cue followed by an ordinary word is a schema label, not a value: `passport, identity card`
-    # and `driver's licence details` are both a lookahead away (evals/pii_real.py)
+    # a cue followed by an ordinary word is a label, not a value: `passport, identity card`
     'passport':(r'\b(?:passport(?:\s*(?:no|number|#))?)\W{0,6}(?=[A-Z0-9]{0,8}\d)[A-Z0-9]{6,9}\b', None),
     'licence': (r'\b(?:driver.?s? licen[cs]e|dl)(?:\s*(?:no|number|#))?\W{0,6}(?=[A-Z0-9]{0,19}\d)[A-Z0-9]{5,20}\b', None),
     'account': (r'\b(?:account|acct|a/c)(?:\s*(?:no|number|#))?\W{0,6}\d{6,17}\b', None),
     'sortcode':(r'\b(?:sort\s*code)\W{0,6}\d{2}[- ]?\d{2}[- ]?\d{2}\b', None),
     'secret':  (r'\b(?:sk-[A-Za-z0-9_-]{16,}|ghp_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35})\b', None),
-    # likewise, and `patient name` is gone with it: a labelled field holds a name, which is
-    # `person`, and `Medical record numbers;` is what a regulation about them says (evals/pii_real.py)
+    # likewise. `patient name` went with it: a labelled field holds a name, which is `person`
     'medical': (r'\b(?:patient\s*(?:id|no|number)|nhs\s*number|medical record(?:\s*(?:no|number|#))?|mrn)\b'
                 r'\W{0,6}(?=[A-Za-z0-9-]{0,19}\d)[A-Za-z0-9-]{1,20}\b', None),
     # require a street name between number and suffix, and a named state before the ZIP. The

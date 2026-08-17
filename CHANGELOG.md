@@ -4,49 +4,53 @@
 
 ## Unreleased
 
-**`vishalakshi.pii`**: digits are read in context. `EN 60601-1` was an address and a ten-digit
-Confluence page id in a URL was an NHS number; both were reported and both are fixed. `US_STATES`
-gates the ZIP alternative, `DESIGNATOR` suppresses a match introduced by a reference word,
-`URLISH` suppresses digit runs inside a link, `nhs` needs its groups or its name, and `card` needs
-an issuer digit. Precision 0.762 → **0.996** at unchanged recall 1.000 on 480 documents
-(`evals/pii.py`, which grew the `standard`, `link`, `cued` and `bare` lookalike groups to measure
-it).
+**`vishalakshi.pii`**: digits are read in context. `EN 60601-1` was an address. A ten-digit
+Confluence page id in a URL was an NHS number. Both were reported and both are fixed. `US_STATES`
+gates the ZIP alternative. `DESIGNATOR` suppresses a match introduced by a reference word. `URLISH`
+suppresses digit runs inside a link. `nhs` needs its groups or its name, and `card` needs an issuer
+digit. Precision 0.762 -> **0.996** at unchanged recall 1.000 on 480 documents. `evals/pii.py` grew
+the `standard`, `link`, `cued` and `bare` lookalike groups to measure it.
 
-Then the same detector was run over 2.3 M characters of real EU and US legislation, where it made
-**15 false positives** in three classes nobody had thought to generate. `EUR 360 000 000 000`
-matched the UK trunk-number pattern nine times, because a space is the thousands separator across
-Europe and `000 000 000` is a phone number if you do not look at the `360 ` in front of it.
-`passport, identity card` matched `passport` and `driver's licence details` matched `licence`,
-because `[A-Z0-9]{6,9}` under `re.I` is also every ordinary word of six to nine letters.
-`Medical record numbers;` matched `medical` five times in 45 CFR 164, a regulation *about* medical
-record numbers, because the pattern never required a number. Four guards answer them: a digit group
-butting against a match makes it a slice of a longer number, and `passport`, `licence` and
-`medical` each need a value with a digit in it after the cue word. **0 false positives** after,
-at recall 1.000 with a planted identity spliced into 267 real regulatory passages.
+The same detector then read 5 M characters of real legislation. It made **15 false positives** in
+three classes. None had been generated.
 
-Then the corpus grew to five jurisdictions, and the detector turned out to be European and North
-American. Against twenty identifiers from Australia, India and South-East Asia it found **two**, one
-of them as the wrong kind. Ten kinds answer that: `aadhaar` (Verhoeff), `pan`, `gstin` (base-36),
-`ifsc`, `tfn` (weighted mod-11), `abn` (mod-89), `medicare` (weighted mod-10), `nric` (Singapore's
-check letter), `mykad` and `nik` (an embedded birth date, which is all either of them carries) and
-`thai_id` (mod-11). `phone` gained the `+91 98765 43210` split. Every one carries a checksum or a
-date, because the shape alone is not usable: `\d{3} \d{3} \d{3}` is an Australian tax file number
-and it is also a budget line in every EU regulation, 34 times in Regulation 2021/695 alone. `tfn`,
-`medicare`, `nik` and `thai_id` need a cue word on top. Twelve EU budget lines have an ABN's exact
-shape in the corpus and mod-89 rejects all twelve. Australian company numbers were left out: an ACN
-identifies a company, not a person.
+- `EUR 360 000 000 000` matched the UK trunk-number pattern, nine times. A space is the thousands
+  separator across Europe. `000 000 000` is a phone number if you skip the `360 ` in front of it.
+- `passport, identity card` matched `passport`. `driver's licence details` matched `licence`. Under
+  `re.I`, `[A-Z0-9]{6,9}` is every ordinary word of six to nine letters.
+- `Medical record numbers;` matched `medical`, five times in 45 CFR 164. That is a regulation
+  *about* medical record numbers. The pattern never asked for a number.
 
-`evals/regcorpus.py` is the corpus: eight EU acts from `litesearch/examples/pdfs` read through
+Four guards answer them. A digit group butting against a match makes it a slice of a longer number.
+`passport`, `licence` and `medical` each need a value with a digit after the cue word. **0 false
+positives** after. Recall stayed 1.000, with a planted identity spliced into 267 real passages.
+
+The corpus then grew to five jurisdictions. The detector turned out to be European and North
+American. It found **two** of twenty identifiers from Australia, India and South-East Asia, and
+called one of those a phone number.
+
+Ten kinds answer that. `aadhaar` (Verhoeff), `pan`, `gstin` (base-36), `ifsc`, `tfn` (weighted
+mod-11), `abn` (mod-89), `medicare` (weighted mod-10), `nric` (Singapore's check letter), `mykad`
+and `nik` (an embedded birth date, all either carries), `thai_id` (mod-11). `phone` gained the
+`+91 98765 43210` split. Each decides on a checksum or a date. Shape alone is not usable:
+`\d{3} \d{3} \d{3}` is an Australian tax file number, and also a budget line, 34 times in
+Regulation 2021/695. `tfn`, `medicare`, `nik` and `thai_id` need a cue word too. Twelve EU budget
+lines carry an ABN's exact shape, and mod-89 rejects all twelve. ACN was left out. An Australian
+company number identifies a company.
+
+`evals/regcorpus.py` is the corpus. Eight EU acts from `litesearch/examples/pdfs` through
 `pdf_parse`, plus the EU AI Act, the GDPR, 45 CFR Part 164, the Australian Privacy Act 1988 and
 Telecommunications Act 1997, the Indian Penal Code, Criminal Procedure Code, Evidence Act and DPDP
-Act 2023, and the Thai PDPA, fetched on first run. 18 documents, 5,062,290 characters.
-`evals/pii_real.py` runs it. `evals/pii.py` grew from 480 documents to 960, gained positives for
-the five gating kinds that shipped with a pattern and no test (`passport`, `licence`, `sortcode`,
-`secret`, `medical`) and for all ten regional kinds, gained the `money`, `citation`, `celex`,
-`about`, `apac_money`, `apac_ref`, `apac_cued` and `apac_invalid` lookalike groups distilled from
-what the real documents actually contain, and gained `--ablate`, which prints every guard's
-contribution instead of leaving the table in RESULTS.md to be assembled by hand. Precision
-**0.996** at recall 1.000 over 8 draws of 960, all 25 kinds found and each reported as itself.
+Act 2023, and the Thai PDPA. 18 documents, 5,062,290 characters, fetched on first run.
+`evals/pii_real.py` runs it.
+
+`evals/pii.py` went from 480 documents to 960. It gained positives for the five gating kinds that
+shipped with a pattern and no test (`passport`, `licence`, `sortcode`, `secret`, `medical`) and for
+all ten regional kinds. It gained eight lookalike groups distilled from the real documents:
+`money`, `citation`, `celex`, `about`, `apac_money`, `apac_ref`, `apac_cued`, `apac_invalid`. It
+gained `--ablate`, which prints every guard's contribution. That table in RESULTS.md is no longer
+assembled by hand. Precision **0.996** at recall 1.000 over 8 draws of 960. All 25 kinds found, each
+reported as itself.
 
 `pii_spans`, `pii_report`, `redact`, `redact_obj`, `pii_ctx` and `Vault.pii` take `model=True`,
 which adds an ONNX DeBERTa-v3 token classifier (`pip install 'vishalakshi[model]'`). Off by
@@ -83,7 +87,7 @@ version, scores 0.453: below chance, because it flags surveys harder than boiler
 
 None of the rerankers beat RRF reproducibly on novel questions, and `use_ranker` is a separate call
 from `fit_ranker` for that reason. `retune` fuses by reciprocal rank rather than substituting the
-order: mediocre and fused costs −0.001 nDCG, mediocre and substituted costs −0.127. Full numbers
+order: mediocre and fused costs -0.001 nDCG, mediocre and substituted costs -0.127. Full numbers
 and method in `evals/RESULTS.md`.
 
 **`doc_marks`**: `mark_noisy` and `mark_not_pii` now write to their own table instead of the
@@ -114,7 +118,7 @@ times, and sampled at both ends of a long document because a statement's account
 header. `pii_spans`, `pii_report`, `redact`, `Vault.pii(ref)` and `pii_ctx(ctx)`.
 
 Not a model, deliberately: a classifier that has to read the document in order to say whether the
-document may be read has already lost. And `has_pii` is narrower than "found something": an IP
+document may be read has already lost. And `has_pii` is narrower than "found something". An IP
 address or an API key is reported but does not on its own make a document private, or every
 question about a server log ends up on the slow path.
 
@@ -132,8 +136,8 @@ carries the questioner's reply back for the second turn.
 for the duration of a block: right for a notebook replaying recorded replies, wrong for a
 long-lived host, and wrong again for one that runs turns on threads.
 
-A factory rather than a chat, deliberately. A chat is built per question and built again from
-scratch when the first prompt overflows the window, and a passed-in conversation would carry
+A factory rather than a chat, deliberately. A chat is built per question, and built again from
+scratch when the first prompt overflows the window. A passed-in conversation would carry
 the last question's history into this one and leave the overflow retry with nothing to rebuild.
 Both still happen; the caller just decides what they happen on. Since the factory takes what
 `new_chat` takes, `rishi.Chat`'s `engine=` is the whole point of it: an agent that already has

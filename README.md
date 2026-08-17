@@ -42,7 +42,7 @@ v.stats()
      'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmp0ufdxnt4/vault.db',
      'by_kind': {'notebook': 12, 'md': 5, 'txt': 1, 'note': 1}}
 
-Default model: `gemma-4-E2B` on LiteRT GPU, no API key. Name any rishi model id/path; `chat_kw=` reaches its constructor. `$VISHALAKSHI_MODEL` replaces the id; `$VISHALAKSHI_GPU=0` puts LiteRT on CPU. Context budget is `sections=4`, `max_chars=1500`.
+Default model: `gemma-4-E2B` on LiteRT GPU, no API key. Name any rishi model id/path, and `chat_kw=` reaches its constructor. `$VISHALAKSHI_MODEL` replaces the id. `$VISHALAKSHI_GPU=0` puts LiteRT on CPU. Context budget is `sections=4`, `max_chars=1500`.
 
 ``` python
 r = v.ask('why are rankings fused instead of distances?')
@@ -66,7 +66,7 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate: 0.996 precision at recall 1.000 over 25 kinds (`evals/pii.py`), and 0 false positives on 5 M characters of real legislation from the EU, the US, Australia, India and Thailand (`evals/pii_real.py`). Aadhaar, PAN, GSTIN, IFSC, TFN, ABN, Medicare, NRIC, MyKad, NIK and the Thai national id are read the same way as a card is, by their checksums. Digits are read in context, so `EN 60601-1` is a standard rather than a ZIP, a ten-digit page id in a URL is not an NHS number, `EUR 360 000 000 000` is not a phone number and `passport, identity card` is not a passport. Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
+`ask`, `extract` and `explain` share one gate. 0.996 precision at recall 1.000 over 25 kinds (`evals/pii.py`). 0 false positives on 5 M characters of real legislation from the EU, the US, Australia, India and Thailand (`evals/pii_real.py`). Aadhaar, PAN, GSTIN, IFSC, TFN, ABN, Medicare, NRIC, MyKad, NIK and the Thai national id decide on their checksums, the way a card does. Every pattern reads its digits in context. `EN 60601-1` is a standard, not a ZIP. A ten-digit page id in a URL is not an NHS number. `EUR 360 000 000 000` is not a phone number. `passport, identity card` is not a passport. Names are opt-in (`ner=True`, honorific-anchored). `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
 
 A learned detector is available (`model=True`, `pip install 'vishalakshi[model]'`) and off by default: it loses the gate to the patterns on both precision and recall, and earns its 1.1 GB only on names no honorific introduces (2/8 → 5/8). `evals/pii_model.py` has the numbers.
 
@@ -98,7 +98,7 @@ r.scanned_ner, r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v
 
 | `pii=` | what happens |
 |----|----|
-| `local` (default) | local model answers; shape and quantity, not detail. Structured `fields` are scrubbed too |
+| `local` (default) | local model answers shape and quantity, not detail. Structured `fields` are scrubbed too |
 | [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) | mask recognised spans, then any model may answer. Names are not masked |
 | `refuse` | return the finding, no answer |
 | `off` | do not look |
@@ -111,7 +111,7 @@ v.fit_noise(save=True); v.use_noise(True) # optional; fitted blend 0.996 AUC
 
 ## Paperwork
 
-`kind` is how a document arrived. `categorize` says what it is (cues first; model only on ties). `extract` returns fields; omit `schema` and the doctype picks one. `ask_doc` / `ref=` answer from named documents with the vault behind them. Depth on [extract](06_extract.ipynb) and [ask](02_ask.ipynb).
+`kind` is how a document arrived. `categorize` says what it is (cues first, model only on ties). `extract` returns fields. Omit `schema` and the doctype picks one. `ask_doc` / `ref=` answer from named documents with the vault behind them. Depth on [extract](06_extract.ipynb) and [ask](02_ask.ipynb).
 
 ``` python
 INVOICE = '''# INVOICE
@@ -208,7 +208,7 @@ e.schema, e.fields, a
 
 ## Code
 
-`index_code` fills kosha; `context(..., code=n)` then appends code sections beside prose. `grep` is ripgrep on disk (no index). `federate` is on [code](03_code.ipynb).
+`index_code` fills kosha. `context(..., code=n)` then appends code sections beside prose. `grep` is ripgrep on disk (no index). `federate` is on [code](03_code.ipynb).
 
 ``` python
 v.index_code(root)                # fills .kosha/; context then appends code sections
@@ -270,7 +270,7 @@ L(v.grep('rrf_all', root, limit=4)).attrgot('where')   # ripgrep; no kosha neede
 
 An action is an acquisition method name. `poll()` is the tick (cron, scheduler, or button): it
 reclaims what a dead worker was holding, enqueues what has come due, and drains. A failed fetch
-retries with backoff and dead-letters after five attempts, so `jobs(state='dead')` is where work
+retries with backoff and dead-letters after five attempts. `jobs(state='dead')` is where work
 goes when it will not succeed, rather than nowhere. See [jobs](11_jobs.ipynb).
 
 ``` python
