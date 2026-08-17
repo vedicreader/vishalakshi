@@ -99,6 +99,8 @@ def run(ablate=False, ner=False, n=270):
     for k, (h, m) in sorted(per.items()): print(f'  {k:<10} {h}/{h+m}  {h/(h+m):.2f}')
     for name, k, planted in misses: print(f'  missed in {name}: {k} {planted!r}')
 
+    candidates(docs)
+
     if ablate:
         from evals.pii import without
         print('\neach guard switched off on its own:')
@@ -112,6 +114,19 @@ def run(ablate=False, ner=False, n=270):
 
     if ner: names(docs)
     return fps
+
+
+def candidates(docs, kinds=None):
+    """How many times each pattern matched, and how many of those its checksum let through.
+
+    A kind with 0 candidates is a kind this corpus cannot say anything about. A kind with many
+    candidates and 0 survivors is a checksum earning its place on material nobody generated."""
+    from vishalakshi import pii as P
+    print(f'\n  {"kind":10} {"pattern matched":>15} {"checksum passed":>16}')
+    for k in (kinds or P.REGIONAL):
+        rx, ok = P._COMPILED[k]
+        hit = [m.group(0) for _, t in docs for m in rx.finditer(t)]
+        print(f'  {k:10} {len(hit):>15} {sum(ok is None or ok(v) for v in hit):>16}')
 
 
 def names(docs):

@@ -56,8 +56,58 @@ def _grouped(nhs): return f'{nhs[:3]} {nhs[3:6]} {nhs[6:]}'
 
 
 _ALNUM = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+_UPPER, _DIGIT = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '0123456789'
 
 def _rand(rng, n, alphabet=_ALNUM): return ''.join(rng.choice(alphabet) for _ in range(n))
+
+
+def _check(fn, body, alpha=_DIGIT):
+    """The character that makes `body` pass `pii.<fn>`, found by trying all of them.
+
+    Unlike `luhn_number` and `nhs_number` above, these do not reimplement the checksum, so they
+    cannot catch a validator that is wrong in the same direction twice. What catches that is the
+    published example for every one of them in `nbs/09_pii.ipynb`."""
+    from vishalakshi import pii as P
+    ok = getattr(P, fn)
+    return next(body + c for c in alpha if ok(body + c))
+
+
+def aadhaar(rng): return _check('_aadhaar_ok', str(rng.randrange(2, 10)) + _rand(rng, 10, _DIGIT))
+def tfn(rng):
+    "One body in eleven has no ninth digit that satisfies the weighted mod-11, so redraw."
+    from vishalakshi import pii as P
+    while True:
+        b = _rand(rng, 8, _DIGIT)
+        if (c := next((c for c in _DIGIT if P._tfn_ok(b + c)), None)): return b + c
+def thai_id(rng): return _check('_thai_id_ok', str(rng.randrange(1, 9)) + _rand(rng, 11, _DIGIT))
+def nric(rng):    return _check('_nric_ok', rng.choice('STFG') + _rand(rng, 7, _DIGIT), _UPPER)
+def pan(rng):     return _rand(rng, 5, _UPPER) + _rand(rng, 4, _DIGIT) + rng.choice(_UPPER)
+def ifsc(rng):    return _rand(rng, 4, _UPPER) + '0' + _rand(rng, 6, _DIGIT + _UPPER)
+
+def gstin(rng):
+    return _check('_gstin_ok', f'{rng.randrange(1, 38):02d}{pan(rng)}1Z', _DIGIT + _UPPER)
+
+def abn(rng):
+    "The ABN's check lives in its first two digits, so it is those that get searched."
+    from vishalakshi import pii as P
+    rest = _rand(rng, 9, _DIGIT)
+    return next(f'{p}{rest}' for p in range(10, 100) if P._abn_ok(f'{p}{rest}'))
+
+def medicare(rng):
+    "Ten digits: eight, then the check over them, then the issue number, which is not checked."
+    from vishalakshi import pii as P
+    body = str(rng.randrange(2, 7)) + _rand(rng, 7, _DIGIT)
+    return next(f'{body}{c}{rng.randrange(1, 10)}' for c in _DIGIT if P._medicare_ok(body + c + '1'))
+
+def mykad(rng):
+    return (f'{rng.randrange(60, 99)}{rng.randrange(1, 13):02d}{rng.randrange(1, 28):02d}'
+            f'-{rng.randrange(1, 60):02d}-{rng.randrange(1000, 9999)}')
+
+def nik(rng):
+    "PPRRSS DDMMYY NNNN, with the birth date in the middle and no checksum anywhere."
+    return (f'{rng.randrange(11, 95)}{rng.randrange(1, 99):02d}{rng.randrange(1, 99):02d}'
+            f'{rng.randrange(1, 28):02d}{rng.randrange(1, 13):02d}{rng.randrange(60, 99)}'
+            f'{rng.randrange(1000, 9999)}')
 
 
 POSITIVE = {
@@ -100,6 +150,27 @@ POSITIVE = {
         f"Patient ID {r.randrange(10**4, 10**5)} is on the ward list.",
         f"MRN {r.randrange(1000,9999)}-{r.randrange(10,99)} in the chart.",
     ]),
+    # India
+    'aadhaar':lambda r: r.choice([
+        f"Aadhaar number {(a := aadhaar(r))[:4]} {a[4:8]} {a[8:]} was seeded to the account.",
+        f"UID {aadhaar(r)} was used for e-KYC.",
+        f"The applicant quoted {(a := aadhaar(r))[:4]} {a[4:8]} {a[8:]} at the counter.",
+    ]),
+    'pan':    lambda r: f"PAN {pan(r)} was quoted on the return.",
+    'gstin':  lambda r: f"GSTIN {gstin(r)} is registered in Maharashtra.",
+    'ifsc':   lambda r: f"Remit to {ifsc(r)} before the cut-off.",
+    # Australia
+    'tfn':    lambda r: f"Tax file number {(t := tfn(r))[:3]} {t[3:6]} {t[6:]} was quoted.",
+    'abn':    lambda r: r.choice([
+        f"ABN {(a := abn(r))[:2]} {a[2:5]} {a[5:8]} {a[8:]} appears on the invoice.",
+        f"The supplier is {(a := abn(r))[:2]} {a[2:5]} {a[5:8]} {a[8:]} for GST purposes.",
+    ]),
+    'medicare':lambda r: f"Medicare card {(m := medicare(r))[:4]} {m[4:9]} {m[9:]} was recorded.",
+    # South-East Asia
+    'nric':   lambda r: f"NRIC {nric(r)} was verified at the counter.",
+    'mykad':  lambda r: f"MyKad {mykad(r)} was produced as identification.",
+    'nik':    lambda r: f"NIK {nik(r)} on the KTP was recorded.",
+    'thai_id':lambda r: f"Thai national ID {thai_id(r)} was checked on arrival.",
 }
 
 #: `ip` is the one pattern that is reportable and does not gate, so it cannot sit in `POSITIVE`
@@ -222,6 +293,45 @@ NEGATIVE = {
         lambda r: f"An account number shall be recorded for each of the {r.randrange(2,40)} transfers.",
         lambda r: "the sort code and account number of the payee are held by the bank",
     ],
+    # Indian digit grouping is 2-2-3, not 3-3-3, and an Australian budget line is in dollars. Both
+    # are money in a jurisdiction whose identifiers are now patterns.
+    'apac_money': [
+        lambda r: f"The penalty shall not exceed Rs. {r.randrange(1,99)},{r.randrange(0,99):02d},"
+                  f"{r.randrange(0,999):03d} in any case.",
+        lambda r: f"A fine of {r.randrange(1,9)},{r.randrange(0,99):02d},{r.randrange(0,99):02d},"
+                  f"{r.randrange(0,999):03d} rupees was imposed on the fiduciary.",
+        lambda r: f"an amount of AUD {r.randrange(1,9)} {r.randrange(100,999)} {r.randrange(100,999)} "
+                  f"{r.randrange(100,999)} was appropriated",
+        lambda r: f"the grant of {r.randrange(1,9)} {r.randrange(100,999)} 000 000 rupees was released",
+        lambda r: f"a ceiling of {r.randrange(10,99)} crore was set for the scheme",
+    ],
+    # Australian and Indian statute references, which is what these documents are made of.
+    'apac_ref': [
+        lambda r: f"Act No. {r.randrange(1,200)}, {r.randrange(1901,2024)} as amended by "
+                  f"Act No. {r.randrange(1,99)}, {r.randrange(1990,2024)}.",
+        lambda r: f"Compilation No. {r.randrange(1,99)}, compilation date {r.randrange(1,28)} June 2015.",
+        lambda r: f"Section {r.randrange(1,99)}A of the Information Technology Act, 2000 applies.",
+        lambda r: f"under section {r.randrange(100,200)} of the Negotiable Instruments Act, 1881",
+        lambda r: f"Notification No. {r.randrange(1,99)}/2017-Central Tax dated 28.06.2017",
+        lambda r: f"SI {r.randrange(2000,2024)} No. {r.randrange(1000,9999)} was laid before Parliament.",
+    ],
+    # Valid regional checksums under a word that says the number is a reference. Same trick as
+    # `cued`, in the shapes the regional patterns answer to.
+    'apac_cued': [
+        lambda r: f"Order {(a := abn(r))[:2]} {a[2:5]} {a[5:8]} {a[8:]} shipped on Tuesday.",
+        lambda r: f"Invoice {(a := aadhaar(r))[:4]} {a[4:8]} {a[8:]} was raised.",
+        lambda r: f"Part {mykad(r)} supersedes the previous revision.",
+        lambda r: f"Serial {thai_id(r)} was returned under warranty.",
+        lambda r: f"Batch {(t := tfn(r))[:3]} {t[3:6]} {t[6:]} cleared inspection.",
+    ],
+    # The cue is right there and the checksum is wrong, which is the case the checksum exists for.
+    'apac_invalid': [
+        lambda r: f"ABN {(a := abn(r))[:2]} {a[2:5]} {a[5:8]} {int(a[8:]) ^ 1:03d} is malformed.",
+        lambda r: f"Tax file number {(t := tfn(r))[:3]} {t[3:6]} {int(t[6:]) ^ 1:03d} was rejected.",
+        lambda r: f"Aadhaar {(a := aadhaar(r))[:4]} {a[4:8]} {a[8:11]}{int(a[11]) ^ 1} failed validation.",
+        lambda r: f"NRIC {(n := nric(r))[:8]}{'A' if n[8] != 'A' else 'B'} was rejected at the counter.",
+        lambda r: f"Thai national ID {(t := thai_id(r))[:12]}{int(t[12]) ^ 1} did not verify.",
+    ],
 }
 
 FILLER = ("The committee met on Tuesday and reviewed the outstanding items. "
@@ -229,7 +339,7 @@ FILLER = ("The committee met on Tuesday and reviewed the outstanding items. "
           "No further action was recorded against this matter. ")
 
 
-def corpus(n=720, seed=0):
+def corpus(n=960, seed=0):
     "`[(text, kinds_present, negative_class)]`: half carrying real identity, half lookalikes."
     rng, out = random.Random(seed), []
     kinds = list(POSITIVE)
@@ -268,7 +378,17 @@ GUARDS = {
     'passport value':     lambda P: _sub(P, 'passport', r'(?=[A-Z0-9]{0,8}\d)', ''),
     'licence value':      lambda P: _sub(P, 'licence', r'(?=[A-Z0-9]{0,19}\d)', ''),
     'medical value':      lambda P: _sub(P, 'medical', r'\W{0,6}(?=[A-Za-z0-9-]{0,19}\d)[A-Za-z0-9-]{1,20}\b', ''),
+    # the two things holding the regional kinds up (evals/pii_real.py)
+    'regional checksum':  lambda P: P._COMPILED.update(
+        {k: (P._COMPILED[k][0], None) for k in P.REGIONAL}),
+    'regional cue':       lambda P: [_decue(P, k) for k in ('tfn', 'medicare', 'nik', 'thai_id')],
 }
+
+
+def _decue(P, kind):
+    "Drop everything up to and including the cue word, leaving the bare digit shape behind."
+    p = P.PATTERNS[kind][0]
+    _sub(P, kind, p[:p.index(P._CUE) + len(P._CUE)], r'\b')
 
 
 @contextmanager
@@ -284,7 +404,7 @@ def without(*guards):
         P._designated, P._grouped, P.URLISH = saved[1:]
 
 
-def score(n=720, seed=0):
+def score(n=960, seed=0):
     "`(tp, fp, fn, tn, recall by kind, false positives by lookalike class)` over one corpus."
     from vishalakshi import pii as P
     tp = fp = fn = tn = 0
@@ -301,7 +421,7 @@ def score(n=720, seed=0):
     return tp, fp, fn, tn, per, by_class
 
 
-def ablate(n=720, seeds=8):
+def ablate(n=960, seeds=8):
     """Precision with each guard removed on its own, and which lookalike group comes back.
 
     Over `seeds` draws, because the residual false positive is a random checksum collision and one
@@ -321,7 +441,7 @@ def ablate(n=720, seeds=8):
               f'{tp/(tp+fn) if tp+fn else 0:>7.3f} {f"{fp}/{tn+fp}":>16}   {comes}')
 
 
-def run(n=720, seed=0, do_ablate=False):
+def run(n=960, seed=0, do_ablate=False):
     from vishalakshi import pii as P
 
     print(f'{n} documents, half carrying identity and half carrying lookalikes\n')
@@ -365,7 +485,7 @@ if __name__ == '__main__':
     import warnings; warnings.filterwarnings('ignore')
     p = argparse.ArgumentParser()
     p.add_argument('--ablate', action='store_true', help='remove each guard on its own')
-    p.add_argument('--n', type=int, default=720, help='documents, half of them lookalikes')
+    p.add_argument('--n', type=int, default=960, help='documents, half of them lookalikes')
     p.add_argument('--seed', type=int, default=0)
     a = p.parse_args()
     run(n=a.n, seed=a.seed, do_ablate=a.ablate)

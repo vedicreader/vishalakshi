@@ -66,7 +66,7 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate: 0.998 precision at recall 1.000 over emails, cards, keys and street lines (`evals/pii.py`), and 0 false positives on 2.3 M characters of real EU and US legislation (`evals/pii_real.py`). Digits are read in context, so `EN 60601-1` is a standard rather than a ZIP, a ten-digit page id in a URL is not an NHS number, `EUR 360 000 000 000` is not a phone number and `passport, identity card` is not a passport. Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
+`ask`, `extract` and `explain` share one gate: 0.996 precision at recall 1.000 over 25 kinds (`evals/pii.py`), and 0 false positives on 5 M characters of real legislation from the EU, the US, Australia, India and Thailand (`evals/pii_real.py`). Aadhaar, PAN, GSTIN, IFSC, TFN, ABN, Medicare, NRIC, MyKad, NIK and the Thai national id are read the same way as a card is, by their checksums. Digits are read in context, so `EN 60601-1` is a standard rather than a ZIP, a ten-digit page id in a URL is not an NHS number, `EUR 360 000 000 000` is not a phone number and `passport, identity card` is not a passport. Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
 
 A learned detector is available (`model=True`, `pip install 'vishalakshi[model]'`) and off by default: it loses the gate to the patterns on both precision and recall, and earns its 1.1 GB only on names no honorific introduces (2/8 → 5/8). `evals/pii_model.py` has the numbers.
 

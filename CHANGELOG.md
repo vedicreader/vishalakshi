@@ -24,14 +24,29 @@ butting against a match makes it a slice of a longer number, and `passport`, `li
 `medical` each need a value with a digit in it after the cue word. **0 false positives** after,
 at recall 1.000 with a planted identity spliced into 267 real regulatory passages.
 
+Then the corpus grew to five jurisdictions, and the detector turned out to be European and North
+American. Against twenty identifiers from Australia, India and South-East Asia it found **two**, one
+of them as the wrong kind. Ten kinds answer that: `aadhaar` (Verhoeff), `pan`, `gstin` (base-36),
+`ifsc`, `tfn` (weighted mod-11), `abn` (mod-89), `medicare` (weighted mod-10), `nric` (Singapore's
+check letter), `mykad` and `nik` (an embedded birth date, which is all either of them carries) and
+`thai_id` (mod-11). `phone` gained the `+91 98765 43210` split. Every one carries a checksum or a
+date, because the shape alone is not usable: `\d{3} \d{3} \d{3}` is an Australian tax file number
+and it is also a budget line in every EU regulation, 34 times in Regulation 2021/695 alone. `tfn`,
+`medicare`, `nik` and `thai_id` need a cue word on top. Twelve EU budget lines have an ABN's exact
+shape in the corpus and mod-89 rejects all twelve. Australian company numbers were left out: an ACN
+identifies a company, not a person.
+
 `evals/regcorpus.py` is the corpus: eight EU acts from `litesearch/examples/pdfs` read through
-`pdf_parse`, plus the EU AI Act, the GDPR and 45 CFR Part 164 fetched on first run.
-`evals/pii_real.py` runs it. `evals/pii.py` grew from 480 documents to 720, gained positives for
+`pdf_parse`, plus the EU AI Act, the GDPR, 45 CFR Part 164, the Australian Privacy Act 1988 and
+Telecommunications Act 1997, the Indian Penal Code, Criminal Procedure Code, Evidence Act and DPDP
+Act 2023, and the Thai PDPA, fetched on first run. 18 documents, 5,062,290 characters.
+`evals/pii_real.py` runs it. `evals/pii.py` grew from 480 documents to 960, gained positives for
 the five gating kinds that shipped with a pattern and no test (`passport`, `licence`, `sortcode`,
-`secret`, `medical`), gained the `money`, `citation`, `celex` and `about` lookalike groups distilled
-from what the real documents actually contain, and gained `--ablate`, which prints every guard's
+`secret`, `medical`) and for all ten regional kinds, gained the `money`, `citation`, `celex`,
+`about`, `apac_money`, `apac_ref`, `apac_cued` and `apac_invalid` lookalike groups distilled from
+what the real documents actually contain, and gained `--ablate`, which prints every guard's
 contribution instead of leaving the table in RESULTS.md to be assembled by hand. Precision
-**0.998** at recall 1.000 over 8 draws of 720.
+**0.996** at recall 1.000 over 8 draws of 960, all 25 kinds found and each reported as itself.
 
 `pii_spans`, `pii_report`, `redact`, `redact_obj`, `pii_ctx` and `Vault.pii` take `model=True`,
 which adds an ONNX DeBERTa-v3 token classifier (`pip install 'vishalakshi[model]'`). Off by

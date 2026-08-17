@@ -95,20 +95,27 @@ document-disjoint split showed it.
 
 ## 3. PII detection
 
-`python -m evals.pii`: 720 documents, half with planted identity and half with lookalikes, over 8
-draws. The lookalikes are grouped so a residual false positive has a name, and six of the eleven
+`python -m evals.pii`: 960 documents, half with planted identity and half with lookalikes, over 8
+draws. The lookalikes are grouped so a residual false positive has a name, and nine of the fifteen
 groups carry *valid* checksums or real regulatory digit shapes, because that is the case a random
 corpus meets one time in eleven and a spec document meets on every page.
 
 | detector | precision | recall | F1 | false positives |
 |---|---|---|---|---|
-| regex only | 0.970 | 1.000 | 0.985 | 89/2880 |
-| with checksums | **0.998** | **1.000** | **0.999** | **7/2880** |
+| regex only | 0.913 | 1.000 | 0.955 | 364/3840 |
+| with checksums | **0.996** | **1.000** | **0.998** | **15/3840** |
 
-Recall is 1.000 on every planted kind (email, card, iban, ssn, nhs, phone, dob, account, address,
-passport, licence, sortcode, secret, medical). `ip` is found 20/20 and gates 0/20, which is what
-"reportable but not identifying" is supposed to mean. Every residual false positive is a checksum
-collision on a random digit run: 0/360 on seed 0, 3/360 on seed 5.
+Recall is 1.000 on all 25 gating kinds, and each is reported as itself rather than as something
+else. `ip` is found 20/20 and gates 0/20, which is what "reportable but not identifying" is supposed
+to mean. Every residual false positive is a checksum collision on a random digit run: 12/240 in
+`bare` and 3/200 in `apac_invalid`.
+
+Those three are worth naming, because they are a shadowing rather than a collision in the usual
+sense. A Thai national ID is thirteen digits, and `card` matches twelve to nineteen, so about one
+malformed national ID in ten passes Luhn and is reported as a card. It does not touch a *valid* one:
+spans are de-overlapped longest-first, and the cue-anchored `thai_id` span is longer than the bare
+digit run, so all 40 of 40 valid ones report as `thai_id`. The failure needs a document that
+contains a broken national ID and no real identity at all.
 
 ### Reading the digits is not enough; you have to read what is around them
 
@@ -124,26 +131,34 @@ prints this table; nothing in it was measured by hand.
 
 | guard removed | precision | false positives | which group comes back |
 |---|---|---|---|
-| — (as shipped) | **0.998** | **7/2880** | `bare` 7/240 |
-| every checksum | 0.970 | 89/2880 | `bare` 89/240 |
-| `US_STATES` before a ZIP | 0.950 | 151/2880 | `standard` 96/288, `citation` 48/240 |
-| street name inside `address` | 0.998 | 7/2880 | nothing |
-| `DESIGNATOR` to the left | 0.965 | 103/2880 | `cued` 96/288 |
-| `URLISH` span suppression | 0.981 | 55/2880 | `link` 48/192 |
-| NHS needs groups or its name | 0.991 | 26/2880 | `bare` 19/240, `refnum` 7/384 |
-| card needs an issuer digit | 0.995 | 14/2880 | `bare` 14/240 |
-| grouped-number suppression | 0.935 | 199/2880 | `money` 192/240 |
-| `passport` needs a value | 0.981 | 55/2880 | `about` 48/336 |
-| `licence` needs a value | 0.984 | 47/2880 | `about` 40/336 |
-| `medical` needs a value | 0.968 | 95/2880 | `about` 88/336 |
+| — (as shipped) | **0.996** | **15/3840** | `bare` 12/240, `apac_invalid` 3/200 |
+| every checksum | 0.913 | 364/3840 | `apac_invalid` 200/200, `bare` 93/240, `money` 71/240 |
+| `US_STATES` before a ZIP | 0.960 | 159/3840 | `standard` 96/288, `citation` 48/240 |
+| street name inside `address` | 0.996 | 15/3840 | nothing |
+| `DESIGNATOR` to the left | 0.943 | 233/3840 | `cued` 96/288, `apac_cued` 122/200 |
+| `URLISH` span suppression | 0.984 | 63/3840 | `link` 48/192 |
+| NHS needs groups or its name | 0.994 | 22/3840 | `bare` 17/240, `refnum` 2/384 |
+| card needs an issuer digit | 0.993 | 28/3840 | `bare` 24/240 |
+| grouped-number suppression | 0.947 | 213/3840 | `money` 192/240 |
+| `passport` needs a value | 0.984 | 63/3840 | `about` 48/384 |
+| `licence` needs a value | 0.984 | 63/3840 | `about` 48/384 |
+| `medical` needs a value | 0.972 | 111/3840 | `about` 96/384 |
+| regional checksums | 0.931 | 283/3840 | `apac_invalid` 200/200, `money` 71/240 |
+| regional cue words | 0.992 | 32/3840 | `bare` 29/240 |
 
 Recall stays 1.000 in every row: none of these guards is trading recall for precision.
 
-The guards overlap, and one of them turns out to do a second job. `US_STATES` was added to stop
+The guards overlap, and two of them turn out to do a second job. `US_STATES` was added to stop
 `EN 60601` being a state and a ZIP; it also stops `65 FR 82802`, the US Federal Register citation,
-which has the same shape and which nobody was thinking about. The street-name requirement inside
-`address` is fully covered by `DESIGNATOR` here (0.998 either way); with `DESIGNATOR` switched off
-it is worth 0.965 against 0.894, so it stays.
+which has the same shape and which nobody was thinking about. The ABN's mod-89 was added to read
+Australian business numbers; the 71 `money` documents it holds back are EU budget lines, because
+`EUR 360 000 000 000` contains `60 000 000 000` and that is an ABN's shape exactly. The street-name
+requirement inside `address` is fully covered by `DESIGNATOR` here (0.996 either way); with
+`DESIGNATOR` switched off it is worth 0.965 against 0.894, so it stays.
+
+The regional cue words look cheap at 32/3840 against 15/3840, and they are, because the
+grouped-number guard already suppresses most of what they would let in. Removing both is the case
+they exist for.
 
 `DESIGNATOR` keeps its acronyms case-sensitive, because lowercase `en` is an ordinary English word.
 `No` was in the list and is not any more: it suppressed `No. 5 Elm Street`, `No 5 Elm Street` and
@@ -152,14 +167,25 @@ no precision is not a guard.
 
 ### 3b. What real documents said, which was not what the generated ones said
 
-`python -m evals.pii_real`: eleven acts, 2,327,866 characters, none of which contain a real
+`python -m evals.pii_real`: eighteen acts, 5,062,290 characters, none of which contain a real
 person's card, account or address. The whole corpus is a labelled negative that nobody had to
 annotate, so every match is an error and the target is zero. Eight EU acts come from
 `litesearch/examples/pdfs` and go through `pdf_parse`, so the text carries the line breaks and
-header noise a real ingest carries; the EU AI Act, the GDPR and 45 CFR Part 164 are fetched by
-`evals/regcorpus.py`. 45 CFR is there because US legal citation (`42 U.S.C. 1302(a)`,
-`Pub. L. 104-191`, `110 Stat. 2033-2034`, `65 FR 82802`) is a different set of digit shapes from EU
-numbering.
+header noise a real ingest carries; the other ten are fetched by `evals/regcorpus.py`.
+
+| jurisdiction | documents | characters | why it is in the corpus |
+|---|---|---|---|
+| EU | 10 | 2.08 M | article references, and money space-grouped in threes |
+| US | 1 | 0.24 M | `42 U.S.C. 1302(a)`, `Pub. L. 104-191`, `65 FR 82802` |
+| Australia | 2 | 1.60 M | the Telecommunications Act 1997 is a statute about phone numbering |
+| India | 4 | 0.93 M | digit grouping is 2-2-3 (`12,34,567`), and amounts run in lakhs |
+| Thailand | 1 | 0.20 M | Thai script and Thai numerals, which no pattern here can read |
+
+Southeast Asia is one statute rather than four. Singapore Statutes Online, AGC Malaysia and the
+Philippine Official Gazette are all outside what this sandbox's egress policy allows, and no GitHub
+mirror of their English text turned up. The Malaysian and Indonesian identifiers below are
+therefore measured on generated documents only, which is a real gap and not a small one: it is
+exactly the kind of gap the EU-only corpus had before Australia and India went in.
 
 The generated corpus at 0.996 precision had **15 false positives** on this material, in three
 classes, none of which anybody had thought to generate:
@@ -190,25 +216,74 @@ Four guards, each removed on its own (`python -m evals.pii_real --ablate`):
 | `medical` needs a value | 5 | `medical` 5 |
 | all four | 15 | |
 
-`licence` costs nothing here, because no EU act happens to say `driver's licence details`. It is
-kept because it is the same lookahead as `passport` and because it is worth 47/2880 on the
-generated corpus, where the sentence is in the `about` group. That is the whole argument for having
-both corpora: each one is blind where the other is not.
+`licence` cost nothing on the EU-only corpus and costs 1 once Australia is in it, which is the whole
+argument for having both corpora and more than one jurisdiction in the second: each one is blind
+where the other is not.
 
 Recall was measured the same way and in the same place. Splicing one planted identity into a real
-regulatory passage instead of into three sentences of filler: **267/267, 1.000**, over all fourteen
+regulatory passage instead of into three sentences of filler: **267/267, 1.000**, over all 25
 gating kinds. Dense legal boilerplate around a card number does not hide it.
 
 The four classes have been distilled back into `evals/pii.py` as the `money`, `citation`, `celex`
 and `about` groups, with the digits randomised and every `money` document carrying a `0`-leading
 group by construction, so they stay measured on a corpus that can be resampled.
 
+### 3c. Somebody else's digits
+
+Before this section the detector was European and North American. Against twenty identifiers from
+the three regions the corpus had just gained, it found **two**, and one of those was the wrong kind:
+
+| | found before | found now |
+|---|---|---|
+| India: Aadhaar, PAN, GSTIN, IFSC, `+91` mobile | 0/5 | **5/5** |
+| Australia: TFN, ABN, Medicare, `04xx` mobile | 1/4 | **4/4** |
+| SE Asia: NRIC, MyKad, NIK, Thai national ID | 0/4 | **4/4** |
+
+Ten kinds went in, and every one of them carries a checksum or an embedded date, because the shape
+on its own is not usable. `\d{3} \d{3} \d{3}` is an Australian tax file number, and it is also a
+budget line in every EU regulation: 34 of them in Regulation 2021/695 alone. `tfn`, `medicare`,
+`nik` and `thai_id` need a cue word on top of that, because their bare digit runs are nine, ten,
+sixteen and thirteen digits, which is to say a phone number, a phone number, a card and a timestamp.
+
+| kind | what decides it | anchored on |
+|---|---|---|
+| `aadhaar` | Verhoeff, and UIDAI issues nothing starting 0 or 1 | Verhoeff of `236` is `3` |
+| `pan` | shape only, `[A-Z]{5}\d{4}[A-Z]`, cased | — |
+| `gstin` | base-36 check character over 14 | `27AAPFU0939F1ZV` |
+| `ifsc` | shape only, `[A-Z]{4}0[A-Z0-9]{6}`, cased | — |
+| `tfn` | weighted mod-11, cue required | `123 456 782` |
+| `abn` | mod-89, first digit less one | `51 824 753 556` (ATO) |
+| `medicare` | weighted mod-10, cue required | `2123 45670 1` |
+| `nric` | check letter, three tables by prefix | `S1234567D` |
+| `mykad` | a real YYMMDD and a real state code | — |
+| `nik` | a real DDMMYY, day plus 40 for women | — |
+| `thai_id` | mod-11, cue required | — |
+
+ACN was left out on purpose: an Australian company number identifies a company, not a person.
+
+What the checksums are worth, on the 5 M characters of legislation rather than on anything
+generated (`python -m evals.pii_real` prints this):
+
+| kind | pattern matched | checksum passed |
+|---|---|---|
+| `abn` | **12** | **0** |
+| the other ten | 0 | 0 |
+
+Twelve EU budget lines have an ABN's exact shape, and mod-89 rejects all twelve. The other ten kinds
+have nothing to say on this corpus, which is the honest reading of a zero: no EU, US, Australian,
+Indian or Thai act contains a string shaped like an Aadhaar number or writes the words "tax file
+number" followed by nine digits. What measures those is `evals/pii.py`, where `apac_money`,
+`apac_ref`, `apac_cued` and `apac_invalid` were added for it: Indian 2-2-3 money grouping, Australian
+and Indian statute references, valid regional checksums sitting under `Order` and `Invoice`, and the
+cue present with the checksum deliberately broken. Turning the regional checksums off costs
+0.996 → 0.931 and hands back 71 EU budget lines; turning the cue words off costs 0.996 → 0.992.
+
 ### What is in the corpus that the detector is right to want
 
-One thing in those 2.3 M characters is a real person: legislation is signed. `R. METSOLA` and
+One thing in those 5 M characters is a real person: legislation is signed. `R. METSOLA` and
 `M. MICHEL` sit in the AI Act's signature block, in the shape `The President \n R. METSOLA`.
 `ner=True` finds **0 of 2**, because the anchor is an honorific and a signature block has none. It
-also invents **0** names in the other 2.3 M characters. That is the same trade the generated corpus
+also invents **0** names in the other 5 M characters. That is the same trade the generated corpus
 reports, measured on prose nobody wrote as a test: it does not hallucinate, and it does not find the
 names that are actually there. It is the reason `mark_pii` exists.
 
@@ -218,8 +293,8 @@ Names are the one kind no pattern finds, so they are the one kind behind `ner=Tr
 is the honorific-anchored regex in `extract._noun_ents`, not a model: no weights, and 21 ms over
 180,000 characters. `Dr Charles Babbage` is found and a bare `Ada Lovelace` is not, which is a
 recall limit and the reason `mark_pii` stays. The number that decides whether to switch it on is
-what it invents in ordinary prose: **0 of the 360 lookalike documents** gained a spurious person,
-and 0 in 2.3 M characters of legislation.
+what it invents in ordinary prose: **0 of the 480 lookalike documents** gained a spurious person,
+and 0 in 5 M characters of legislation.
 
 `scanned_ner` is in every report, because a zero `person` count means nothing without knowing
 whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps its meaning.
@@ -338,7 +413,7 @@ has to carry its own key.
 | `fit_ranker` | manual | fitting is free and cheap to inspect |
 | `use_ranker` | **off** | nothing here beat RRF reproducibly; measure on your own corpus first |
 | `ask` / `extract` / `explain` `pii=` | `local` | arithmetic gate; structured fields scrubbed on the way out |
-| `pii(model=True)` | **off** | 0.998 precision without it; the model is worse on the gate and 370× slower |
+| `pii(model=True)` | **off** | 0.996 precision without it; the model is worse on the gate and 370× slower |
 
 The honest summary is that the infrastructure is worth having and the models are not yet. Three
 generated corpora is not a real vault, and every number here should be re-measured against yours:
