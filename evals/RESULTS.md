@@ -94,59 +94,109 @@ document-disjoint split showed it.
 
 ## 3. PII detection
 
-`python -m evals.pii`: 480 documents, half with planted identity and half with lookalikes. The
-lookalikes are grouped so a residual false positive has a name, and three of the seven groups carry
-*valid* checksums, because that is the case a random corpus meets one time in eleven and a spec
-document meets on every page.
+`python -m evals.pii`. Read the split first, because it is the only honest way to read the rest.
 
-| detector | precision | recall | F1 | false positives |
+| corpus | precision | recall | false positives | in sample? |
 |---|---|---|---|---|
-| regex only | 0.956 | 1.000 | 0.978 | 11/240 |
-| with checksums | **0.996** | **1.000** | **0.998** | **1/240** |
+| tuned | 0.996 | 1.000 | 1/240 | yes, written while fixing |
+| HELDOUT, first run | 0.927 | 1.000 | 19/240 | no, then spent on three fixes |
+| HELDOUT, after those fixes | 0.996 | 1.000 | 1/240 | yes, now |
+| **HELDOUT2, run once** | **1.000** | **1.000** | **0/240** | **no** |
+| HELDOUT2, regional kinds | 0.990 | 1.000 | 4/384 | no |
 
-Recall is 1.000 on every planted kind (email, card, iban, ssn, nhs, phone, dob, account, address).
-The one residual false positive is a Luhn collision on a random 16-digit run.
+The tuned corpus was written after the two reported failures, in the same sitting as the guards that
+fix them. That makes its 0.996 the optimistic number, so it is not the headline. **1.000 on
+HELDOUT2 is.**
 
-### Reading the digits is not enough; you have to read what is around them
+### The two reported failures
 
-The corpus grew two groups after two reported failures, and both were real:
-
-- `EN 60601-1`, `EN 60601-1-2`, `EN 60601` were reported as **addresses**. `[A-Z]{2} \d{5}` is a US
+- `EN 60601-1`, `EN 60601-1-2` and `EN 60601` were read as **addresses**. `[A-Z]{2} \d{5}` is a US
   state and ZIP, and it is also every standards designation ever written.
-- A Confluence page id, `.../pages/2377744435`, was reported as an **NHS number**. It is: ten digits
-  pass the NHS mod-11 check about one time in eleven, and that one was one of them.
+- A Confluence page id, `.../pages/2377744435`, was read as an **NHS number**. It is one: ten digits
+  pass the NHS mod-11 check about one time in eleven, and that one does.
 
-The same detector on the same 480 documents, before and after:
+Before and after on the tuned corpus: precision 0.762 to 0.996, recall unchanged at 1.000. By group,
+false positives before and after: `cued` 36/36 to 0/36, `link` 24/24 to 0/24, `standard` 12/36 to
+0/36, `bare` 3/30 to 1/30.
 
-| | precision | recall | false positives |
+### What each guard is worth
+
+Each removed on its own, everything else left in place. Recall stays 1.000 in every row.
+
+| guard removed | precision | false positives | group that comes back |
 |---|---|---|---|
-| before | 0.762 | 1.000 | 75/240 |
-| after | **0.996** | 1.000 | **1/240** |
-
-By lookalike group, false positives before → after: `cued` 36/36 → 0/36, `link` 24/24 → 0/24,
-`standard` 12/36 → 0/36, `bare` 3/30 → 1/30. Nothing else moved and recall did not change.
-
-Five guards did that. Each removed on its own, everything else left in place:
-
-| guard removed | precision | false positives | which group comes back |
-|---|---|---|---|
-| — (as shipped) | 0.996 | 1/240 | |
+| nothing | 0.996 | 1/240 | |
 | `US_STATES` before a ZIP | 0.949 | 13/240 | `standard` 12/36 |
+| a city before the state | 0.956 | 11/240 | `stdbody` 10/40 |
 | `DESIGNATOR` to the left | 0.949 | 13/240 | `cued` 12/36 |
 | `URLISH` span suppression | 0.972 | 7/240 | `link` 6/24 |
 | NHS needs groups or its name | 0.992 | 2/240 | `bare` |
 | card needs an issuer digit | 0.992 | 2/240 | `bare` |
-| all five | 0.762 | 75/240 | all four |
+| all of them | 0.762 | 75/240 | all four |
 
-The guards overlap: `DESIGNATOR` alone costs 12/36 on `cued` rather than 36/36 because the NHS and
-card tightenings independently kill the other 24. The street-name requirement inside `address` is
-now fully covered by `DESIGNATOR` on this corpus (0.996 either way); with `DESIGNATOR` switched off
-it is still worth 0.949 against 0.833, so it stays.
+The guards overlap. `DESIGNATOR` alone costs 12 of the 36 `cued` documents rather than all 36,
+because the NHS and card tightenings independently kill the other 24. The city and `US_STATES` rows
+are measured on the corpus where each one bites, `stdbody` being a held-out group.
 
 `DESIGNATOR` keeps its acronyms case-sensitive, because lowercase `en` is an ordinary English word.
-`No` was in the list and is not any more: it suppressed `No. 5 Elm Street`, `No 5 Elm Street` and
-`Flat 2, No. 12 Victoria Road` and changed precision by nothing (0.996 either way). A guard that
-costs recall and buys no precision is not a guard.
+`No` was in the list and is not any more. It suppressed `No. 5 Elm Street` and `Flat 2, No. 12
+Victoria Road` and changed precision by nothing. A guard that costs recall and buys no precision is
+not a guard.
+
+### What holding a corpus back actually bought
+
+`HELDOUT` was written from conventions enumerated independently of the detector: the precision-trap
+list documented in `context_cued.py` in LiquidAI/LFM2.5-Encoder-350M-PII-Detector, real numbering
+standards with their own check digits, organisation numbers, postal coding from four regions, and
+standards bodies absent from `DESIGNATOR`. Run cold it found three defects the tuned corpus could
+not have found, since the tuned corpus was written to match the fix:
+
+- **`stdbody`, 10 of 40.** `MS 73681`, `AL 31000`, `IN 61010`. Two-letter codes that are also US
+  states. The `US_STATES` list moved the reported hole rather than closing it. A ZIP now needs a
+  capitalised city in front of it, for the same reason the street line needs a street name.
+- **`stdnum`, 15 hits.** ORCID `0000-0002-1825-0097` read as a UK trunk-prefixed phone number. The
+  phone alternative now refuses to be one link in a longer chain of digit groups.
+- **`orgnum`, 4 hits.** A Swedish organisationsnummer read as a personnummer. Same 6-4 shape, same
+  Luhn, and a company is not a person. `personnummer_ok` now also requires a real birth date, which
+  is the only thing that separates them.
+
+Fixing against `HELDOUT` spent it, so `HELDOUT2` was written afterwards from families chosen to
+collide with the shipped checksums: SNOMED CT is Verhoeff like Aadhaar, ICCID is Luhn like a card,
+IMO and VIN are mod-11, a UK UTR is ten digits like an NHS number. It ran once. Its 4 residual false
+positives are Luhn collisions on 13 to 15 digit runs, NATO stock numbers and IMSIs, and they are
+recorded here as a limit rather than fixed, because fixing against `HELDOUT2` would spend that too.
+A Luhn-valid run at card length is a card as far as arithmetic can tell.
+
+### Europe, South and South East Asia, Australia
+
+Nineteen regional identifiers, each with its own checksum, all at **20/20 recall**:
+
+| region | identifiers | check |
+|---|---|---|
+| India | `aadhaar`, `pan`, `gstin` | Verhoeff, shape, mod-36 |
+| Australia | `tfn`, `abn`, `medicare` | mod-11, mod-89, mod-10 |
+| Singapore, Thailand | `nric`, `thai_id` | check letter, mod-11 |
+| France, Spain, Italy | `nir`, `dni`, `nie`, `cf` | mod-97, mod-23, mod-26 |
+| Netherlands, Poland, Germany | `bsn`, `pesel`, `steuerid` | elfproef, mod-10, ISO 7064 |
+| Sweden, Norway, UK | `personnummer`, `fnr`, `nino` | Luhn plus date, double mod-11, shape |
+| devices | `imei` | Luhn |
+
+They are grouped by how much evidence the number carries alone. A mod-97 or mod-89 check, or a shape
+with four fixed letter positions, is not met by accident, so `nric`, `nir`, `fnr`, `cf`, `dni`,
+`nie`, `abn`, `gstin` and `pan` fire unanchored. Verhoeff, mod-11 and mod-10 each let one bare digit
+run in ten through, which is the `bare` lookalike group, so `aadhaar`, `thai_id` and `personnummer`
+need their conventional grouping or their name. `tfn`, `medicare`, `bsn`, `pesel`, `steuerid`,
+`nino` and `imei` need the field label, and for `nino` that is the whole evidence, since a NINO
+carries no check digit at all.
+
+`evals/ids.py` generates them and checks every generator against the library's own validator, so the
+corpus cannot drift from what the detector accepts: 500 generated and accepted, 500 with one digit
+changed and rejected, for each of the seventeen that have a check digit. `pan` and `nino` report
+0/500 on the perturbation, which is the shape gate admitting it is a shape gate. Four values are
+checked against something other than my own generator: Verhoeff's published `2363`, `S1234567D` done
+by hand, and the canonical `12345678Z` and `490154203237518`.
+
+Adding nineteen patterns took the scan from 15 to 34 patterns and 0.2 to 0.3 ms per document.
 
 ### Names
 
@@ -154,56 +204,99 @@ Names are the one kind no pattern finds, so they are the one kind behind `ner=Tr
 is the honorific-anchored regex in `extract._noun_ents`, not a model: no weights, and 21 ms over
 180,000 characters. `Dr Charles Babbage` is found and a bare `Ada Lovelace` is not, which is a
 recall limit and the reason `mark_pii` stays. The number that decides whether to switch it on is
-what it invents in ordinary prose: **0 of the 240 lookalike documents** gained a spurious person.
+what it invents in ordinary prose. It invented a person in **0 of the 240** lookalike documents.
 
 `scanned_ner` is in every report, because a zero `person` count means nothing without knowing
 whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps its meaning.
 
-## 3a. The learned detector
+## 3a. The learned detectors, and why they are not in the wheel
 
-`pip install 'vishalakshi[model]' && python -m evals.pii_model`. The model is
-`onnx-community/piiranha-v1-detect-personal-information-ONNX`, a DeBERTa-v3 token classifier,
-on the same 480 documents. Both builds in that repo are measured, because the quantised one is the
-one you would reach for.
+`evals/backends.py` holds both, out of the library. `pip install onnxruntime ai-edge-litert
+tokenizers huggingface-hub && python -m evals.pii_model`.
+
+| backend | model | builds |
+|---|---|---|
+| `onnx` | `onnx-community/piiranha-v1-detect-personal-information-ONNX`, DeBERTa-v3 | fp32, int8 |
+| `litert` | `litert-community/LFM2.5-Encoder-350M-PII-Detector`, 350M tflite | fp16, wi8fc |
+
+On the tuned 480 documents:
 
 | system | precision | recall | F1 | false positives | ms/doc |
 |---|---|---|---|---|---|
-| patterns | **0.996** | **1.000** | **0.998** | 1/240 | **0.2** |
-| model fp32 | 0.825 | 0.846 | 0.835 | 43/240 | 71 |
-| patterns ∪ fp32, every kind | 0.845 | 1.000 | 0.916 | 44/240 | 37 |
-| patterns ∪ fp32, `MODEL_ADDS` | **0.996** | **1.000** | **0.998** | 1/240 | 73 |
-| model int8 | 0.955 | 0.446 | 0.608 | 5/240 | 38 |
-| patterns ∪ int8, every kind | 0.976 | 1.000 | 0.988 | 6/240 | 19 |
+| patterns | **0.996** | **1.000** | **0.998** | 1/240 | **0.3** |
+| onnx fp32 | 0.825 | 0.846 | 0.835 | 43/240 | 71 |
+| patterns and fp32, every kind | 0.845 | 1.000 | 0.916 | 44/240 | 37 |
+| patterns and fp32, `MODEL_ADDS` | 0.996 | 1.000 | 0.998 | 1/240 | 73 |
+| onnx int8 | 0.955 | 0.446 | 0.608 | 5/240 | 38 |
+| patterns and int8, every kind | 0.976 | 1.000 | 0.988 | 6/240 | 19 |
 
-**The model loses the gate outright.** It is worse on precision and worse on recall than a page of
-regexes, 370 times slower, and it finds **0.00** of the planted IBANs. Unioning everything it emits
-costs precision 0.996 → 0.845 and buys no recall at all, because the patterns were already at
-1.000. `standard` is the one lookalike group it gets perfectly right, which is exactly the group
-that prompted this work and exactly the group the `US_STATES` list also fixes, for free.
+**Neither model wins the gate.** The onnx build is worse on precision and worse on recall than a page
+of regexes, 200 times slower, and it finds **0.00** of the planted IBANs. Unioning everything it
+emits costs precision 0.996 to 0.845 and buys no recall, because the patterns were already at 1.000.
+That is why nothing here is exported: `vishalakshi/pii.py` carries the arithmetic, and a wheel that
+imported `onnxruntime` to lose on both axes would be a worse library.
 
-**Do not use the int8 build.** It is in the repo, it is 317 MB against 1.15 GB, it loads and it runs.
-It also finds **0 of 27** planted emails, 0 of 27 IBANs, 3 of 27 NHS numbers and 4 of 27 SSNs: recall
-0.446 overall. DeBERTa-v3's disentangled attention does not survive dynamic quantisation, and the
+**Do not use the onnx int8 build.** It is in the repo, it is 317 MB against 1.15 GB, it loads and it
+runs. It also finds 0 of 27 planted emails, 0 of 27 IBANs, 3 of 27 NHS numbers and 4 of 27 SSNs, for
+recall 0.446. DeBERTa-v3's disentangled attention does not survive dynamic quantisation, and the
 failure is silent. Nothing in the model card says so.
 
-**The one thing it is for.** On eight sentences no pattern can reach by construction (a name with no
-honorific, a street with no number):
+### The tflite encoder
+
+`ai_edge_litert`, the two signatures `pii_128` and `pii_512`, fixed-length int32 inputs. A raw argmax
+fragments every entity across byte-BPE tokens, so `litert_spans` collapses the BIOES tags per entity
+and windows anything longer than the sequence. Its taxonomy is the richest of the three, 28 types
+across 28 languages. It is also the worst detector measured here:
+
+| sentence | fp16 | wi8fc |
+|---|---|---|
+| `Contact jane.doe@example.com` | `email` | `email` |
+| `Deliver to 42 Elm Street, London.` | `address`, `address` | `address`, `address` |
+| `card 4111 1111 1111 1111` | `national_id` | `national_id` |
+| `NHS number 4505577104` | `online.url` | `online.url` |
+| `The claimant, Sarah Nakamura, disputes...` | nothing | nothing |
+| `Ada Lovelace signed it.` | nothing | nothing |
+| `GB82WEST12345698765432` | nothing | nothing |
+| `Aadhaar 2234 5678 9012` | `special.religion` | `special.religion` |
+| `TFN 123 456 782`, `NRIC S1234567D` | `special.religion` | `special.religion` |
+| `EN 60601-1`, the Confluence URL | nothing | nothing |
+| ms/doc at `pii_128` | 2295 | 217 |
+
+fp16 and wi8fc agree on every line, which rules out quantisation and leaves the model. It finds no
+names at all, where onnx fp32 finds 5 of 8. It labels a card a national id and an NHS number a URL,
+and it labels Aadhaar, TFN and NRIC digits `special.religion`.
+
+**The useful thing in that repo is not the weights.** `context_cued.py` states the finding this
+module is built on: an arbitrary alphanumeric ID has no learnable shape, a passport number and a
+purchase-order number are byte-for-byte indistinguishable, so the model gets about zero recall on one
+and the field label has to gate it. `pii_hybrid_decode.py` then hands email, IBAN, SSN, card with
+Luhn, IP, MAC, IMEI, URL and GPS back to regex with validators, and trusts the model only for names,
+addresses and conditions. That is the same split this module reached by measurement, written by the
+authors of one of the models. Their documented precision traps became the external provenance for
+the `ticket` group in `HELDOUT`, and their multilingual field labels are why the cue-anchored kinds
+here carry `आधार`, `บัตรประชาชน`, `burgerservicenummer` and `steuerliche identifikationsnummer`
+alongside the English ones.
+
+### The one thing a model is for
+
+Eight sentences no pattern can reach by construction, a name with no honorific and a street with no
+number:
 
 | | found |
 |---|---|
 | patterns | 0/8 |
 | patterns, `ner=True` | 2/8 |
-| model fp32, `person` only | **5/8** |
-| model fp32, every kind | 7/8 |
+| onnx fp32, `person` only | **5/8** |
+| onnx fp32, every kind | 7/8 |
+| litert fp16 | 0/8 |
 
-and it invented identity in **0 of 8** clean sentences. So `model=True` unions `MODEL_ADDS`
-(`{'person'}`) and nothing else: it holds precision at 0.996 and recall at 1.000 on the gate corpus
-while raising the blind-spot recall from 2/8 to 5/8. Pass `kinds` explicitly to get the rest, and
-pay the 0.996 → 0.845 for it knowingly.
+and onnx fp32 invented identity in 0 of 8 clean sentences. So a union is worth making for exactly one
+kind, `MODEL_ADDS`, which is `{'person'}`: precision stays 0.996 and recall 1.000 while the
+blind-spot recall goes from 2/8 to 5/8. Union every kind and precision drops to 0.845 for nothing.
 
-Off by default. 1.1 GB of weights, an `onnxruntime` dependency and 73 ms per document to find a name
-the arithmetic cannot, on a gate that is already at 0.996, is a trade to make deliberately and per
-vault.
+A gigabyte of weights and 73 ms per document to find a name the arithmetic cannot, on a gate already
+at 1.000 out of sample, is a trade to make per vault and outside the wheel. `mark_pii` is still the
+answer for a document that names somebody and matches nothing.
 
 ## 4. The job queue
 
@@ -270,7 +363,7 @@ has to carry its own key.
 | `fit_ranker` | manual | fitting is free and cheap to inspect |
 | `use_ranker` | **off** | nothing here beat RRF reproducibly; measure on your own corpus first |
 | `ask` / `extract` / `explain` `pii=` | `local` | arithmetic gate; structured fields scrubbed on the way out |
-| `pii(model=True)` | **off** | 0.996 precision without it; the model is worse on the gate and 370× slower |
+| a learned PII backend | **not shipped** | worse on precision and on recall than the patterns, and 200 times slower |
 
 The honest summary is that the infrastructure is worth having and the models are not yet. Three
 generated corpora is not a real vault, and every number here should be re-measured against yours:
