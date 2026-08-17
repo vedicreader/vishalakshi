@@ -12,6 +12,27 @@ an issuer digit. Precision 0.762 → **0.996** at unchanged recall 1.000 on 480 
 (`evals/pii.py`, which grew the `standard`, `link`, `cued` and `bare` lookalike groups to measure
 it).
 
+Then the same detector was run over 2.3 M characters of real EU and US legislation, where it made
+**15 false positives** in three classes nobody had thought to generate. `EUR 360 000 000 000`
+matched the UK trunk-number pattern nine times, because a space is the thousands separator across
+Europe and `000 000 000` is a phone number if you do not look at the `360 ` in front of it.
+`passport, identity card` matched `passport` and `driver's licence details` matched `licence`,
+because `[A-Z0-9]{6,9}` under `re.I` is also every ordinary word of six to nine letters.
+`Medical record numbers;` matched `medical` five times in 45 CFR 164, a regulation *about* medical
+record numbers, because the pattern never required a number. Four guards answer them: a digit group
+butting against a match makes it a slice of a longer number, and `passport`, `licence` and
+`medical` each need a value with a digit in it after the cue word. **0 false positives** after,
+at recall 1.000 with a planted identity spliced into 267 real regulatory passages.
+
+`evals/regcorpus.py` is the corpus: eight EU acts from `litesearch/examples/pdfs` read through
+`pdf_parse`, plus the EU AI Act, the GDPR and 45 CFR Part 164 fetched on first run.
+`evals/pii_real.py` runs it. `evals/pii.py` grew from 480 documents to 720, gained positives for
+the five gating kinds that shipped with a pattern and no test (`passport`, `licence`, `sortcode`,
+`secret`, `medical`), gained the `money`, `citation`, `celex` and `about` lookalike groups distilled
+from what the real documents actually contain, and gained `--ablate`, which prints every guard's
+contribution instead of leaving the table in RESULTS.md to be assembled by hand. Precision
+**0.998** at recall 1.000 over 8 draws of 720.
+
 `pii_spans`, `pii_report`, `redact`, `redact_obj`, `pii_ctx` and `Vault.pii` take `model=True`,
 which adds an ONNX DeBERTa-v3 token classifier (`pip install 'vishalakshi[model]'`). Off by
 default: it loses the gate to the patterns on precision *and* recall and is 370× slower, so

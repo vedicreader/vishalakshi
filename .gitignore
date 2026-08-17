@@ -163,3 +163,6 @@ pdfs/
 assets/
 .venv/
 .kosha/
+
+# regulatory eval corpus: downloaded and extracted by `python -m evals.regcorpus`
+evals/corpus/

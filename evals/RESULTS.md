@@ -1,8 +1,9 @@
 # What the evals actually said
 
 Everything below is from `evals/`, on generated corpora (`evals/corpus.py`) with the
-`retrieval` static encoder. Reproduce with `python -m evals.noise`, `python -m evals.run`, `python -m evals.jobs`,
-`python -m evals.pii` and `python -m evals.pii_model`.
+`retrieval` static encoder, except section 3b, which is on real legislation (`evals/regcorpus.py`).
+Reproduce with `python -m evals.noise`, `python -m evals.run`, `python -m evals.jobs`,
+`python -m evals.pii`, `python -m evals.pii_real` and `python -m evals.pii_model`.
 Every comparison is paired over queries with a 5,000-sample bootstrap; a CI spanning zero is
 reported as no difference rather than as a small win.
 
@@ -94,18 +95,20 @@ document-disjoint split showed it.
 
 ## 3. PII detection
 
-`python -m evals.pii`: 480 documents, half with planted identity and half with lookalikes. The
-lookalikes are grouped so a residual false positive has a name, and three of the seven groups carry
-*valid* checksums, because that is the case a random corpus meets one time in eleven and a spec
-document meets on every page.
+`python -m evals.pii`: 720 documents, half with planted identity and half with lookalikes, over 8
+draws. The lookalikes are grouped so a residual false positive has a name, and six of the eleven
+groups carry *valid* checksums or real regulatory digit shapes, because that is the case a random
+corpus meets one time in eleven and a spec document meets on every page.
 
 | detector | precision | recall | F1 | false positives |
 |---|---|---|---|---|
-| regex only | 0.956 | 1.000 | 0.978 | 11/240 |
-| with checksums | **0.996** | **1.000** | **0.998** | **1/240** |
+| regex only | 0.970 | 1.000 | 0.985 | 89/2880 |
+| with checksums | **0.998** | **1.000** | **0.999** | **7/2880** |
 
-Recall is 1.000 on every planted kind (email, card, iban, ssn, nhs, phone, dob, account, address).
-The one residual false positive is a Luhn collision on a random 16-digit run.
+Recall is 1.000 on every planted kind (email, card, iban, ssn, nhs, phone, dob, account, address,
+passport, licence, sortcode, secret, medical). `ip` is found 20/20 and gates 0/20, which is what
+"reportable but not identifying" is supposed to mean. Every residual false positive is a checksum
+collision on a random digit run: 0/360 on seed 0, 3/360 on seed 5.
 
 ### Reading the digits is not enough; you have to read what is around them
 
@@ -116,37 +119,98 @@ The corpus grew two groups after two reported failures, and both were real:
 - A Confluence page id, `.../pages/2377744435`, was reported as an **NHS number**. It is: ten digits
   pass the NHS mod-11 check about one time in eleven, and that one was one of them.
 
-The same detector on the same 480 documents, before and after:
-
-| | precision | recall | false positives |
-|---|---|---|---|
-| before | 0.762 | 1.000 | 75/240 |
-| after | **0.996** | 1.000 | **1/240** |
-
-By lookalike group, false positives before → after: `cued` 36/36 → 0/36, `link` 24/24 → 0/24,
-`standard` 12/36 → 0/36, `bare` 3/30 → 1/30. Nothing else moved and recall did not change.
-
-Five guards did that. Each removed on its own, everything else left in place:
+Every guard, removed on its own with everything else left in place. `python -m evals.pii --ablate`
+prints this table; nothing in it was measured by hand.
 
 | guard removed | precision | false positives | which group comes back |
 |---|---|---|---|
-| — (as shipped) | 0.996 | 1/240 | |
-| `US_STATES` before a ZIP | 0.949 | 13/240 | `standard` 12/36 |
-| `DESIGNATOR` to the left | 0.949 | 13/240 | `cued` 12/36 |
-| `URLISH` span suppression | 0.972 | 7/240 | `link` 6/24 |
-| NHS needs groups or its name | 0.992 | 2/240 | `bare` |
-| card needs an issuer digit | 0.992 | 2/240 | `bare` |
-| all five | 0.762 | 75/240 | all four |
+| — (as shipped) | **0.998** | **7/2880** | `bare` 7/240 |
+| every checksum | 0.970 | 89/2880 | `bare` 89/240 |
+| `US_STATES` before a ZIP | 0.950 | 151/2880 | `standard` 96/288, `citation` 48/240 |
+| street name inside `address` | 0.998 | 7/2880 | nothing |
+| `DESIGNATOR` to the left | 0.965 | 103/2880 | `cued` 96/288 |
+| `URLISH` span suppression | 0.981 | 55/2880 | `link` 48/192 |
+| NHS needs groups or its name | 0.991 | 26/2880 | `bare` 19/240, `refnum` 7/384 |
+| card needs an issuer digit | 0.995 | 14/2880 | `bare` 14/240 |
+| grouped-number suppression | 0.935 | 199/2880 | `money` 192/240 |
+| `passport` needs a value | 0.981 | 55/2880 | `about` 48/336 |
+| `licence` needs a value | 0.984 | 47/2880 | `about` 40/336 |
+| `medical` needs a value | 0.968 | 95/2880 | `about` 88/336 |
 
-The guards overlap: `DESIGNATOR` alone costs 12/36 on `cued` rather than 36/36 because the NHS and
-card tightenings independently kill the other 24. The street-name requirement inside `address` is
-now fully covered by `DESIGNATOR` on this corpus (0.996 either way); with `DESIGNATOR` switched off
-it is still worth 0.949 against 0.833, so it stays.
+Recall stays 1.000 in every row: none of these guards is trading recall for precision.
+
+The guards overlap, and one of them turns out to do a second job. `US_STATES` was added to stop
+`EN 60601` being a state and a ZIP; it also stops `65 FR 82802`, the US Federal Register citation,
+which has the same shape and which nobody was thinking about. The street-name requirement inside
+`address` is fully covered by `DESIGNATOR` here (0.998 either way); with `DESIGNATOR` switched off
+it is worth 0.965 against 0.894, so it stays.
 
 `DESIGNATOR` keeps its acronyms case-sensitive, because lowercase `en` is an ordinary English word.
 `No` was in the list and is not any more: it suppressed `No. 5 Elm Street`, `No 5 Elm Street` and
-`Flat 2, No. 12 Victoria Road` and changed precision by nothing (0.996 either way). A guard that
-costs recall and buys no precision is not a guard.
+`Flat 2, No. 12 Victoria Road` and changed precision by nothing. A guard that costs recall and buys
+no precision is not a guard.
+
+### 3b. What real documents said, which was not what the generated ones said
+
+`python -m evals.pii_real`: eleven acts, 2,327,866 characters, none of which contain a real
+person's card, account or address. The whole corpus is a labelled negative that nobody had to
+annotate, so every match is an error and the target is zero. Eight EU acts come from
+`litesearch/examples/pdfs` and go through `pdf_parse`, so the text carries the line breaks and
+header noise a real ingest carries; the EU AI Act, the GDPR and 45 CFR Part 164 are fetched by
+`evals/regcorpus.py`. 45 CFR is there because US legal citation (`42 U.S.C. 1302(a)`,
+`Pub. L. 104-191`, `110 Stat. 2033-2034`, `65 FR 82802`) is a different set of digit shapes from EU
+numbering.
+
+The generated corpus at 0.996 precision had **15 false positives** on this material, in three
+classes, none of which anybody had thought to generate:
+
+- **Money.** `EUR 360 000 000 000` matched the UK trunk-number pattern, nine times across four
+  regulations. A space is the thousands separator across Europe, so every large budget line carries
+  a `0`-leading group of three, which is exactly `\b0\d{1,4}[ .-]\d{3,4}[ .-]?\d{3,4}\b`.
+- **A cue with no value after it.** `passport, identity card` matched `passport` and
+  `driver's licence details` matched `licence`, because `[A-Z0-9]{6,9}` under `re.I` is also every
+  ordinary word of six to nine letters.
+- **A document about identifiers.** `Medical record numbers;` matched `medical` five times in
+  45 CFR 164, which is a regulation about medical record numbers rather than a document containing
+  one. The pattern never required a number at all.
+
+| | false positives | per 100,000 characters |
+|---|---|---|
+| before | 15 | 0.64 |
+| after | **0** | **0.00** |
+
+Four guards, each removed on its own (`python -m evals.pii_real --ablate`):
+
+| guard removed | false positives | where |
+|---|---|---|
+| — (as shipped) | **0** | |
+| grouped-number suppression | 9 | `phone` 9 |
+| `passport` needs a value | 1 | `passport` 1 |
+| `licence` needs a value | 0 | |
+| `medical` needs a value | 5 | `medical` 5 |
+| all four | 15 | |
+
+`licence` costs nothing here, because no EU act happens to say `driver's licence details`. It is
+kept because it is the same lookahead as `passport` and because it is worth 47/2880 on the
+generated corpus, where the sentence is in the `about` group. That is the whole argument for having
+both corpora: each one is blind where the other is not.
+
+Recall was measured the same way and in the same place. Splicing one planted identity into a real
+regulatory passage instead of into three sentences of filler: **267/267, 1.000**, over all fourteen
+gating kinds. Dense legal boilerplate around a card number does not hide it.
+
+The four classes have been distilled back into `evals/pii.py` as the `money`, `citation`, `celex`
+and `about` groups, with the digits randomised and every `money` document carrying a `0`-leading
+group by construction, so they stay measured on a corpus that can be resampled.
+
+### What is in the corpus that the detector is right to want
+
+One thing in those 2.3 M characters is a real person: legislation is signed. `R. METSOLA` and
+`M. MICHEL` sit in the AI Act's signature block, in the shape `The President \n R. METSOLA`.
+`ner=True` finds **0 of 2**, because the anchor is an honorific and a signature block has none. It
+also invents **0** names in the other 2.3 M characters. That is the same trade the generated corpus
+reports, measured on prose nobody wrote as a test: it does not hallucinate, and it does not find the
+names that are actually there. It is the reason `mark_pii` exists.
 
 ### Names
 
@@ -154,7 +218,8 @@ Names are the one kind no pattern finds, so they are the one kind behind `ner=Tr
 is the honorific-anchored regex in `extract._noun_ents`, not a model: no weights, and 21 ms over
 180,000 characters. `Dr Charles Babbage` is found and a bare `Ada Lovelace` is not, which is a
 recall limit and the reason `mark_pii` stays. The number that decides whether to switch it on is
-what it invents in ordinary prose: **0 of the 240 lookalike documents** gained a spurious person.
+what it invents in ordinary prose: **0 of the 360 lookalike documents** gained a spurious person,
+and 0 in 2.3 M characters of legislation.
 
 `scanned_ner` is in every report, because a zero `person` count means nothing without knowing
 whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps its meaning.
@@ -162,9 +227,12 @@ whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps
 ## 3a. The learned detector
 
 `pip install 'vishalakshi[model]' && python -m evals.pii_model`. The model is
-`onnx-community/piiranha-v1-detect-personal-information-ONNX`, a DeBERTa-v3 token classifier,
-on the same 480 documents. Both builds in that repo are measured, because the quantised one is the
-one you would reach for.
+`onnx-community/piiranha-v1-detect-personal-information-ONNX`, a DeBERTa-v3 token classifier.
+Both builds in that repo are measured, because the quantised one is the one you would reach for.
+
+Every number in this section was measured on the 480-document corpus that preceded section 3b, and
+has not been re-run since the corpus grew to 720 and the four regulatory guards went in. Re-running
+it needs the weights, which are a 1.1 GB download.
 
 | system | precision | recall | F1 | false positives | ms/doc |
 |---|---|---|---|---|---|
@@ -270,7 +338,7 @@ has to carry its own key.
 | `fit_ranker` | manual | fitting is free and cheap to inspect |
 | `use_ranker` | **off** | nothing here beat RRF reproducibly; measure on your own corpus first |
 | `ask` / `extract` / `explain` `pii=` | `local` | arithmetic gate; structured fields scrubbed on the way out |
-| `pii(model=True)` | **off** | 0.996 precision without it; the model is worse on the gate and 370× slower |
+| `pii(model=True)` | **off** | 0.998 precision without it; the model is worse on the gate and 370× slower |
 
 The honest summary is that the infrastructure is worth having and the models are not yet. Three
 generated corpora is not a real vault, and every number here should be re-measured against yours:
