@@ -66,7 +66,9 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate: 0.962 precision at recall 1.000 over emails, cards, keys and street lines (`evals/pii.py`). Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
+`ask`, `extract` and `explain` share one gate: 0.996 precision at recall 1.000 over emails, cards, keys and street lines (`evals/pii.py`). Digits are read in context, so `EN 60601-1` is a standard rather than a ZIP and a ten-digit page id in a URL is not an NHS number. Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
+
+A learned detector is available (`model=True`, `pip install 'vishalakshi[model]'`) and off by default: it loses the gate to the patterns on both precision and recall, and earns its 1.1 GB only on names no honorific introduces (2/8 → 5/8). `evals/pii_model.py` has the numbers.
 
 Junk is separate: `suggest_noisy` scores 0.988 AUC with no labels; `mark_noisy` excludes. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
 
@@ -293,7 +295,7 @@ L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['para
 | [extract](06_extract.ipynb) | `categorize`, `extract`, `extract_all`, schemas |
 | [concepts](07_concepts.ipynb) | encoders, shelves, backends, `reshelf` |
 | [skill](08_skill.ipynb) | agent cheat sheet (exported skill) |
-| [pii](09_pii.ipynb) | patterns, checksums, `secret`, `mark_pii` / `mark_not_pii`, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) |
+| [pii](09_pii.ipynb) | patterns, checksums, context guards, `secret`, `mark_pii` / `mark_not_pii`, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact), `model=True` |
 | [jobs](11_jobs.ipynb) | [`Queue`](https://vedicreader.github.io/vishalakshi/jobs.html#queue), retries, leases, the dead letter |
 | [quality](10_quality.ipynb) | `suggest_noisy` / `accept_noisy`, `fit_noise`, ranker |
 

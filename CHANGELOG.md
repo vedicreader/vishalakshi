@@ -2,6 +2,23 @@
 
 <!-- do not remove -->
 
+## Unreleased
+
+**`vishalakshi.pii`**: digits are read in context. `EN 60601-1` was an address and a ten-digit
+Confluence page id in a URL was an NHS number; both were reported and both are fixed. `US_STATES`
+gates the ZIP alternative, `DESIGNATOR` suppresses a match introduced by a reference word,
+`URLISH` suppresses digit runs inside a link, `nhs` needs its groups or its name, and `card` needs
+an issuer digit. Precision 0.762 → **0.996** at unchanged recall 1.000 on 480 documents
+(`evals/pii.py`, which grew the `standard`, `link`, `cued` and `bare` lookalike groups to measure
+it).
+
+`pii_spans`, `pii_report`, `redact`, `redact_obj`, `pii_ctx` and `Vault.pii` take `model=True`,
+which adds an ONNX DeBERTa-v3 token classifier (`pip install 'vishalakshi[model]'`). Off by
+default: it loses the gate to the patterns on precision *and* recall and is 370× slower, so
+`model=True` unions only `MODEL_ADDS` (`{'person'}`), where it lifts 2/8 to 5/8 on names no
+honorific introduces. Do not use the int8 build; it silently finds 0.446 of what is there.
+`evals/pii_model.py`.
+
 ## 0.1.8
 image support and job queues
 

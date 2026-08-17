@@ -1,7 +1,8 @@
 # What the evals actually said
 
 Everything below is from `evals/`, on generated corpora (`evals/corpus.py`) with the
-`retrieval` static encoder. Reproduce with `python -m evals.noise`, `python -m evals.run` and `python -m evals.jobs`.
+`retrieval` static encoder. Reproduce with `python -m evals.noise`, `python -m evals.run`, `python -m evals.jobs`,
+`python -m evals.pii` and `python -m evals.pii_model`.
 Every comparison is paired over queries with a 5,000-sample bootstrap; a CI spanning zero is
 reported as no difference rather than as a small win.
 
@@ -93,25 +94,59 @@ document-disjoint split showed it.
 
 ## 3. PII detection
 
-`python -m evals.pii`: 400 documents, half with planted identity and half with lookalikes
-(order numbers, ISBNs, part numbers, build strings, numbered headings). Checksums are the claim:
+`python -m evals.pii`: 480 documents, half with planted identity and half with lookalikes. The
+lookalikes are grouped so a residual false positive has a name, and three of the seven groups carry
+*valid* checksums, because that is the case a random corpus meets one time in eleven and a spec
+document meets on every page.
 
 | detector | precision | recall | F1 | false positives |
 |---|---|---|---|---|
-| regex only | 0.738 | 1.000 | 0.849 | 71/200 |
-| with checksums | 0.962 | 1.000 | 0.980 | 8/200 |
+| regex only | 0.956 | 1.000 | 0.978 | 11/240 |
+| with checksums | **0.996** | **1.000** | **0.998** | **1/240** |
 
-Recall is 1.000 on every planted kind in the harness (email, card, iban, ssn, nhs, phone, dob,
-account, address). The residual false positives are Luhn collisions on long digit runs.
+Recall is 1.000 on every planted kind (email, card, iban, ssn, nhs, phone, dob, account, address).
+The one residual false positive is a Luhn collision on a random 16-digit run.
 
-### The street line, and why it needs a street name
+### Reading the digits is not enough; you have to read what is around them
 
-`address` is what makes "John Smith, 12 Elm Street" private: no pattern finds the name, and one
-identifying hit is all a section needs. Written as a number followed by an optional street name and
-a suffix, it reads `Chapter 4 Court`, `Table 3 Road` and `Figure 2 Way` as addresses and takes
-precision to **0.746** (68/200 false positives). Requiring at least one capitalised word between the
-number and the suffix is the whole difference: **0.962** at the same recall. A US ZIP needs its
-state for the same reason, since five digits alone are a quantity.
+The corpus grew two groups after two reported failures, and both were real:
+
+- `EN 60601-1`, `EN 60601-1-2`, `EN 60601` were reported as **addresses**. `[A-Z]{2} \d{5}` is a US
+  state and ZIP, and it is also every standards designation ever written.
+- A Confluence page id, `.../pages/2377744435`, was reported as an **NHS number**. It is: ten digits
+  pass the NHS mod-11 check about one time in eleven, and that one was one of them.
+
+The same detector on the same 480 documents, before and after:
+
+| | precision | recall | false positives |
+|---|---|---|---|
+| before | 0.762 | 1.000 | 75/240 |
+| after | **0.996** | 1.000 | **1/240** |
+
+By lookalike group, false positives before → after: `cued` 36/36 → 0/36, `link` 24/24 → 0/24,
+`standard` 12/36 → 0/36, `bare` 3/30 → 1/30. Nothing else moved and recall did not change.
+
+Five guards did that. Each removed on its own, everything else left in place:
+
+| guard removed | precision | false positives | which group comes back |
+|---|---|---|---|
+| — (as shipped) | 0.996 | 1/240 | |
+| `US_STATES` before a ZIP | 0.949 | 13/240 | `standard` 12/36 |
+| `DESIGNATOR` to the left | 0.949 | 13/240 | `cued` 12/36 |
+| `URLISH` span suppression | 0.972 | 7/240 | `link` 6/24 |
+| NHS needs groups or its name | 0.992 | 2/240 | `bare` |
+| card needs an issuer digit | 0.992 | 2/240 | `bare` |
+| all five | 0.762 | 75/240 | all four |
+
+The guards overlap: `DESIGNATOR` alone costs 12/36 on `cued` rather than 36/36 because the NHS and
+card tightenings independently kill the other 24. The street-name requirement inside `address` is
+now fully covered by `DESIGNATOR` on this corpus (0.996 either way); with `DESIGNATOR` switched off
+it is still worth 0.949 against 0.833, so it stays.
+
+`DESIGNATOR` keeps its acronyms case-sensitive, because lowercase `en` is an ordinary English word.
+`No` was in the list and is not any more: it suppressed `No. 5 Elm Street`, `No 5 Elm Street` and
+`Flat 2, No. 12 Victoria Road` and changed precision by nothing (0.996 either way). A guard that
+costs recall and buys no precision is not a guard.
 
 ### Names
 
@@ -119,10 +154,56 @@ Names are the one kind no pattern finds, so they are the one kind behind `ner=Tr
 is the honorific-anchored regex in `extract._noun_ents`, not a model: no weights, and 21 ms over
 180,000 characters. `Dr Charles Babbage` is found and a bare `Ada Lovelace` is not, which is a
 recall limit and the reason `mark_pii` stays. The number that decides whether to switch it on is
-what it invents in ordinary prose: **0 of the 200 lookalike documents** gained a spurious person.
+what it invents in ordinary prose: **0 of the 240 lookalike documents** gained a spurious person.
 
 `scanned_ner` is in every report, because a zero `person` count means nothing without knowing
 whether anything looked. `n` and `density` stay arithmetic-only so `DENSE` keeps its meaning.
+
+## 3a. The learned detector
+
+`pip install 'vishalakshi[model]' && python -m evals.pii_model`. The model is
+`onnx-community/piiranha-v1-detect-personal-information-ONNX`, a DeBERTa-v3 token classifier,
+on the same 480 documents. Both builds in that repo are measured, because the quantised one is the
+one you would reach for.
+
+| system | precision | recall | F1 | false positives | ms/doc |
+|---|---|---|---|---|---|
+| patterns | **0.996** | **1.000** | **0.998** | 1/240 | **0.2** |
+| model fp32 | 0.825 | 0.846 | 0.835 | 43/240 | 71 |
+| patterns ∪ fp32, every kind | 0.845 | 1.000 | 0.916 | 44/240 | 37 |
+| patterns ∪ fp32, `MODEL_ADDS` | **0.996** | **1.000** | **0.998** | 1/240 | 73 |
+| model int8 | 0.955 | 0.446 | 0.608 | 5/240 | 38 |
+| patterns ∪ int8, every kind | 0.976 | 1.000 | 0.988 | 6/240 | 19 |
+
+**The model loses the gate outright.** It is worse on precision and worse on recall than a page of
+regexes, 370 times slower, and it finds **0.00** of the planted IBANs. Unioning everything it emits
+costs precision 0.996 → 0.845 and buys no recall at all, because the patterns were already at
+1.000. `standard` is the one lookalike group it gets perfectly right, which is exactly the group
+that prompted this work and exactly the group the `US_STATES` list also fixes, for free.
+
+**Do not use the int8 build.** It is in the repo, it is 317 MB against 1.15 GB, it loads and it runs.
+It also finds **0 of 27** planted emails, 0 of 27 IBANs, 3 of 27 NHS numbers and 4 of 27 SSNs: recall
+0.446 overall. DeBERTa-v3's disentangled attention does not survive dynamic quantisation, and the
+failure is silent. Nothing in the model card says so.
+
+**The one thing it is for.** On eight sentences no pattern can reach by construction (a name with no
+honorific, a street with no number):
+
+| | found |
+|---|---|
+| patterns | 0/8 |
+| patterns, `ner=True` | 2/8 |
+| model fp32, `person` only | **5/8** |
+| model fp32, every kind | 7/8 |
+
+and it invented identity in **0 of 8** clean sentences. So `model=True` unions `MODEL_ADDS`
+(`{'person'}`) and nothing else: it holds precision at 0.996 and recall at 1.000 on the gate corpus
+while raising the blind-spot recall from 2/8 to 5/8. Pass `kinds` explicitly to get the rest, and
+pay the 0.996 → 0.845 for it knowingly.
+
+Off by default. 1.1 GB of weights, an `onnxruntime` dependency and 73 ms per document to find a name
+the arithmetic cannot, on a gate that is already at 0.996, is a trade to make deliberately and per
+vault.
 
 ## 4. The job queue
 
@@ -189,6 +270,7 @@ has to carry its own key.
 | `fit_ranker` | manual | fitting is free and cheap to inspect |
 | `use_ranker` | **off** | nothing here beat RRF reproducibly; measure on your own corpus first |
 | `ask` / `extract` / `explain` `pii=` | `local` | arithmetic gate; structured fields scrubbed on the way out |
+| `pii(model=True)` | **off** | 0.996 precision without it; the model is worse on the gate and 370× slower |
 
 The honest summary is that the infrastructure is worth having and the models are not yet. Three
 generated corpora is not a real vault, and every number here should be re-measured against yours:
