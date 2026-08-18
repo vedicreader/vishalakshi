@@ -6,10 +6,11 @@ Docs: https://vedicreader.github.io/vishalakshi/pii.html.md"""
 
 # %% auto #0
 __all__ = ['MAX_SCAN', 'DENSE', 'US_STATES', 'DESIGNATOR', 'GENERIC', 'URLISH', 'URL_KEEP', 'INTL_PATTERNS', 'INTL_CASED',
-           'PATTERNS', 'IDENTIFYING', 'CASED', 'luhn', 'verhoeff_ok', 'aadhaar_ok', 'gen_aadhaar', 'tfn_ok', 'abn_ok',
-           'medicare_ok', 'nric_ok', 'thai_id_ok', 'bsn_ok', 'nir_ok', 'dni_ok', 'cf_ok', 'pesel_ok', 'personnummer_ok',
-           'fnr_ok', 'steuerid_ok', 'pan_ok', 'gstin_ok', 'nino_ok', 'imei_ok', 'person_spans', 'pii_spans',
-           'pii_report', 'redact', 'redact_obj', 'pii_ctx']
+           'PATTERNS', 'IDENTIFYING', 'CASED', 'GATES', 'ROW_TEXT', 'ROW_LABEL', 'ROW_KIDS', 'CTX_ROWS', 'luhn',
+           'verhoeff_ok', 'aadhaar_ok', 'gen_aadhaar', 'tfn_ok', 'abn_ok', 'medicare_ok', 'nric_ok', 'thai_id_ok',
+           'bsn_ok', 'nir_ok', 'dni_ok', 'cf_ok', 'pesel_ok', 'personnummer_ok', 'fnr_ok', 'steuerid_ok', 'pan_ok',
+           'gstin_ok', 'nino_ok', 'imei_ok', 'person_spans', 'pii_spans', 'pii_report', 'redact', 'redact_obj',
+           'pii_ctx', 'held', 'gated']
 
 # %% ../nbs/09_pii.ipynb #d2947634
 import re
@@ -465,3 +466,105 @@ def pii_ctx(ctx, ner:bool=False) -> AttrDict:
     parts = [str(getattr(r, 'text', None) or (r.get('text') if isinstance(r, dict) else '') or '')
              for r in (list(ctx.get('results') or []) + list(ctx.get('related') or []))]
     return pii_report('\n\n'.join(parts), ner=ner)
+
+# %% ../nbs/09_pii.ipynb #8361cd32
+GATES = ('off', 'redact', 'refuse')
+ROW_TEXT = ('text', 'snippet', 'snippets', 'content', 'summary')
+ROW_LABEL = ('title', 'breadcrumb')
+ROW_KIDS = ('tree', 'children')
+CTX_ROWS = ('results', 'related', 'docs', 'hits')
+
+def _pii_marks(v):
+    "Cleared and force-private `(store, doc_id)` pairs, for whichever gate is asking."
+    try: rows = list(v._marks()(where="pii_override IN ('clear','force')"))
+    except Exception: return set(), set()
+    return ({(r['store'], r['doc_id']) for r in rows if r['pii_override'] == 'clear'},
+            {(r['store'], r['doc_id']) for r in rows if r['pii_override'] == 'force'})
+
+def _row_get(r, k): return r.get(k) if isinstance(r, dict) else getattr(r, k, None)
+
+def _row_doc(r):
+    "The document a row belongs to. A row that names none falls back to its own text."
+    # `search` and `context` say `doc_id`, `sections` only `node_id`, `read` says `id`, `federate` `ref`
+    for k in ('doc_id', 'node_id', 'id', 'ref'):
+        if v := _row_get(r, k): return str(v).split('#', 1)[0]
+
+def _row_kinds(r, cleared, forced, store, ner=False):
+    "What one row holds, honouring the mark on its document. `None` when it holds nothing."
+    did = _row_doc(r)
+    key = (_row_get(r, 'store') or store, did) if did else None
+    if key and key in cleared: return None
+    if key and key in forced: return {'marked': 1}
+    parts = []
+    for f in (*ROW_TEXT, *ROW_LABEL):
+        v = _row_get(r, f)
+        parts += [str(x) for x in v] if isinstance(v, (list, tuple)) else ([str(v)] if v else [])
+    rep = pii_report('\n\n'.join(parts), ner=ner)
+    return dict(rep.identifying) if rep.has_pii else None
+
+def _section_private(r, cleared, forced, store:str, ner:bool=False) -> bool:
+    "Whether one retrieved section is somebody's business. What `ask` filters its context on."
+    return bool(_row_kinds(r, cleared, forced, store, ner))
+
+def held(kinds) -> str:
+    "What stands in for text a `refuse` policy will not hand back."
+    return f"[withheld: personal information ({', '.join(sorted(kinds))})]"
+
+def _mask(r, f, fix):
+    "Rewrite field `f` of `r` through `fix`, whether it holds a string or a list of them."
+    if not (v := r.get(f)): return
+    r[f] = type(v)(fix(str(x)) for x in v) if isinstance(v, (list, tuple)) else fix(str(v))
+
+def _gate_row(r, act, cleared, forced, store, ner):
+    "One row masked or withheld, and whatever nests under it. A clean parent can hold a private child."
+    if not isinstance(r, dict): return r
+    kinds = _row_kinds(r, cleared, forced, store, ner)
+    kids = {f: v for f in ROW_KIDS if isinstance(v := r.get(f), (dict, list, tuple, L))}
+    if not kinds and not kids: return r
+    out = type(r)(r)
+    label = lambda s: redact(s, ner=ner)
+    if kinds:
+        for f in ROW_TEXT: _mask(out, f, label if act == 'redact' else lambda s: held(kinds))
+        for f in ROW_LABEL: _mask(out, f, label)
+        out['pii'] = kinds
+    g = lambda x: _gate_row(x, act, cleared, forced, store, ner)
+    for f, v in kids.items(): out[f] = g(v) if isinstance(v, dict) else type(v)(g(k) for k in v)
+    return out
+
+def gated(o,                  # whatever a retrieval primitive returned
+          pii:str='off',      # off | redact | refuse
+          vault=None,         # the shelf whose marks apply; None -> no marks
+          ner:bool=False,     # gate on titled names too
+          store:str=None,     # the shelf the rows came from; None -> the vault's own
+):
+    "Apply a retrieval policy to rows, an assembled context, or one section."
+    if pii == 'off' or o is None: return o
+    if pii not in GATES: raise ValueError(f'unknown pii policy for retrieval: {pii!r}; one of {GATES}')
+    cleared, forced = _pii_marks(vault) if vault is not None else (set(), set())
+    g = lambda r: _gate_row(r, pii, cleared, forced, store or getattr(vault, 'name', 'store'), ner)
+    if isinstance(o, str):
+        rep = pii_report(o, ner=ner)
+        if not rep.has_pii: return o
+        return redact(o, ner=ner) if pii == 'redact' else held(rep.identifying)
+    if isinstance(o, (list, tuple, L)): return type(o)(g(r) for r in o)
+    if not isinstance(o, dict): return o
+    rows = [k for k in CTX_ROWS if isinstance(o.get(k), (list, tuple, L))]
+    if not rows and not isinstance(o.get('doc'), dict): return g(o)
+    out = type(o)(o)
+    for k in rows: out[k] = L(g(r) for r in out[k])
+    if isinstance(out.get('doc'), dict): out['doc'] = g(out['doc'])
+    return out
+
+
+# %% ../nbs/09_pii.ipynb #7ac0e1b2
+@patch
+def toc(self:Vault,
+        doc=None,            # narrow to one document, as `Index.toc` takes it
+        pii:str='off',       # off | redact | refuse
+        pii_ner:bool=False,  # gate on titled names too
+        **kw                 # forwarded to `Index.toc`
+) -> list:
+    "The heading tree. Node titles are the openings of their sections, and a policy covers them too."
+    from litesearch import Index
+    return gated(Index.toc(self, doc, **kw), pii, self, ner=pii_ner)
+

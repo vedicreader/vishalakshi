@@ -2,6 +2,22 @@
 
 <!-- do not remove -->
 
+## 0.1.11
+
+Retrieval takes a privacy policy. `ask` used to be the only method with one. `search`, `sections`,
+`context`, `read`, `document`, `toc`, `doc_context` and `federate` handed raw section text to
+whatever read it next. Each takes `pii=` and `pii_ner=` now.
+
+- `gated` applies a policy to rows, an assembled context, or one section. The default is `off`. A
+  caller that does not ask sees no change.
+- `redact` masks what was found. `refuse` replaces the body and keeps the row, with `pii` naming the
+  kinds. A caller that asked what matched still learns that something did.
+- `local` is not a retrieval mode. It answers a question on a model here, and retrieval has neither.
+- `mark_pii` and `mark_not_pii` reach every primitive, not `ask` alone.
+- Labels (`title`, `breadcrumb`) are masked rather than withheld. A note is titled by its own first
+  line, and a row with no label left cannot be opened or asked about.
+- `_pii_marks` and `_section_private` moved from `ask` to `pii`, and `ask` re-exports them.
+
 ## 0.1.10
 release
 

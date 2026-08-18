@@ -16,7 +16,7 @@ from fastcore.all import AttrDict, L, patch
 from rishi.core import Chat, is_ctx_error, resolve_runtime, resp_text, split_think, thought
 from rishi.litert import gemma4_e2b
 from .core import Vault, tidy_bc
-from .pii import pii_ctx, pii_report, redact, redact_obj
+from .pii import _pii_marks, _section_private, gated, pii_ctx, pii_report, redact, redact_obj
 
 
 # %% ../nbs/02_ask.ipynb #5a8b980e5ee928aa
@@ -145,6 +145,8 @@ def doc_context(self:Vault,
                 question:str,         # what the other sections are retrieved against
                 related:int=3,        # sections from the *rest* of the vault to add
                 max_chars:int=12000,  # chars of the named documents, shared out between them
+                pii:str='off',        # off | redact | refuse, applied to every section returned
+                pii_ner:bool=False,   # gate on titled names too
 ) -> AttrDict:
     'The documents `ref` names as sections [1..n], with a few sections from elsewhere behind them.'
     refs = L(ref if isinstance(ref, (list, tuple, L)) else [ref])
@@ -158,26 +160,11 @@ def doc_context(self:Vault,
         res.append(AttrDict(node_id=s['node_id'], title=s['title'], doc_id=s['node_id'].split('#')[0],
                             breadcrumb=s['breadcrumb'], filename=None, pages=s['pages'],
                             text='\n\n'.join(s['snippets'])))
-    return AttrDict(results=res, related=L(), encoder=self.enc.note, doc=docs[0], docs=docs,
-                    n_docs=len(docs), note=doc_note(len(docs)))
+    out = AttrDict(results=res, related=L(), encoder=self.enc.note, doc=docs[0], docs=docs,
+                   n_docs=len(docs), note=doc_note(len(docs)))
+    return gated(out, pii, self, ner=pii_ner)
 
 # %% ../nbs/02_ask.ipynb #42db118cfc970f35
-def _pii_marks(self:Vault):
-    "Cleared and force-private `(store, doc_id)` pairs for the ask gate."
-    try:
-        rows = list(self._marks()(where="pii_override IN ('clear','force')"))
-    except Exception: return set(), set()
-    cleared = {(r['store'], r['doc_id']) for r in rows if r['pii_override']=='clear'}
-    forced  = {(r['store'], r['doc_id']) for r in rows if r['pii_override']=='force'}
-    return cleared, forced
-
-def _section_private(r, cleared, forced, store:str, ner:bool=False) -> bool:
-    did = getattr(r, 'doc_id', None)
-    key = (getattr(r, 'store', None) or store, did) if did else None
-    if key and key in cleared: return False
-    if key and key in forced: return True
-    return pii_report(str(getattr(r, 'text', '') or ''), ner=ner).has_pii
-
 def _scrub_answer(out, private:bool, ner:bool=True):
     """Mask identifiers the model reproduced anyway. Returns `(out, leaked)` kinds."""
     if not private: return out

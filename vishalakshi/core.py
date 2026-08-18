@@ -183,6 +183,12 @@ def note(self:Vault,
 
 
 # %% ../nbs/00_core.ipynb #2bd1071c
+def _gate(v, o, pii:str, ner:bool, store:str=None):
+    "Hand what a retrieval primitive built to the pii gate, which lives in `pii` and imports this."
+    if pii == 'off' or o is None: return o
+    from vishalakshi.pii import gated
+    return gated(o, pii, v, ner=ner, store=store)
+
 @patch
 def search(self:Vault,
            q:str,              # query
@@ -191,22 +197,26 @@ def search(self:Vault,
            chars:int=300,      # chars of each hit kept as `snippet`
            rerank:bool=False,  # reorder the candidates with a cross-encoder (see below)
            include_noisy:bool=False, # include documents explicitly marked as noisy
+           pii:str='off',      # off | redact | refuse, applied to every snippet returned
+           pii_ner:bool=False, # gate on titled names too
            **kw                # forwarded to litesearch doc_search
 ) -> L:
     """Chunk-level hybrid search; hits carry breadcrumb and `node_id`. Honours kind and noisy marks."""
     hits = self.db.doc_search(q, self.qemb(q), limit=limit, store=self.name, dtype=DTYPE,
                               where=self._where(kind, include_noisy), rerank=rerank, **kw)
-    return L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
-                      breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
-                      snippet=(h.get('content') or '')[:chars]) for h in hits)
+    out = L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
+                     breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
+                     snippet=(h.get('content') or '')[:chars]) for h in hits)
+    return _gate(self, out, pii, pii_ner)
 
 @patch
-def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False, include_noisy:bool=False, **kw) -> list:
+def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False, include_noisy:bool=False,
+             pii:str='off', pii_ner:bool=False, **kw) -> list:
     'Ranked *sections* rather than chunks. Noisy documents are excluded unless requested.'
     secs = self.db.sections(q, self.qemb(q), limit=limit, per=per, store=self.name, dtype=DTYPE,
                             where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for s in secs: s['breadcrumb'] = tidy_bc(s.get('breadcrumb'))
-    return secs
+    return _gate(self, secs, pii, pii_ner)
 
 @patch
 def context(self:Vault,
@@ -220,6 +230,8 @@ def context(self:Vault,
             dir:str=None,       # repo for the code legs; None -> the cwd repo
             rerank:bool=False,  # reorder the chunk hits before they are rolled up into sections
             include_noisy:bool=False, # include documents explicitly marked as noisy
+            pii:str='off',      # off | redact | refuse, applied to every section returned
+            pii_ner:bool=False, # gate on titled names too
             **kw                # forwarded to litesearch context
 ) -> AttrDict:
     'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
@@ -238,7 +250,7 @@ def context(self:Vault,
         if kosha_indexed(dir):
             hits = code_sections(self, q, n=code or 4, dir=dir)
             ctx.results, ctx.code = ctx.results + hits, len(hits)
-    return ctx
+    return _gate(self, ctx, pii, pii_ner)
 
 @patch
 def related(self:Vault, node_id:str, limit:int=8, clip=300) -> L:
@@ -254,9 +266,11 @@ def related(self:Vault, node_id:str, limit:int=8, clip=300) -> L:
     return L(out.values())
 
 @patch
-def read(self:Vault, node_id:str, max_chars:int=6000, store:str=None) -> dict:
+def read(self:Vault, node_id:str, max_chars:int=6000, store:str=None,
+         pii:str='off', pii_ner:bool=False) -> dict:
     'Assemble a whole section back out of its chunks.`store` opens a section on another shelf, so a `node_id` from `elsewhere()` can be read without opening that shelf.'
-    return self.db.read(node_id, store=store or self.name, max_chars=max_chars)
+    sec = self.db.read(node_id, store=store or self.name, max_chars=max_chars)
+    return _gate(self, sec, pii, pii_ner, store=store or self.name)
 
 
 # %% ../nbs/00_core.ipynb #7a1f2b64
@@ -276,6 +290,8 @@ def document(self:Vault,
              max_chars:int=40000,   # cap on the text returned
              headings:bool=True,    # put the node titles back as markdown headings
              disk:bool=True,        # fall back to a path on disk the vault has never seen
+             pii:str='off',         # off | redact | refuse, applied to the text returned
+             pii_ner:bool=False,    # gate on titled names too
 ) -> AttrDict:
     'One whole document, reassembled in document order: the unit a model reads to extract from.'
     d = self.doc(ref)
@@ -283,8 +299,9 @@ def document(self:Vault,
         p = Path(ref or '')
         if not (disk and p.is_file()): raise ValueError(f'no document in the vault matching {ref!r}')
         txt = p.read_text(errors='replace')
-        return AttrDict(doc_id=None, title=p.name, source=str(p), kind='file', meta={}, pages=None, origin='disk', nodes=0,
-                        chars=len(txt), truncated=len(txt) > max_chars, text=txt[:max_chars])
+        return _gate(self, AttrDict(doc_id=None, title=p.name, source=str(p), kind='file', meta={}, pages=None,
+                                    origin='disk', nodes=0, chars=len(txt), truncated=len(txt) > max_chars,
+                                    text=txt[:max_chars]), pii, pii_ner)
     did = d['id'].replace("'", "''")
     chunks = {}
     for c in self.store(where=f"doc_id='{did}'", select='content, node_id, page, rowid as rowid'):
@@ -295,8 +312,10 @@ def document(self:Vault,
             parts.append('#'*min(nd['level'], 6) + ' ' + t)
         parts += [c['content'] for c in sorted(chunks.get(nd['id'], []), key=lambda c: (c['page'] or 0, c['rowid']))]
     txt = '\n\n'.join(p for p in parts if (p or '').strip())
-    return AttrDict(doc_id=d['id'], title=d['title'], source=d['source'], kind=d['kind'], meta=d['meta'],
-                    pages=d['pages'], origin='vault', nodes=len(nodes), chars=len(txt), truncated=len(txt) > max_chars, text=txt[:max_chars])
+    return _gate(self, AttrDict(doc_id=d['id'], title=d['title'], source=d['source'], kind=d['kind'],
+                                meta=d['meta'], pages=d['pages'], origin='vault', nodes=len(nodes),
+                                chars=len(txt), truncated=len(txt) > max_chars, text=txt[:max_chars]),
+                 pii, pii_ner)
 
 @patch
 def set_meta(self:Vault, doc_id:str, **kv) -> dict:
