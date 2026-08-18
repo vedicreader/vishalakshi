@@ -66,9 +66,13 @@ path = "vishalakshi/__init__.py"
 
 [dependency-groups]
 dev = [
+    "ai-edge-litert",
     "diskcache>=5.6.3",
+    "huggingface-hub",
     "ipykernel>=7.3.0",
     "nbdev>=3.3.4",
     "notebook>=7.6.1",
+    "onnxruntime",
     "rishi[all]>=0.1.2",
+    "tokenizers",
 ]

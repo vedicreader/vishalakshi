@@ -66,7 +66,11 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate: 0.962 precision at recall 1.000 over emails, cards, keys and street lines (`evals/pii.py`). Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
+`ask`, `extract` and `explain` share one gate: **1.000 precision at recall 1.000 on a held-out corpus** run once, 0.996 on the corpus it was tuned against (`evals/pii.py`, which reports both and says which is which). Digits are read in context, so `EN 60601-1` is a standard rather than a ZIP and a ten-digit page id in a URL is not an NHS number. Thirty-four kinds, including nineteen regional identifiers with their own checksums: Aadhaar, PAN and GSTIN, Australian TFN, ABN and Medicare, Singapore NRIC, Thai national ID, Dutch BSN, French NIR, Spanish DNI and NIE, Italian codice fiscale, Polish PESEL, Swedish personnummer, Norwegian fødselsnummer, German Steuer-IdNr, UK NINO, IMEI.
+
+Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
+
+Two learned detectors were measured and neither is shipped: both lose the gate to the patterns on precision *and* recall, and are 200 times slower. A DeBERTa-v3 ONNX classifier earns its gigabyte only on names no honorific introduces (2/8 to 5/8), and Liquid's 350M tflite encoder finds no names at all. Both live in `evals/backends.py` with their numbers in `evals/pii_model.py`, so the wheel stays arithmetic.
 
 Junk is separate: `suggest_noisy` scores 0.988 AUC with no labels; `mark_noisy` excludes. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
 
@@ -293,7 +297,7 @@ L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['para
 | [extract](06_extract.ipynb) | `categorize`, `extract`, `extract_all`, schemas |
 | [concepts](07_concepts.ipynb) | encoders, shelves, backends, `reshelf` |
 | [skill](08_skill.ipynb) | agent cheat sheet (exported skill) |
-| [pii](09_pii.ipynb) | patterns, checksums, `secret`, `mark_pii` / `mark_not_pii`, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) |
+| [pii](09_pii.ipynb) | patterns, checksums, context guards, nineteen regional identifiers, `secret`, `mark_pii` / `mark_not_pii`, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) |
 | [jobs](11_jobs.ipynb) | [`Queue`](https://vedicreader.github.io/vishalakshi/jobs.html#queue), retries, leases, the dead letter |
 | [quality](10_quality.ipynb) | `suggest_noisy` / `accept_noisy`, `fit_noise`, ranker |
 

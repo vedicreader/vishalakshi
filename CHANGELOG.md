@@ -2,6 +2,49 @@
 
 <!-- do not remove -->
 
+## 0.1.10
+release
+
+## 0.1.9
+pii updates
+
+## Unreleased
+
+**`vishalakshi.pii`**: digits are read in context. `EN 60601-1` was an address and a ten-digit
+Confluence page id in a URL was an NHS number. Both are fixed, by five guards.
+
+- `US_STATES` and a capitalised city gate the ZIP alternative.
+- `DESIGNATOR` drops a match introduced by a reference word.
+- `URLISH` drops digit runs inside a link.
+- `nhs` needs its groups or its name, and `card` needs an issuer digit.
+
+Precision 0.762 to 0.996 at unchanged recall 1.000 on the tuned corpus, and **1.000 at recall 1.000
+on a held-out corpus run once**. `evals/pii.py` reports both and labels which is in sample.
+
+Nineteen regional identifiers, each with its own checksum, all at 20/20 recall.
+
+| region | kinds |
+|---|---|
+| India | `aadhaar` (Verhoeff), `pan`, `gstin` (mod-36) |
+| Australia | `tfn` (mod-11), `abn` (mod-89), `medicare` |
+| Singapore, Thailand | `nric`, `thai_id` |
+| France, Spain, Italy | `nir` (mod-97), `dni`, `nie` (mod-23), `cf` |
+| Netherlands, Poland, Germany | `bsn`, `pesel`, `steuerid` (ISO 7064) |
+| Sweden, Norway, UK | `personnummer`, `fnr`, `nino` |
+| devices | `imei` |
+
+`evals/ids.py` generates them and checks every generator against the library's own validator.
+
+Holding a corpus back found three defects the tuned corpus could not. `MS 73681` and `AL 31000` were
+addresses. An ORCID was a phone number. A Swedish organisationsnummer was a personnummer.
+
+Two learned detectors were measured and neither is shipped, so the wheel gains no weights and no
+`onnxruntime` import. An ONNX DeBERTa-v3 classifier scores 0.825 precision and 0.846 recall against
+the patterns' 0.996 and 1.000, at 200 times the cost, and finds 0.00 of the planted IBANs. Liquid's
+350M tflite encoder through `ai_edge_litert` finds no names at all and labels Aadhaar digits
+`special.religion` in both its builds. The onnx int8 build silently finds 0.446 of what is there.
+Both live in `evals/backends.py`, measured by `evals/pii_model.py`.
+
 ## 0.1.8
 image support and job queues
 
