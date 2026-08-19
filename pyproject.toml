@@ -38,6 +38,8 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["diskcache"]
+# `use_learned` wires in a detector fitted on your own examples. The patterns need nothing.
+learned = ["anya[pii]>=0.0.1"]
 
 [project.scripts]
 vishalakshi = "vishalakshi.cli:main"

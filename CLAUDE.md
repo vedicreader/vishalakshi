@@ -31,6 +31,19 @@ The code is the document. Prose explains what the code cannot say about itself, 
 - Never reflow a triple-quoted string that is not a docstring. `PII_SP`, `VAULT_SP` and `TYPE_SP`
   are prompts with line continuations; rewrapping one edits what a model is told.
 
+## The PII gate
+
+`09_pii` is arithmetic by default, and that is a property with a test behind it: `model=` defaults to
+None on every function that takes one, `learned()` loads nothing unless asked, and with nothing wired
+`pii_spans` is `pattern_spans` span for span. Keep that cell passing.
+
+`use_learned` opts in a detector fitted by `anya.pii`. It only ever speaks for kinds `PATTERNS` does
+not have, so the 0.996 precision belongs to the patterns whatever is wired, and `n` and `density`
+exclude its spans the way they exclude `person`.
+
+Its `base` must be `pattern_spans`, never `pii_spans`. anya's own baseline is this module, so a
+detector asked for baseline features through `pii_spans` would be asking itself.
+
 ## Evals
 
 `evals/` is not shipped in the wheel. Results go in `evals/RESULTS.md` with the method, and

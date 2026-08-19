@@ -9,11 +9,11 @@ __all__ = ['MAX_SCAN', 'DENSE', 'US_STATES', 'DESIGNATOR', 'GENERIC', 'URLISH', 
            'PATTERNS', 'IDENTIFYING', 'CASED', 'GATES', 'ROW_TEXT', 'ROW_LABEL', 'ROW_KIDS', 'CTX_ROWS', 'luhn',
            'verhoeff_ok', 'aadhaar_ok', 'gen_aadhaar', 'tfn_ok', 'abn_ok', 'medicare_ok', 'nric_ok', 'thai_id_ok',
            'bsn_ok', 'nir_ok', 'dni_ok', 'cf_ok', 'pesel_ok', 'personnummer_ok', 'fnr_ok', 'steuerid_ok', 'pan_ok',
-           'gstin_ok', 'nino_ok', 'imei_ok', 'person_spans', 'pii_spans', 'pii_report', 'redact', 'redact_obj',
-           'pii_ctx', 'held', 'gated']
+           'gstin_ok', 'nino_ok', 'imei_ok', 'use_learned', 'learned', 'learned_spans', 'identifying', 'person_spans',
+           'pii_spans', 'pattern_spans', 'pii_report', 'redact', 'redact_obj', 'pii_ctx', 'held', 'gated']
 
 # %% ../nbs/09_pii.ipynb #d2947634
-import re
+import os, re
 from fastcore.all import AttrDict, L
 
 
@@ -329,6 +329,50 @@ CASED = frozenset({'address', *INTL_CASED})
 _COMPILED = {k: (re.compile(p, 0 if k in CASED else re.I), v) for k, (p, v) in PATTERNS.items()}
 
 
+# %% ../nbs/09_pii.ipynb #5eb2c336
+#: A detector fitted by `anya.pii`, or None for arithmetic alone. `use_learned` sets it.
+_LEARNED = None
+_LOADED = {}
+
+def _load_learned(model):
+    "A fitted detector from a name, a path, or itself, with its baseline features wired to the patterns."
+    if isinstance(model, str):
+        if model in _LOADED: return _LOADED[model]
+        try: from anya.pii import load_pii
+        except ImportError: raise ImportError(
+            "Fitting a PII detector lives in anya: pip install 'anya[pii]'") from None
+        _LOADED[model] = det = load_pii(model)
+    else: det = model
+    det.base = pattern_spans          # or the features it reads would be its own output
+    return det
+
+def use_learned(model=None,   # a name or path `anya.pii.load_pii` takes, a fitted detector, or None to switch off
+) -> object:
+    "Wire a detector fitted on your own examples into every PII decision here. Returns it."
+    global _LEARNED
+    _LEARNED = _load_learned(model) if model is not None else None
+    return _LEARNED
+
+def learned(model=None,       # a detector, a name, None for whatever is wired, or False for none
+) -> object:
+    "The detector these functions consult: the argument, then `use_learned`, then `$VISHALAKSHI_PII_MODEL`."
+    if model is False: return None
+    if model is not None: return _load_learned(model)
+    if _LEARNED is not None: return _LEARNED
+    return use_learned(os.environ.get('VISHALAKSHI_PII_MODEL'))
+
+def learned_spans(text:str, model=None) -> L:
+    "What a fitted detector adds, as `(start, end, kind, text)`. Never a kind `PATTERNS` already has."
+    det = learned(model)
+    if det is None: return L()
+    return L((s, e, k, v) for s, e, k, v in det.learned_spans(text) if k not in PATTERNS and k != 'person')
+
+def identifying(model=None) -> frozenset:
+    "The kinds that tip `has_pii`: `IDENTIFYING`, and whatever a fitted detector was taught."
+    det = learned(model)
+    return IDENTIFYING if det is None else IDENTIFYING | frozenset(det.kinds)
+
+
 # %% ../nbs/09_pii.ipynb #d1ff54dc
 def _scan_parts(text:str, mx:int=MAX_SCAN) -> list:
     """Both ends of a long document as `(offset, part)` (headers/footers hold identifiers)."""
@@ -360,6 +404,7 @@ def pii_spans(text:str,          # what to scan
               kinds=None,        # restrict to these kinds; None -> every pattern
               mx:int=MAX_SCAN,   # chars scanned before a long document is sampled at both ends
               ner:bool=False,    # also look for names, which no pattern can find
+              model=None,        # a fitted detector; None -> whatever `use_learned` wired, False -> none
 ) -> L:
     """Every match, as `(start, end, kind, text)`, longest first and never overlapping."""
     want = set(kinds or (*_COMPILED, 'person'))
@@ -376,6 +421,9 @@ def pii_spans(text:str,          # what to scan
                 found.append((off + m.start(), off + m.end(), kind, m.group(0)))
         if ner and 'person' in want:
             found += [(off + s, off + e, k, v) for s, e, k, v in person_spans(part)]
+        lsp = learned_spans(part, model)
+        if kinds is not None: lsp = [s for s in lsp if s[2] in want]
+        found += [(off + s, off + e, k, v) for s, e, k, v in lsp]
     # longest first, then leftmost, then specific over generic: `card` matches any Luhn-valid
     # 13-19 digit run, so a 15-digit `nir` or `imei` would otherwise be reported as a card
     found.sort(key=lambda s: (s[0] - s[1], s[0], s[2] in GENERIC))
@@ -386,23 +434,29 @@ def pii_spans(text:str,          # what to scan
         out.append((s, e, kind, val))
     return L(sorted(out))
 
+def pattern_spans(text:str, kinds=None, mx:int=MAX_SCAN, ner:bool=False) -> L:
+    "`pii_spans` with the learned layer off: the patterns alone, which is what a fitted model is fed."
+    return pii_spans(text, kinds, mx, ner, model=False)
+
 
 # %% ../nbs/09_pii.ipynb #1f8b0234
 def pii_report(text:str,          # what to scan
                kinds=None,        # restrict to these kinds; None -> every pattern
                mx:int=MAX_SCAN,   # chars scanned before a long document is sampled at both ends
                ner:bool=False,    # also look for names
+               model=None,        # a fitted detector; None -> whatever `use_learned` wired, False -> none
 ) -> AttrDict:
-    """Spans found and whether they tip `has_pii` (IDENTIFYING kinds only)."""
-    spans, counts = pii_spans(text, kinds, mx, ner=ner), {}
+    """Spans found and whether they tip `has_pii` (IDENTIFYING kinds, and a fitted detector's own)."""
+    spans, counts = pii_spans(text, kinds, mx, ner=ner, model=model), {}
     for _, _, k, _ in spans: counts[k] = counts.get(k, 0) + 1
     n = len(_scan_text(text, mx))
-    ident = {k: v for k, v in counts.items() if k in IDENTIFYING}
+    ident = {k: v for k, v in counts.items() if k in identifying(model)}
     # `n` and `density` stay arithmetic-only, or `DENSE` would mean something new the day NER came on
-    n_arith = len(spans) - counts.get('person', 0)
+    n_learned = sum(v for k, v in counts.items() if k not in PATTERNS and k != 'person')
+    n_arith = len(spans) - counts.get('person', 0) - n_learned
     return AttrDict(has_pii=bool(ident), kinds=counts, identifying=ident, n=n_arith,
-                    n_person=counts.get('person', 0), scanned=n, scanned_ner=bool(ner),
-                    density=round(1000 * n_arith / max(n, 1), 3), spans=spans)
+                    n_person=counts.get('person', 0), n_learned=n_learned, scanned=n,
+                    scanned_ner=bool(ner), density=round(1000 * n_arith / max(n, 1), 3), spans=spans)
 
 
 # %% ../nbs/09_pii.ipynb #bb39f244
@@ -411,10 +465,11 @@ def redact(text:str,       # the text to mask
            kinds=None,     # restrict to these kinds
            mask:str=None,  # what to put in place of a match; None -> `[KIND]`
            ner:bool=False, # also mask names
+           model=None,     # a fitted detector; None -> whatever `use_learned` wired, False -> none
 ) -> str:
     """Mask matched spans. Names only with `ner=True`."""
     out = str(text or '')
-    if spans is None: spans = pii_spans(out, kinds, mx=len(out), ner=ner)
+    if spans is None: spans = pii_spans(out, kinds, mx=len(out), ner=ner, model=model)
     for s, e, kind, _ in sorted(spans, reverse=True):
         out = out[:s] + (mask if mask is not None else f'[{kind.upper()}]') + out[e:]
     return out
@@ -424,11 +479,11 @@ def redact(text:str,       # the text to mask
 from .core import Vault
 from fastcore.all import patch
 
-def redact_obj(o, kinds=None, ner:bool=False):
+def redact_obj(o, kinds=None, ner:bool=False, model=None):
     "`redact` over the strings inside a nested dict or list: what a structured answer is."
-    if isinstance(o, str):  return redact(o, kinds=kinds, ner=ner)
-    if isinstance(o, dict): return {k: redact_obj(v, kinds, ner) for k, v in o.items()}
-    if isinstance(o, list): return [redact_obj(v, kinds, ner) for v in o]
+    if isinstance(o, str):  return redact(o, kinds=kinds, ner=ner, model=model)
+    if isinstance(o, dict): return {k: redact_obj(v, kinds, ner, model) for k, v in o.items()}
+    if isinstance(o, list): return [redact_obj(v, kinds, ner, model) for v in o]
     return o
 
 @patch
@@ -436,12 +491,13 @@ def pii(self:Vault,
         ref,                 # a doc_id, source, title or path: whatever `document` takes
         max_chars:int=MAX_SCAN,
         ner:bool=False,      # also look for names, except on code, where identifiers are not names
+        model=None,          # a fitted detector; None -> whatever `use_learned` wired, False -> none
 ) -> AttrDict:
     "Whether one whole document is somebody's business, and what in it says so."
     d = self.document(ref, max_chars=max_chars)
     prose = (d.get('kind') or '') != 'code'
     # `scanned_ner` then reports False, which is the honest answer: nothing looked for a name here
-    r = pii_report(d.text, ner=ner and prose)
+    r = pii_report(d.text, ner=ner and prose, model=model)
     override = (self.marks(d.get('doc_id')) or {}).get('pii_override') if d.get('doc_id') else None
     r.detected, r.override = r.has_pii, override
     if override == 'clear': r.has_pii = False
@@ -461,11 +517,11 @@ def mark_pii(self:Vault, ref, force:bool=True, reason:str='') -> dict:
     return self.mark(ref, pii_override='force' if force else None,
                      pii_reason=(reason or None) if force else None)
 
-def pii_ctx(ctx, ner:bool=False) -> AttrDict:
+def pii_ctx(ctx, ner:bool=False, model=None) -> AttrDict:
     "The report for an assembled context, which is what a policy has to gate on."
     parts = [str(getattr(r, 'text', None) or (r.get('text') if isinstance(r, dict) else '') or '')
              for r in (list(ctx.get('results') or []) + list(ctx.get('related') or []))]
-    return pii_report('\n\n'.join(parts), ner=ner)
+    return pii_report('\n\n'.join(parts), ner=ner, model=model)
 
 # %% ../nbs/09_pii.ipynb #8361cd32
 GATES = ('off', 'redact', 'refuse')
