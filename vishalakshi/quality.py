@@ -13,6 +13,7 @@ import numpy as np
 from collections import Counter, defaultdict
 from fastcore.all import AttrDict, L, patch, first
 from .core import Vault, DTYPE
+from litesearch import write_txn
 
 # %% ../nbs/10_quality.ipynb #63c65614
 #: signal -> (label, weight). `shown` is the 0.35 weak negative.
@@ -457,13 +458,17 @@ def pair_X(self:Vault, q:str, hits, prior:dict=None) -> np.ndarray:
 # %% ../nbs/10_quality.ipynb #730dcee0
 @patch
 def _rankers(self:Vault):
-    "Where a fitted ranker and the logging switch live, per shelf."
+    """Where a fitted ranker and the logging switch live, per shelf.
+    Once per Vault: `_rk` reaches this from the read path, and the create-and-migrate below is a write."""
     t = self.db.t.rankers
-    t.create(store=str, model=str, at=float, enabled=int, logging=int, note=str,
-             noise=str, noise_on=int, pk='store', if_not_exists=True)
-    have = {c.name for c in t.columns}          # `create` leaves an existing table alone, columns and all
-    for col, ty in (('noise', 'TEXT'), ('noise_on', 'INTEGER')):
-        if col not in have: self.db.conn.execute(f'ALTER TABLE rankers ADD COLUMN {col} {ty}')
+    if self._made_rankers: return t
+    with write_txn(self.db):
+        t.create(store=str, model=str, at=float, enabled=int, logging=int, note=str,
+                 noise=str, noise_on=int, pk='store', if_not_exists=True)
+        have = {c.name for c in t.columns}      # `create` leaves an existing table alone, columns and all
+        for col, ty in (('noise', 'TEXT'), ('noise_on', 'INTEGER')):
+            if col not in have: self.db.conn.execute(f'ALTER TABLE rankers ADD COLUMN {col} {ty}')
+    self._made_rankers = True
     return t
 
 @patch

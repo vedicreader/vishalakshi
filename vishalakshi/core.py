@@ -9,12 +9,12 @@ __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'MARK_COLS', 'KIND_SHELF'
            'mk_encoder', 'Vault', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
 
 # %% ../nbs/00_core.ipynb #57dc1d31
-import json, os, re, time, uuid, warnings
+import json, os, re, threading, time, uuid, warnings
 from collections import Counter
 import numpy as np
 from fastcore.all import AttrDict, L, Path, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, build_graph,
-        resolve_entities, topic_nodes, FastEncode, DOC_EXTS, embedding_gemma)
+        resolve_entities, topic_nodes, FastEncode, DOC_EXTS, embedding_gemma, write_txn)
 
 
 # %% ../nbs/00_core.ipynb #a9628282
@@ -79,6 +79,9 @@ def mk_encoder(model=None,          # an ENCODERS alias, a model2vec id, a lites
 # %% ../nbs/00_core.ipynb #c648b521
 class Vault(Index):
     '''Everything you have read, in one SQLite file, searchable as one corpus.'''
+    _made_marks = _made_stores = _made_rankers = False   # set once per Vault; keeps DDL off the read path
+    _any_noisy = None                    # None = not looked yet; `mark` resets it
+
     def __init__(self,
                  path:str=None,       # vault file; None -> ~/.vishalakshi/vault.db
                  encoder=None,        # an ENCODERS alias, a model id, an mk_encoder() result, or None
@@ -90,6 +93,8 @@ class Vault(Index):
         self.enc = encoder if _is_enc(encoder) else mk_encoder(encoder, dims=dims, offline=offline)
         super().__init__(ifnone(path, Path.home()/'.vishalakshi'/'vault.db'),
                          encoder=self.enc.model, name=store, db=db)
+        self._tid = threading.get_ident()   # apsw refuses two threads on one connection
+        self._on_disk = bool(self.db.conn.filename)
         self._register()
 
     def _where(self, kind=None, include_noisy:bool=False) -> str|None:
@@ -331,9 +336,13 @@ def set_meta(self:Vault, doc_id:str, **kv) -> dict:
 # %% ../nbs/00_core.ipynb #d5a90c48
 @patch
 def _stores(self:Vault):
-    'The registry of stores in this vault file and which encoder wrote each; created on first use.'
+    'The registry of stores in this vault file and which encoder wrote each; created once per Vault.'
     t = self.db.t.vault_stores
-    t.create(store=str, encoder=str, dims=int, method=str, added_at=float, pk='store', if_not_exists=True)
+    if self._made_stores: return t
+    if 'vault_stores' not in self.db.t:
+        with write_txn(self.db):
+            t.create(store=str, encoder=str, dims=int, method=str, added_at=float, pk='store', if_not_exists=True)
+    self._made_stores = True
     return t
 
 @patch
@@ -344,6 +353,7 @@ def _register(self:Vault):
         had = 'doc_marks' in self.db.t          # migrate once, on the open that creates it
         self._marks()
         if not had: self._migrate_marks()
+        if hasattr(self, '_rankers'): self._rankers()   # quality patches this in; its DDL is not the read path's job
         r = first(t(where=f'store={self.name!r}'))
         if r and (r['encoder'], r['dims']) != (self.enc.name, self.enc.dims):
             warnings.warn(f"store {self.name!r} was written by {r['encoder']} ({r['dims']}d) but this Vault is "
@@ -404,20 +414,30 @@ MARK_COLS = ('noisy', 'noisy_reason', 'pii_override', 'pii_reason')
 
 @patch
 def _marks(self:Vault):
-    """Per-document judgements; `meta` belongs to ingest, so marks live here."""
+    """Per-document judgements; `meta` belongs to ingest, so marks live here.
+    The DDL runs once per Vault: `context` reaches this through `_where`, and issuing
+    `CREATE TABLE IF NOT EXISTS` there makes every question a write on the connection."""
     t = self.db.t.doc_marks
-    t.create(doc_id=str, store=str, noisy=int, noisy_reason=str, pii_override=str, pii_reason=str,
-             at=float, pk=('doc_id', 'store'), if_not_exists=True)
-    try: self.db.conn.execute('CREATE INDEX IF NOT EXISTS doc_marks_noisy ON doc_marks(store, noisy)')
+    if self._made_marks: return t
+    if 'doc_marks' not in self.db.t:
+        with write_txn(self.db):
+            t.create(doc_id=str, store=str, noisy=int, noisy_reason=str, pii_override=str, pii_reason=str,
+                     at=float, pk=('doc_id', 'store'), if_not_exists=True)
+    try:
+        with write_txn(self.db):
+            self.db.conn.execute('CREATE INDEX IF NOT EXISTS doc_marks_noisy ON doc_marks(store, noisy)')
     except Exception: pass
+    self._made_marks = True
     return t
 
 @patch
 def _noisy_sql(self:Vault) -> str|None:
-    "The anti-join `_where` splices in, or None when nothing in this store is marked noisy."
-    try:
-        if not first(self._marks()(where=f'store={self.name!r} AND noisy=1', limit=1)): return None
-    except Exception: return None
+    """The anti-join `_where` splices in, or None when nothing in this store is marked noisy.
+    Cached per Vault, like `_rk`; `mark` clears it."""
+    if self._any_noisy is None:
+        try: self._any_noisy = bool(first(self._marks()(where=f'store={self.name!r} AND noisy=1', limit=1)))
+        except Exception: return None
+    if not self._any_noisy: return None
     return f'doc_id NOT IN (SELECT doc_id FROM doc_marks WHERE store={self.name!r} AND noisy=1)'
 
 @patch
@@ -431,6 +451,7 @@ def mark(self:Vault, ref, **kv) -> dict:
     row = {**{c: None for c in MARK_COLS}, **{k: v for k, v in cur.items() if k in MARK_COLS}, **kv}
     row.update(doc_id=d['id'], store=self.name, at=time.time())
     t.insert(row, replace=True)
+    self._any_noisy = None
     return dict(row, title=d['title'])
 
 @patch
@@ -451,6 +472,7 @@ def _migrate_marks(self:Vault) -> int:
             noisy_reason=m.get('noisy_reason') or None, pii_override=m.get('pii_override'),
             pii_reason=m.get('pii_override_reason') or None, at=time.time()), replace=True)
         n += 1
+    if n: self._any_noisy = None
     return n
 
 
@@ -529,8 +551,18 @@ def connect(self:Vault,
             topics:bool=True,    # (re)write the labelled topic nodes
             batch:int=2000,      # chunks per flush; keeps co-occurrence windows on disk, not in memory
             n_workers:int=None,  # extraction workers; 0 is serial, None picks by queue size
+            own_conn:bool=None,  # rebuild on its own connection; None -> only when called off the opening thread
             **kw) -> dict:
-    '''(Re)build the entity graph over everything in the vault.'''
+    '''(Re)build the entity graph over everything in the vault.
+    Called from another thread it takes its own connection: apsw refuses two threads on one, and
+    litesearch's `db_lock` cannot serialise the SQL this class runs around it. Measured on 60
+    documents, a rebuild on a second connection gives the same graph and the same ANN answers.'''
+    if own_conn is None: own_conn = threading.get_ident() != self._tid and self._on_disk
+    if own_conn:
+        v = self.for_thread()
+        try: return v.connect(resolve=resolve, topics=topics, batch=batch, n_workers=n_workers,
+                              own_conn=False, **kw)
+        finally: v.close()
     if not self.store.count: return dict(entities=0, mentions=0, edges=0, windows=0)
     if 'terms_fn' not in kw:
         try:
@@ -674,3 +706,15 @@ def stats(self:Vault) -> dict:
                 entities=ents, path=self.path,
                 by_kind={r['kind']: r['n'] for r in self.db.q(f'select kind, count(*) as n from {p}docs group by kind order by n desc')})
 
+
+# %% ../nbs/00_core.ipynb #15e189d9
+@patch
+def for_thread(self:Vault) -> Vault:
+    'This vault on its own connection, for a background thread. Reuses the loaded encoder, so no second model load.'
+    return Vault(self.path, encoder=self.enc, store=self.name, db=self.db.clone())
+
+@patch
+def close(self:Vault):
+    "Close this vault's connection. For the short-lived ones `for_thread` hands out."
+    try: self.db.conn.close()
+    except Exception: pass
