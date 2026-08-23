@@ -708,7 +708,7 @@ def stats(self:Vault) -> dict:
                 by_kind={r['kind']: r['n'] for r in self.db.q(f'select kind, count(*) as n from {p}docs group by kind order by n desc')})
 
 
-# %% ../nbs/00_core.ipynb #dc8e0df1
+# %% ../nbs/00_core.ipynb #6cbfc6169cbf3337
 @patch
 def for_thread(self:Vault) -> Vault:
     'This vault on its own connection, for a background thread. Reuses the loaded encoder, so no second model load.'
