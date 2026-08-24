@@ -7,11 +7,10 @@ Docs: https://vedicreader.github.io/vishalakshi/code.html.md"""
 # %% auto #0
 __all__ = ['kosha_indexed', 'code_sections']
 
-# %% ../nbs/03_code.ipynb #8262fd09
+# %% ../nbs/03_code.ipynb #18d9f035cf0f
 from fastcore.all import AttrDict, L, Path, patch
 from litesearch import rrf_all
-from .core import Vault, _gate
-
+from .core import Vault, gate
 
 # %% ../nbs/03_code.ipynb #85effdc0
 @patch
@@ -72,7 +71,7 @@ def grep(self:Vault,
     return _rg(rg(pattern, root=dir, max_results=limit, smart_case=True, **kw))
 
 
-# %% ../nbs/03_code.ipynb #c89161e3
+# %% ../nbs/03_code.ipynb #175583d216e0
 def _prose(v, q, n, kind=None, source:str='prose') -> L:
     'Vault sections, normalised to the federated row shape. `source` names the shelf they came from.'
     return L(v.sections(q, limit=n, kind=kind)).map(
@@ -97,6 +96,7 @@ def _rg(matches) -> L:
                                              text=m.line.strip()[:600], open=f'open {m.path}'))
 
 @patch
+@gate
 def federate(self:Vault,
              q:str,             # the query
              limit:int=12,      # fused hits returned
@@ -109,8 +109,6 @@ def federate(self:Vault,
              weights:dict=None, # per-leg RRF weights, e.g. {'prose':1.0,'repo':1.5}
              dir:str=None,      # repo for the code and grep legs
              per_leg:int=None,  # hits pulled from each leg before fusion
-             pii:str='off',     # off | redact | refuse, applied to every fused hit
-             pii_ner:bool=False,# gate on titled names too
 ) -> AttrDict:
     'One ranked answer across prose, indexed code and the files on disk, fused by RRF.'
     n, legs = per_leg or max(limit, 10), {}
@@ -131,12 +129,11 @@ def federate(self:Vault,
         for i, r in enumerate(rows): r['_fid'] = f'{nm}:{r.ref or i}'
     fused = rrf_all(list(lists.values()), limit=limit, id_key='_fid',
                     weights=[(weights or {}).get(nm, 1.0) for nm in lists])
-    out = AttrDict(query=q, hits=L(fused).map(AttrDict),
-                   legs={nm: (len(r) if isinstance(r, L) else r) for nm, r in legs.items()},
-                   note=f"RRF over {', '.join(lists) or 'nothing'}; the legs use different "
-                        f"encoders, so ranks are fused, not distances")
-    # the code legs are files, not sections, so a mark cannot reach them; the text is scanned instead
-    return _gate(self, out, pii, pii_ner)
+    # the code legs are files, not sections, so a mark cannot reach them; `gate` scans the text
+    return AttrDict(query=q, hits=L(fused).map(AttrDict),
+                    legs={nm: (len(r) if isinstance(r, L) else r) for nm, r in legs.items()},
+                    note=f"RRF over {', '.join(lists) or 'nothing'}; the legs use different "
+                         f"encoders, so ranks are fused, not distances")
 
 # %% ../nbs/03_code.ipynb #9e4d1a76
 def kosha_indexed(dir:str=None) -> bool:

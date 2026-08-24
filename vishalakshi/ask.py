@@ -9,15 +9,14 @@ __all__ = ['VAULT_SP', 'DFLT_MODEL', 'dflt_model', 'pii_model_', 'LOCAL_RUNTIMES
            'litert_gpu', 'new_chat', 'is_stock_chat', 'use_chat', 'mk_prompt', 'split_reasoning', 'cited', 'doc_note',
            'CachedChat']
 
-# %% ../nbs/02_ask.ipynb #8e370e1a
+# %% ../nbs/02_ask.ipynb #6a75ade4c079
 import os, re, warnings
 from contextlib import contextmanager
 from fastcore.all import AttrDict, L, patch
 from rishi.core import Chat, is_ctx_error, resolve_runtime, resp_text, split_think, thought
 from rishi.litert import gemma4_e2b
-from .core import Vault, tidy_bc
+from .core import Vault, gate, tidy_bc
 from .pii import _pii_marks, _section_private, gated, pii_ctx, pii_report, redact, redact_obj
-
 
 # %% ../nbs/02_ask.ipynb #5a8b980e5ee928aa
 VAULT_SP = """You answer questions from a personal research vault.
@@ -133,20 +132,19 @@ def cited(answer:str, results) -> L:
                                breadcrumb=tidy_bc(r.breadcrumb), doc_id=r.doc_id)
     return L(one(n, results[n-1]) for n in ns if 0 < n <= len(results))
 
-# %% ../nbs/02_ask.ipynb #6678401952c64b41
+# %% ../nbs/02_ask.ipynb #c5f94b9547ab
 def doc_note(n:int) -> str:
     'The line that says which of the numbered sections are the documents being asked about.'
     which = '[1] is the document' if n == 1 else f'[1]–[{n}] are the documents'
     return f'{which} being asked about; the rest is context from elsewhere in the vault.\n\n'
 
 @patch
+@gate
 def doc_context(self:Vault,
                 ref,                  # a doc_id, source, title or path, or a list of them
                 question:str,         # what the other sections are retrieved against
                 related:int=3,        # sections from the *rest* of the vault to add
                 max_chars:int=12000,  # chars of the named documents, shared out between them
-                pii:str='off',        # off | redact | refuse, applied to every section returned
-                pii_ner:bool=False,   # gate on titled names too
 ) -> AttrDict:
     'The documents `ref` names as sections [1..n], with a few sections from elsewhere behind them.'
     refs = L(ref if isinstance(ref, (list, tuple, L)) else [ref])
@@ -160,9 +158,8 @@ def doc_context(self:Vault,
         res.append(AttrDict(node_id=s['node_id'], title=s['title'], doc_id=s['node_id'].split('#')[0],
                             breadcrumb=s['breadcrumb'], filename=None, pages=s['pages'],
                             text='\n\n'.join(s['snippets'])))
-    out = AttrDict(results=res, related=L(), encoder=self.enc.note, doc=docs[0], docs=docs,
-                   n_docs=len(docs), note=doc_note(len(docs)))
-    return gated(out, pii, self, ner=pii_ner)
+    return AttrDict(results=res, related=L(), encoder=self.enc.note, doc=docs[0], docs=docs,
+                    n_docs=len(docs), note=doc_note(len(docs)))
 
 # %% ../nbs/02_ask.ipynb #42db118cfc970f35
 def _scrub_answer(out, private:bool, ner:bool=True):

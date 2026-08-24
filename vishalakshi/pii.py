@@ -7,14 +7,14 @@ Docs: https://vedicreader.github.io/vishalakshi/pii.html.md"""
 # %% auto #0
 __all__ = ['GATES', 'ROW_TEXT', 'ROW_LABEL', 'ROW_KIDS', 'CTX_ROWS', 'pii_ctx', 'held', 'gated']
 
-# %% ../nbs/09_pii.ipynb #8bf138034dc5
+# %% ../nbs/09_pii.ipynb #65e8ebe6d5ca
 import re
 from fastcore.all import AttrDict, L, patch
 from rahasya import (MAX_SCAN, DENSE, NER_CHARS, PATTERNS, IDENTIFYING, CASED, US_STATES,
                      DESIGNATOR, GENERIC, URLISH, URL_KEEP, INTL_PATTERNS, INTL_CASED,
                      PERSON_HON, luhn, person_names, person_spans, pii_spans, pii_report,
                      redact, redact_obj)
-from .core import Vault
+from .core import Vault, gate
 
 # %% ../nbs/09_pii.ipynb #1a3b469dba3b
 from .core import Vault
@@ -144,14 +144,13 @@ def gated(o,                  # whatever a retrieval primitive returned
     if isinstance(out.get('doc'), dict): out['doc'] = g(out['doc'])
     return out
 
-# %% ../nbs/09_pii.ipynb #9fbfb2122b18
+# %% ../nbs/09_pii.ipynb #febda32f5ac5
 @patch
+@gate
 def toc(self:Vault,
         doc=None,            # narrow to one document, as `Index.toc` takes it
-        pii:str='off',       # off | redact | refuse
-        pii_ner:bool=False,  # gate on titled names too
         **kw                 # forwarded to `Index.toc`
 ) -> list:
     "The heading tree. Node titles are the openings of their sections, and a policy covers them too."
     from litesearch import Index
-    return gated(Index.toc(self, doc, **kw), pii, self, ner=pii_ner)
+    return Index.toc(self, doc, **kw)

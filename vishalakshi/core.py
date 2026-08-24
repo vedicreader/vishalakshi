@@ -6,16 +6,16 @@ Docs: https://vedicreader.github.io/vishalakshi/core.html.md"""
 
 # %% auto #0
 __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'MARK_COLS', 'KIND_SHELF', 'tidy_bc', 'kinds', 'enc_spec', 'HashEmbed',
-           'mk_encoder', 'Vault', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
+           'mk_encoder', 'Vault', 'gate', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
 
-# %% ../nbs/00_core.ipynb #57dc1d31
+# %% ../nbs/00_core.ipynb #66b23414ed2b
 import json, os, re, time, uuid, warnings
 from collections import Counter
 import numpy as np
-from fastcore.all import AttrDict, L, Path, first, ifnone, patch, store_attr
+from functools import wraps
+from fastcore.all import AttrDict, L, Path, delegates, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, build_graph,
         resolve_entities, topic_nodes, FastEncode, DOC_EXTS, embedding_gemma, write_txn)
-
 
 # %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'image')
@@ -182,14 +182,29 @@ def note(self:Vault,
     return self.add(text.strip(), ttl, source=f'note:{uuid.uuid4().hex[:12]}', kind='note', meta=dict(tags=list(tags or [])))
 
 
-# %% ../nbs/00_core.ipynb #2bd1071c
-def _gate(v, o, pii:str, ner:bool, store:str=None):
-    "Hand what a retrieval primitive built to the pii gate, which lives in `pii` and imports this."
-    if pii == 'off' or o is None: return o
-    from vishalakshi.pii import gated
-    return gated(o, pii, v, ner=ner, store=store)
+# %% ../nbs/00_core.ipynb #8c956f257f4e
+def _pii_kw(o,
+            pii:str='off',       # off | redact | refuse, applied to every row returned
+            pii_ner:bool=False,  # gate on titled names too
+            ): ...
+
+def gate(f):
+    """Apply the `pii=` policy to whatever a retrieval method returns.
+
+    The policy is one thing, so it is written once. A primitive that hands back section text
+    cannot forget the gate, and `pii=`/`pii_ner=` reach its signature (and so the CLI, the MCP
+    tools and the docs) from `_pii_kw` rather than from seven copies."""
+    @wraps(f)
+    def _f(self, *a, pii:str='off', pii_ner:bool=False, **kw):
+        o = f(self, *a, **kw)
+        if pii == 'off' or o is None: return o
+        from vishalakshi.pii import gated
+        # `read` names the shelf a section came from; for the rest `gated` falls back to this one
+        return gated(o, pii, self, ner=pii_ner, store=kw.get('store') or self.name)
+    return delegates(_pii_kw)(_f)
 
 @patch
+@gate
 def search(self:Vault,
            q:str,              # query
            limit:int=10,       # hits to return
@@ -197,28 +212,27 @@ def search(self:Vault,
            chars:int=300,      # chars of each hit kept as `snippet`
            rerank:bool=False,  # reorder the candidates with a cross-encoder (see below)
            include_noisy:bool=False, # include documents explicitly marked as noisy
-           pii:str='off',      # off | redact | refuse, applied to every snippet returned
-           pii_ner:bool=False, # gate on titled names too
            **kw                # forwarded to litesearch doc_search
 ) -> L:
     """Chunk-level hybrid search; hits carry breadcrumb and `node_id`. Honours kind and noisy marks."""
     hits = self.db.doc_search(q, self.qemb(q), limit=limit, store=self.name, dtype=DTYPE,
                               where=self._where(kind, include_noisy), rerank=rerank, **kw)
-    out = L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
-                     breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
-                     snippet=(h.get('content') or '')[:chars]) for h in hits)
-    return _gate(self, out, pii, pii_ner)
+    return L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
+                      breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
+                      snippet=(h.get('content') or '')[:chars]) for h in hits)
 
 @patch
-def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False, include_noisy:bool=False,
-             pii:str='off', pii_ner:bool=False, **kw) -> list:
+@gate
+def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False,
+             include_noisy:bool=False, **kw) -> list:
     'Ranked *sections* rather than chunks. Noisy documents are excluded unless requested.'
     secs = self.db.sections(q, self.qemb(q), limit=limit, per=per, store=self.name, dtype=DTYPE,
                             where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for s in secs: s['breadcrumb'] = tidy_bc(s.get('breadcrumb'))
-    return _gate(self, secs, pii, pii_ner)
+    return secs
 
 @patch
+@gate
 def context(self:Vault,
             q:str,              # the question
             sections:int=6,     # operative sections returned
@@ -230,8 +244,6 @@ def context(self:Vault,
             dir:str=None,       # repo for the code legs; None -> the cwd repo
             rerank:bool=False,  # reorder the chunk hits before they are rolled up into sections
             include_noisy:bool=False, # include documents explicitly marked as noisy
-            pii:str='off',      # off | redact | refuse, applied to every section returned
-            pii_ner:bool=False, # gate on titled names too
             **kw                # forwarded to litesearch context
 ) -> AttrDict:
     'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
@@ -250,7 +262,7 @@ def context(self:Vault,
         if kosha_indexed(dir):
             hits = code_sections(self, q, n=code or 4, dir=dir)
             ctx.results, ctx.code = ctx.results + hits, len(hits)
-    return _gate(self, ctx, pii, pii_ner)
+    return ctx
 
 @patch
 def related(self:Vault, node_id:str, limit:int=8, clip=300) -> L:
@@ -266,14 +278,14 @@ def related(self:Vault, node_id:str, limit:int=8, clip=300) -> L:
     return L(out.values())
 
 @patch
-def read(self:Vault, node_id:str, max_chars:int=6000, store:str=None,
-         pii:str='off', pii_ner:bool=False) -> dict:
+@gate
+def read(self:Vault, node_id:str, max_chars:int=6000,
+         store:str=None,      # the shelf the section is on; None -> this one
+         ) -> dict:
     'Assemble a whole section back out of its chunks.`store` opens a section on another shelf, so a `node_id` from `elsewhere()` can be read without opening that shelf.'
-    sec = self.db.read(node_id, store=store or self.name, max_chars=max_chars)
-    return _gate(self, sec, pii, pii_ner, store=store or self.name)
+    return self.db.read(node_id, store=store or self.name, max_chars=max_chars)
 
-
-# %% ../nbs/00_core.ipynb #7a1f2b64
+# %% ../nbs/00_core.ipynb #d1788576de66
 @patch
 def doc(self:Vault, ref:str) -> dict:
     'One document row, by `doc_id`, exact `source`, or a title substring; `meta` already decoded.'
@@ -285,13 +297,12 @@ def doc(self:Vault, ref:str) -> dict:
     return None
 
 @patch
+@gate
 def document(self:Vault,
              ref:str,               # doc_id, source (url or path), or a title substring
              max_chars:int=40000,   # cap on the text returned
              headings:bool=True,    # put the node titles back as markdown headings
              disk:bool=True,        # fall back to a path on disk the vault has never seen
-             pii:str='off',         # off | redact | refuse, applied to the text returned
-             pii_ner:bool=False,    # gate on titled names too
 ) -> AttrDict:
     'One whole document, reassembled in document order: the unit a model reads to extract from.'
     d = self.doc(ref)
@@ -299,9 +310,9 @@ def document(self:Vault,
         p = Path(ref or '')
         if not (disk and p.is_file()): raise ValueError(f'no document in the vault matching {ref!r}')
         txt = p.read_text(errors='replace')
-        return _gate(self, AttrDict(doc_id=None, title=p.name, source=str(p), kind='file', meta={}, pages=None,
-                                    origin='disk', nodes=0, chars=len(txt), truncated=len(txt) > max_chars,
-                                    text=txt[:max_chars]), pii, pii_ner)
+        return AttrDict(doc_id=None, title=p.name, source=str(p), kind='file', meta={}, pages=None,
+                        origin='disk', nodes=0, chars=len(txt), truncated=len(txt) > max_chars,
+                        text=txt[:max_chars])
     did = d['id'].replace("'", "''")
     chunks = {}
     for c in self.store(where=f"doc_id='{did}'", select='content, node_id, page, rowid as rowid'):
@@ -312,10 +323,9 @@ def document(self:Vault,
             parts.append('#'*min(nd['level'], 6) + ' ' + t)
         parts += [c['content'] for c in sorted(chunks.get(nd['id'], []), key=lambda c: (c['page'] or 0, c['rowid']))]
     txt = '\n\n'.join(p for p in parts if (p or '').strip())
-    return _gate(self, AttrDict(doc_id=d['id'], title=d['title'], source=d['source'], kind=d['kind'],
-                                meta=d['meta'], pages=d['pages'], origin='vault', nodes=len(nodes),
-                                chars=len(txt), truncated=len(txt) > max_chars, text=txt[:max_chars]),
-                 pii, pii_ner)
+    return AttrDict(doc_id=d['id'], title=d['title'], source=d['source'], kind=d['kind'],
+                    meta=d['meta'], pages=d['pages'], origin='vault', nodes=len(nodes),
+                    chars=len(txt), truncated=len(txt) > max_chars, text=txt[:max_chars])
 
 @patch
 def set_meta(self:Vault, doc_id:str, **kv) -> dict:
@@ -326,7 +336,6 @@ def set_meta(self:Vault, doc_id:str, **kv) -> dict:
     m = {**json.loads(r['meta'] or '{}'), **kv}
     self.t.docs.update(dict(id=doc_id, meta=json.dumps(m, default=str)))
     return m
-
 
 # %% ../nbs/00_core.ipynb #4b8f347d
 @patch
