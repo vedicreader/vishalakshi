@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.12
+changes to make pollers in vishalakshi. 
+
 ## 0.1.11
 
 Retrieval takes a privacy policy. `ask` used to be the only method with one. `search`, `sections`,
