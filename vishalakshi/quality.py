@@ -13,23 +13,16 @@ import numpy as np
 from collections import Counter, defaultdict
 from fastcore.all import AttrDict, L, patch, first
 from .core import Vault, DTYPE
-from litesearch import write_txn
 
 # %% ../nbs/10_quality.ipynb #63c65614
-#: signal -> (label, weight). `shown` is the 0.35 weak negative.
+#: signal -> (label, weight)
 SIGNALS = dict(up=(1.0, 3.0), good=(1.0, 3.0), read=(1.0, 1.5), cited=(1.0, 1.0),
                shown=(0.0, 0.35), bad=(0.0, 3.0), down=(0.0, 3.0))
 
 @patch
 def _fb(self:Vault):
-    "The feedback log, created on first use: one row per (question, section) judgement."
-    t = self.db.t.feedback
-    t.create(id=str, at=float, store=str, q=str, ask_id=str, node_id=str, doc_id=str, rank=int,
-             score=float, signal=str, label=float, weight=float, pk='id', if_not_exists=True)
-    for cols in ('store, doc_id', 'store, ask_id'):
-        try: self.db.conn.execute(f"CREATE INDEX IF NOT EXISTS feedback_{cols.split(', ')[1]} ON feedback({cols})")
-        except Exception: pass
-    return t
+    'Feedback table.'
+    return self.db.t.feedback
 
 @patch
 def rate(self:Vault,
@@ -41,7 +34,7 @@ def rate(self:Vault,
          score:float=None,    # the retrieval score it was shown with
          ask_id:str=None,     # groups the rows from one question together
 ) -> dict:
-    "Record one judgement. `v.rate(q, node_id, signal='down')` is the whole manual interface."
+    'Record one section judgement.'
     if signal not in SIGNALS: raise ValueError(f'not a signal: {signal!r}; expected {sorted(SIGNALS)}')
     label, weight = SIGNALS[signal]
     row = dict(id=uuid.uuid4().hex[:16], at=time.time(), store=self.name, q=q or '',
@@ -53,7 +46,7 @@ def rate(self:Vault,
 
 @patch
 def ratings(self:Vault, doc_id:str=None, limit:int=None) -> L:
-    "The feedback log for this shelf, newest first."
+    'Feedback for this shelf, newest first.'
     w = f'store={self.name!r}' + (f' AND doc_id={doc_id!r}' if doc_id else '')
     return L(self._fb()(where=w, order_by='at desc', limit=limit))
 
@@ -456,21 +449,6 @@ def pair_X(self:Vault, q:str, hits, prior:dict=None) -> np.ndarray:
     return np.array(rows, np.float64) if rows else np.zeros((0, len(PAIR_FEATURES)))
 
 # %% ../nbs/10_quality.ipynb #730dcee0
-@patch
-def _rankers(self:Vault):
-    """Where a fitted ranker and the logging switch live, per shelf.
-    Once per Vault: `_rk` reaches this from the read path, and the create-and-migrate below is a write."""
-    t = self.db.t.rankers
-    if self._made_rankers: return t
-    with write_txn(self.db):
-        t.create(store=str, model=str, at=float, enabled=int, logging=int, note=str,
-                 noise=str, noise_on=int, pk='store', if_not_exists=True)
-        have = {c.name for c in t.columns}      # `create` leaves an existing table alone, columns and all
-        for col, ty in (('noise', 'TEXT'), ('noise_on', 'INTEGER')):
-            if col not in have: self.db.conn.execute(f'ALTER TABLE rankers ADD COLUMN {col} {ty}')
-    self._made_rankers = True
-    return t
-
 @patch
 def learn(self:Vault, on:bool=True) -> dict:
     "Log every `ask` as feedback from now on. Off by default: nothing is recorded until you say so."
