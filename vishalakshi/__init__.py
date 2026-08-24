@@ -6,7 +6,6 @@ Modules:
 
 __version__ = "0.1.12"
 from .core import *
-from .jobs import *
 from .acquire import *
 from .ask import *
 from .quality import *

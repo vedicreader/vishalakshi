@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "litesearch[sanskrit]>=0.1.25",
     "fossick>=0.1.15",
+    "pobblebonk>=0.0.2",
     "rahasya>=0.0.1",
     "varga>=0.0.1",
     "fastcore>=1.12.31",
