@@ -1,6 +1,6 @@
 """The two learned PII backends, kept here and out of the library.
 
-Neither wins the gate. `evals/pii_model.py` measures both against `vishalakshi.pii` and the patterns
+Neither wins the gate. `evals/pii_model.py` measures both against `rahasya` and the patterns
 win on precision, on recall and by two orders of magnitude on speed. So `pii.py` ships the
 arithmetic and these live in `evals/`, where a number can be attached to them without the wheel
 carrying an `onnxruntime` import or a gigabyte of weights.
@@ -9,7 +9,7 @@ carrying an `onnxruntime` import or a gigabyte of weights.
   litert  `litert-community/LFM2.5-Encoder-350M-PII-Detector`, 350M tflite, fp16 and wi8fc
 
 Both return spans in the shape `pii_spans` uses, `(start, end, kind, text)`, with model labels folded
-onto `pii.PATTERNS` kinds, so a caller can union them with `pii_spans` output and measure what that
+onto `rahasya.PATTERNS` kinds, so a caller can union them with `pii_spans` output and measure what that
 did. `litert_spans` collapses BIOES tags per entity, because a raw argmax over byte-BPE tokens
 fragments every span it finds.
 
@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastcore.all import L
 
-#: Kinds these models emit that no pattern has. Deliberately outside `pii.IDENTIFYING`: a caller
+#: Kinds these models emit that no pattern has. Deliberately outside `rahasya.IDENTIFYING`: a caller
 #: that wants them to gate has to say so.
 MODEL_ONLY = frozenset({'idnum', 'taxnum', 'city', 'username', 'mac', 'gps'})
 
