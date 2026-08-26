@@ -30,6 +30,7 @@ dependencies = [
     "fastcore>=2.2.15",
     "rahasya>=0.0.1",
     "varga[llm,keyphrase]>=0.0.1",
+    "pobblebonk>=0.0.1",
     "numpy>=1.26",
     "mcp",
     "koshas>=0.0.36",

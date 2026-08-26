@@ -17,6 +17,11 @@ file, and only that half.
   `reshelf` moves it, `extract` runs a schema against the vault's own model. `signals`,
   `guess_type`, the cue table and the schemas come from varga.
 
+`pobblebonk` is the clock. Watches keep their row here, because the action is vault data, but
+the cadence, the catch-up and the next fire are honker's, in the vault's own file. `Queue` in
+`jobs` is untouched and stays that way: it holds the lease, the fenced ack and the dead letter,
+and `evals/RESULTS.md` section 4 is the measurement behind all three.
+
 A detector pattern or a cue phrase belongs upstream. Adding one here means the wrong package
 carries the measurement.
 

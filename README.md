@@ -275,6 +275,10 @@ reclaims what a dead worker was holding, enqueues what has come due, and drains.
 retries with backoff and dead-letters after five attempts, so `jobs(state='dead')` is where work
 goes when it will not succeed, rather than nowhere. See [jobs](11_jobs.ipynb).
 
+The clock is [pobblebonk](https://vedicreader.github.io/pobblebonk/), in the vault's own file, so
+a watch takes `cron='0 9 * * 1'` as well as `every='6h'`. Running the work is still the vault's own
+queue: leases, fenced acks and the dead letter are unchanged.
+
 ``` python
 v.watch('https://example.com/changelog', action='url', every='6h')
 v.watch('late chunking retrieval', action='web', every='1d', n=5)
