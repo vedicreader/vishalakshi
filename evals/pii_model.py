@@ -82,7 +82,7 @@ def _spans(backend, fn):
 
 
 def run(n=480, seed=0, builds=None):
-    from vishalakshi import pii as P
+    import rahasya as P
 
     docs = corpus(n, seed)
     chars = sum(len(t) for t, _, _ in docs)

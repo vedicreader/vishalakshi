@@ -3,6 +3,28 @@
 nbdev. The notebooks under `nbs/` are the source; `vishalakshi/*.py` is generated. Edit the
 notebook, run `nbdev_export`, never edit the `.py`. CI runs `nbdev_export` and fails on a diff.
 
+## What is here and what is borrowed
+
+`rahasya` decides whether text holds personal information. `varga` decides what kind of document
+it is and what fields it holds. Neither knows about a vault, and neither should learn: they are
+separate packages so other things can use them. What lives here is the half that needs the vault
+file, and only that half.
+
+- `pii` is the gate, not the detector: `mark_pii`, `mark_not_pii`, `gated`, `pii_ctx`. The
+  patterns, the checksums and `redact` come from rahasya and are re-exported so a caller holding
+  a Vault has one import.
+- `extract` is the vault side of varga: `categorize` writes a doctype into a document's meta,
+  `reshelf` moves it, `extract` runs a schema against the vault's own model. `signals`,
+  `guess_type`, the cue table and the schemas come from varga.
+
+`pobblebonk` is the clock. Watches keep their row here, because the action is vault data, but
+the cadence, the catch-up and the next fire are honker's, in the vault's own file. `Queue` in
+`jobs` is untouched and stays that way: it holds the lease, the fenced ack and the dead letter,
+and `evals/RESULTS.md` section 4 is the measurement behind all three.
+
+A detector pattern or a cue phrase belongs upstream. Adding one here means the wrong package
+carries the measurement.
+
 ## Prose in notebooks
 
 Keep it short. The prose is there so a reader can see what the code does and what was chosen,

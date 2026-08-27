@@ -354,7 +354,7 @@ def _by_class(s, indent='  '):
 
 
 def run(n=480, seed=0):
-    from vishalakshi import pii as P
+    import rahasya as P
     rep = lambda t: P.pii_report(t).has_pii
 
     print(f'=== 1. the tuned corpus, {n} documents. IN-SAMPLE: these lookalikes were written while')

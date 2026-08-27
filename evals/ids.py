@@ -1,4 +1,4 @@
-"""Generators for the regional identifiers, one per validator in `vishalakshi.pii`.
+"""Generators for the regional identifiers, one per validator in `rahasya`.
 
 These make fake identities that pass a real checksum, which is what a recall measurement needs.
 Every generator is paired with the library's validator in `check()` below, so a corpus can never
@@ -10,19 +10,8 @@ import re, random, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from vishalakshi.pii import (_VD, _VP, _VINV, _luhn_ds, _NRIC_T, _NRIC_OFF, _DNI_L, _CF_ODD,
-                             _CF_EVEN, _B36, _NINO_BAD)
-
-
-def verhoeff_digit(ds):
-    "The check digit that makes `ds` pass Verhoeff. Generating, so it lives here and not in the library."
-    c = 0
-    for i, d in enumerate(reversed(ds)): c = _VD[c][_VP[(i + 1) % 8][d]]
-    return _VINV[c]
-
-def gen_aadhaar(r):
-    ds = [r.randrange(2, 10)] + [r.randrange(10) for _ in range(10)]
-    return ''.join(map(str, ds + [verhoeff_digit(ds)]))
+from rahasya import gen_aadhaar
+from rahasya.core import (_luhn_ds, _NRIC_T, _NRIC_OFF, _DNI_L, _CF_ODD, _CF_EVEN, _B36, _NINO_BAD)
 
 def gen_tfn(r):
     while True:
@@ -140,7 +129,7 @@ def gen_imei(r):
 
 #: name -> (generator, the library validator it has to satisfy)
 def _checks():
-    from vishalakshi import pii as P
+    import rahasya as P
     return {'aadhaar': (gen_aadhaar, P.aadhaar_ok), 'tfn': (gen_tfn, P.tfn_ok), 'abn': (gen_abn, P.abn_ok),
             'medicare': (gen_medicare, P.medicare_ok), 'nric': (gen_nric, P.nric_ok),
             'thai_id': (gen_thai_id, P.thai_id_ok), 'bsn': (gen_bsn, P.bsn_ok), 'nir': (gen_nir, P.nir_ok),
@@ -160,7 +149,7 @@ KNOWN = [('verhoeff', 'aadhaar_ok', '234567890124', True), ('nric', 'nric_ok', '
 
 def check(n=500, seed=0):
     "Every generator against the library validator, and every validator against a perturbation."
-    from vishalakshi import pii as P
+    import rahasya as P
     r = random.Random(seed)
     print(f'{"kind":<15}{"generated accepted":>20}{"one digit changed, rejected":>30}')
     for name, (gen, ok) in _checks().items():

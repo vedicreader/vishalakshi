@@ -66,7 +66,7 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate: **1.000 precision at recall 1.000 on a held-out corpus** run once, 0.996 on the corpus it was tuned against (`evals/pii.py`, which reports both and says which is which). Digits are read in context, so `EN 60601-1` is a standard rather than a ZIP and a ten-digit page id in a URL is not an NHS number. Thirty-four kinds, including nineteen regional identifiers with their own checksums: Aadhaar, PAN and GSTIN, Australian TFN, ABN and Medicare, Singapore NRIC, Thai national ID, Dutch BSN, French NIR, Spanish DNI and NIE, Italian codice fiscale, Polish PESEL, Swedish personnummer, Norwegian fødselsnummer, German Steuer-IdNr, UK NINO, IMEI.
+`ask`, `extract` and `explain` share one gate: **1.000 precision at recall 1.000 on a held-out corpus** run once, 0.996 on the corpus it was tuned against (`evals/pii.py`, which reports both and says which is which). Digits are read in context, so `EN 60601-1` is a standard rather than a ZIP and a ten-digit page id in a URL is not an NHS number. The detector is [rahasya](https://vedicreader.github.io/rahasya/): thirty-four kinds, including nineteen regional identifiers with their own checksums: Aadhaar, PAN and GSTIN, Australian TFN, ABN and Medicare, Singapore NRIC, Thai national ID, Dutch BSN, French NIR, Spanish DNI and NIE, Italian codice fiscale, Polish PESEL, Swedish personnummer, Norwegian fødselsnummer, German Steuer-IdNr, UK NINO, IMEI.
 
 Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
 
@@ -275,6 +275,10 @@ reclaims what a dead worker was holding, enqueues what has come due, and drains.
 retries with backoff and dead-letters after five attempts, so `jobs(state='dead')` is where work
 goes when it will not succeed, rather than nowhere. See [jobs](11_jobs.ipynb).
 
+The clock is [pobblebonk](https://vedicreader.github.io/pobblebonk/), in the vault's own file, so
+a watch takes `cron='0 9 * * 1'` as well as `every='6h'`. Running the work is still the vault's own
+queue: leases, fenced acks and the dead letter are unchanged.
+
 ``` python
 v.watch('https://example.com/changelog', action='url', every='6h')
 v.watch('late chunking retrieval', action='web', every='1d', n=5)
@@ -294,10 +298,10 @@ L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['para
 | [code](03_code.ipynb) | kosha, `symbol`, `where_to_add`, `grep`, `federate` |
 | [cli](04_cli.ipynb) | every [`Vault`](https://vedicreader.github.io/vishalakshi/core.html#vault) method as a command |
 | [mcp](05_mcp.ipynb) | `vishalakshi-mcp` |
-| [extract](06_extract.ipynb) | `categorize`, `extract`, `extract_all`, schemas |
+| [extract](06_extract.ipynb) | the vault side of [varga](https://vedicreader.github.io/varga/): `categorize`, `extract`, `extract_all`, `reshelf` |
 | [concepts](07_concepts.ipynb) | encoders, shelves, backends, `reshelf` |
 | [skill](08_skill.ipynb) | agent cheat sheet (exported skill) |
-| [pii](09_pii.ipynb) | patterns, checksums, context guards, nineteen regional identifiers, `secret`, `mark_pii` / `mark_not_pii`, [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) |
+| [pii](09_pii.ipynb) | the retrieval gate over [rahasya](https://vedicreader.github.io/rahasya/): `mark_pii` / `mark_not_pii`, `gated`, `pii_ctx` |
 | [jobs](11_jobs.ipynb) | [`Queue`](https://vedicreader.github.io/vishalakshi/jobs.html#queue), retries, leases, the dead letter |
 | [quality](10_quality.ipynb) | `suggest_noisy` / `accept_noisy`, `fit_noise`, ranker |
 

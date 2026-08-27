@@ -27,10 +27,10 @@ classifiers = [
 dependencies = [
     "litesearch[sanskrit]>=0.1.33",
     "fossick>=0.1.15",
-    "pobblebonk>=0.0.2",
+    "fastcore>=2.2.15",
     "rahasya>=0.0.1",
-    "varga>=0.0.1",
-    "fastcore>=1.12.31",
+    "varga[llm,keyphrase]>=0.0.1",
+    "pobblebonk>=0.0.2",
     "numpy>=1.26",
     "mcp",
     "koshas>=0.0.36",
