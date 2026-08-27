@@ -25,22 +25,21 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "litesearch[sanskrit]>=0.1.33",
+    "litesearch>=0.1.33",
     "fossick>=0.1.15",
     "fastcore>=2.2.15",
     "rahasya>=0.0.1",
-    "varga[llm,keyphrase]>=0.0.1",
+    "varga>=0.0.1",
     "pobblebonk>=0.0.2",
     "numpy>=1.26",
     "mcp",
     "koshas>=0.0.36",
     "rgapi",
+    # rishi's own extras, not ours: `ask` runs a litert model by default, so a plain
+    # `pip install vishalakshi` has to arrive able to do it
     "rishi[litert,remote]>=0.1.2",
     "pyskills>=0.0.27",
 ]
-
-[project.optional-dependencies]
-test = ["diskcache"]
 
 [project.scripts]
 vishalakshi = "vishalakshi.cli:main"

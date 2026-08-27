@@ -13,7 +13,6 @@ __all__ = ['DOCTYPE_SHELF', 'model_cached', 'DOCTYPES', 'EXTRACT_SP', 'FIELD_TYP
 # %% ../nbs/06_extract.ipynb #a4b60d92
 from collections import Counter
 from fastcore.all import AttrDict, L, patch
-from rishi.core import infer_runtime
 from rahasya import NER_CHARS, pii_report, redact, redact_obj
 from varga import (DOCTYPES, KIND_BONUS, KIND_HINT, MIN_MARGIN, MIN_SCORE, SIGNALS, TYPE_SP,
                    cue_scores, guess_type, signals)
@@ -22,7 +21,7 @@ from varga.schema import (EXTRACT_SP, FIELD_TYPES, SCHEMAS, Catalogue, Contract,
                           schema_str, structured)
 from .core import Vault
 from .ask import (LOCAL_RUNTIMES, PII_SP, dflt_model, is_stock_chat,
-                            new_chat, pii_model_)   # also patches Vault.ask
+                            new_chat, pii_model_, rishi)   # also patches Vault.ask
 
 # re-exported: what varga decides is still reachable from the vault that stores the verdict
 _all_ = ['DOCTYPES', 'EXTRACT_SP', 'FIELD_TYPES', 'KIND_BONUS', 'KIND_HINT', 'MIN_MARGIN',
@@ -67,7 +66,7 @@ def categorize(self:Vault,
         mid = model or dflt_model
         try:
             # auto may use a model already loaded; it must not download one
-            if mode == 'auto' and is_stock_chat() and infer_runtime(mid) != 'remote' and not model_cached(mid):
+            if mode == 'auto' and is_stock_chat() and rishi().infer_runtime(mid) != 'remote' and not model_cached(mid):
                 by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
                 said = new_chat(mid, **(chat_kw or {})).classify(f'{d.title}\n\n{txt}', list(lbls)+['other'], sp=TYPE_SP)

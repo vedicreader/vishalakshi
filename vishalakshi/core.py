@@ -215,8 +215,8 @@ def search(self:Vault,
            **kw                # forwarded to litesearch doc_search
 ) -> L:
     """Chunk-level hybrid search; hits carry breadcrumb and `node_id`. Honours kind and noisy marks."""
-    hits = self.db.doc_search(q, self.qemb(q), limit=limit, store=self.name, dtype=DTYPE,
-                              where=self._where(kind, include_noisy), rerank=rerank, **kw)
+    hits = Index.search(self, q, limit=limit, rerank=rerank,
+                        where=self._where(kind, include_noisy), **kw)
     return L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
                       breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
                       snippet=(h.get('content') or '')[:chars]) for h in hits)
@@ -226,8 +226,8 @@ def search(self:Vault,
 def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False,
              include_noisy:bool=False, **kw) -> list:
     'Ranked *sections* rather than chunks. Noisy documents are excluded unless requested.'
-    secs = self.db.sections(q, self.qemb(q), limit=limit, per=per, store=self.name, dtype=DTYPE,
-                            where=self._where(kind, include_noisy), rerank=rerank, **kw)
+    secs = Index.sections(self, q, limit=limit, per=per,
+                          where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for s in secs: s['breadcrumb'] = tidy_bc(s.get('breadcrumb'))
     return secs
 
@@ -248,8 +248,8 @@ def context(self:Vault,
 ) -> AttrDict:
     'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
     # litesearch already fans out sections*3; don't multiply again
-    ctx = self.db.context(q, self.qemb(q), store=self.name, related=related, max_read=max_read,
-                          sections=sections, where=self._where(kind, include_noisy), rerank=rerank, **kw)
+    ctx = Index.context(self, q, related=related, max_read=max_read, sections=sections,
+                        where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for r in (*ctx.results, *ctx.related): r.breadcrumb = tidy_bc(r.breadcrumb)
     # retune this shelf before federated legs; code hits are not scored here
     ctx = self._post(q, ctx)
@@ -283,7 +283,7 @@ def read(self:Vault, node_id:str, max_chars:int=6000,
          store:str=None,      # the shelf the section is on; None -> this one
          ) -> dict:
     'Assemble a whole section back out of its chunks.`store` opens a section on another shelf, so a `node_id` from `elsewhere()` can be read without opening that shelf.'
-    return self.db.read(node_id, store=store or self.name, max_chars=max_chars)
+    return Index.read(self, node_id, store=store or self.name, max_chars=max_chars)
 
 # %% ../nbs/00_core.ipynb #d1788576de66
 @patch

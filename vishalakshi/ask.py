@@ -6,14 +6,13 @@ Docs: https://vedicreader.github.io/vishalakshi/ask.html.md"""
 
 # %% auto #0
 __all__ = ['VAULT_SP', 'DFLT_MODEL', 'dflt_model', 'pii_model_', 'LOCAL_RUNTIMES', 'LITERT_GPU', 'PII_SP', 'CHAT', 'CHAT_CACHE',
-           'litert_gpu', 'new_chat', 'is_stock_chat', 'use_chat', 'mk_prompt', 'split_reasoning', 'cited', 'doc_note',
-           'CachedChat']
+           'litert_gpu', 'rishi', 'new_chat', 'is_stock_chat', 'use_chat', 'mk_prompt', 'split_reasoning', 'cited',
+           'doc_note', 'CachedChat']
 
 # %% ../nbs/02_ask.ipynb #6a75ade4c079
 import os, re, warnings
 from contextlib import contextmanager
 from fastcore.all import AttrDict, L, patch
-from rishi.core import Chat, is_ctx_error, resolve_runtime, resp_text, split_think, thought
 from .core import Vault, gate, tidy_bc
 from .pii import _pii_marks, _section_private, gated, pii_ctx, pii_report, redact, redact_obj
 
@@ -66,28 +65,36 @@ def litert_gpu(model:str,   # the id a chat is about to be built from
     """`kw` with LiteRT's GPU backend added, when this is a LiteRT model and nothing already said otherwise."""
     if not LITERT_GPU or 'backend' in kw or 'engine' in kw: return kw
     try:
-        if resolve_runtime(model, kw.get('runtime'), kw.get('model_path'))[0] != 'litert': return kw
+        if rishi().resolve_runtime(model, kw.get('runtime'), kw.get('model_path'))[0] != 'litert': return kw
         from litert_lm import Backend
         return {**kw, 'backend': Backend.GPU()}
     except Exception: return kw   # an id rishi can't place, or a build without litert: leave it alone
 
-CHAT = Chat
+def rishi():
+    "rishi's `core`, imported on use. A vault that never asks a question never loads a runtime."
+    try: from rishi import core
+    except ImportError as e: raise ImportError('asking needs rishi: pip install rishi') from e
+    return core
+
+#: What `new_chat` builds. `None` means rishi's own `Chat`, resolved when a chat is first built.
+CHAT = None
 def new_chat(model:str=None,   # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
              **kw              # anything else rishi's `Chat` takes: sp, temp, runtime, think, …
 ):
     """The one place a chat is built: a fresh one per call, so there is no conversation to keep fresh."""
-    model = model or dflt_model
+    model, mk = model or dflt_model, CHAT or rishi().Chat
     gkw = litert_gpu(model, kw)
-    if gkw is kw: return CHAT(model, **kw)
-    try: return CHAT(model, **gkw)
+    if gkw is kw: return mk(model, **kw)
+    try: return mk(model, **gkw)
     except Exception as e:
         warnings.warn(f"litert GPU backend unavailable ({type(e).__name__}: {e}); falling back to the "
                       f"default backend. Set VISHALAKSHI_GPU=0 to stop asking for it.")
-        return CHAT(model, **kw)
+        return mk(model, **kw)
 
 def is_stock_chat() -> bool:
     "Is `new_chat` still building rishi's own `Chat`? False while `use_chat` has something else in."
-    return CHAT is Chat
+    # `None` short-circuits, so the common answer costs no import; a swap means rishi is in use anyway
+    return CHAT is None or CHAT is rishi().Chat
 
 @contextmanager
 def use_chat(f):
@@ -118,7 +125,7 @@ def mk_prompt(question:str,        # what you want to know
 
 def split_reasoning(text:str) -> tuple:
     "`(answer, thinking)`: rishi's `split_think`, plus the *closing*-only tag an MLX prefill leaves."
-    text, think = split_think(text)
+    text, think = rishi().split_think(text)
     if '</think>' in text:
         pre, _, text = text.partition('</think>')
         think = '\n'.join(L(think, pre.strip()).filter())
@@ -253,7 +260,7 @@ def ask(self:Vault,
     else:
         try: res = ch(prompt)
         except Exception as e:
-            if not (is_ctx_error(ch, e) or isinstance(e, (RuntimeError, ValueError))): raise
+            if not (rishi().is_ctx_error(ch, e) or isinstance(e, (RuntimeError, ValueError))): raise
             warnings.warn(f'{type(e).__name__} on a {len(prompt)}-char prompt ({e}); retrying with less '
                           f'context. Lower `sections`/`doc_chars`/`max_chars`, or use a model with a '
                           f'bigger window.')
@@ -261,8 +268,8 @@ def ask(self:Vault,
             out.prompt = prompt = mk_prompt(question, ctx, max_chars=mc//3, related=False, note=note)
             ch = mk()
             res = ch(prompt)
-        out.answer, out.thinking = split_reasoning(resp_text(res))
-        out.answer, out.thinking = out.answer.strip(), out.thinking or thought(res)
+        out.answer, out.thinking = split_reasoning(rishi().resp_text(res))
+        out.answer, out.thinking = out.answer.strip(), out.thinking or rishi().thought(res)
         out.cited = cited(out.answer, ctx.results)
         out = _scrub_answer(out, private)
     out.usage = getattr(ch, 'use', None)
@@ -294,8 +301,8 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
               f"that read like it:\n" + '\n'.join(f"- {r['breadcrumb']}" for r in rel) +
               "\n\nExplain this section, then say what the related sections add or contradict.")
     res = ch(prompt)
-    answer, thinking = split_reasoning(resp_text(res))
-    out = AttrDict(node_id=node_id, answer=answer.strip(), thinking=thinking or thought(res),
+    answer, thinking = split_reasoning(rishi().resp_text(res))
+    out = AttrDict(node_id=node_id, answer=answer.strip(), thinking=thinking or rishi().thought(res),
                    section=sec, related=rel, model=mid, runtime=ch.runtime, pii=report)
     return _scrub_answer(out, private)
 
@@ -320,10 +327,10 @@ class CachedChat:
     @property
     def chat(self):
         'The real chat, built only when something actually has to be asked; on the GPU, as `new_chat` would.'
-        if self._chat is None: self._chat = Chat(self.model, sp=self.sp, **litert_gpu(self.model, self.kw))
+        if self._chat is None: self._chat = rishi().Chat(self.model, sp=self.sp, **litert_gpu(self.model, self.kw))
         return self._chat
     @property
-    def runtime(self): return resolve_runtime(self.model)[0]
+    def runtime(self): return rishi().resolve_runtime(self.model)[0]
 
     def _ask(self, key:str, f):
         'Replay `key`, else run `f()` and record what it did, including how it failed.'
