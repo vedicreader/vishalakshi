@@ -14,7 +14,6 @@ import os, re, warnings
 from contextlib import contextmanager
 from fastcore.all import AttrDict, L, patch
 from rishi.core import Chat, is_ctx_error, resolve_runtime, resp_text, split_think, thought
-from rishi.litert import gemma4_e2b
 from .core import Vault, gate, tidy_bc
 from .pii import _pii_marks, _section_private, gated, pii_ctx, pii_report, redact, redact_obj
 
@@ -33,7 +32,7 @@ Rules:
   context or to point somewhere worth reading next, and say so when you do.
 - Prefer the user's own notes when they conflict with a source, and flag the disagreement."""
 
-DFLT_MODEL = f'litert/{gemma4_e2b}'   # local, small, and on a runtime the pii gate will send to
+DFLT_MODEL = 'litert/litert-community/gemma-4-E2B-it-litert-lm'   # local, small, and on a runtime the pii gate will send to
 dflt_model = os.getenv('VISHALAKSHI_MODEL') or DFLT_MODEL
 pii_model_ = os.getenv('VISHALAKSHI_PII_MODEL') or dflt_model
 LOCAL_RUNTIMES = frozenset({'litert', 'mlx', 'llama'})
