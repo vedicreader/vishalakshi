@@ -25,8 +25,8 @@ def clip(s:str, n:int=120) -> str:
     'Collapse whitespace and clip a scraped title to something a breadcrumb can carry.'
     return re.sub(r'\s+', ' ', (s or '').strip())[:n] or 'untitled'
 
-#: What `fossick.read` calls a target, and what the vault files it as. A file from GitHub is a
-#: web document here: its provenance is the URL, not the checkout.
+#: A `fossick.read` kind, and what the vault files it as. A GitHub file is web: the URL is
+#: its provenance, not the checkout.
 KIND_OF = dict(web='web', arxiv='arxiv', youtube='youtube', ghfile='web', pdf='pdf', file='file')
 
 # %% ../nbs/01_acquire.ipynb #10d37b588c17
@@ -125,9 +125,7 @@ _GH_BLOB = re.compile(r'https?://github\.com/([^/]+)/([^/]+)/blob/[^/]+/(.+)')
 
 @patch
 def gh_file(self:Vault, url:str, title:str=None, **kw) -> dict:
-    '''File one file from GitHub: prose into the vault, source into a kosha-indexed directory.
-
-    Which half it is comes off the URL, so a source file is never fetched only to be dropped.'''
+    'File one file from GitHub: prose to the vault, source to kosha. The URL decides, before any fetch.'
     if not (m := _GH_BLOB.match(url)): return dict(source=url, skipped='not a GitHub file URL')
     owner, repo, path = m.groups()
     if Path(path).suffix.lower() in code_exts.split(','):
@@ -148,9 +146,8 @@ def grab(self:Vault,
 ):
     '''File anything, by looking at what it is: the one call a CLI or an agent needs.
 
-    `fossick.what_is` names the target; the four kinds the vault treats specially are the ones
-    that are not one document: a tree, a repo, a PDF the tree wants page by page, and a source
-    file that belongs in kosha rather than in the vault.'''
+    `fossick.what_is` names the target. The kinds handled here are the ones that are not one
+    document: a tree, a repo, a PDF the tree wants page by page, and a source file for kosha.'''
     kind = 'sanskrit' if is_sanskrit_file(target) else what_is(target)
     v = self.shelf(shelf) if shelf else self.route(kind)
     if crawl:                        return v.crawl(target, max_pages=max_pages, sel=sel, **kw)

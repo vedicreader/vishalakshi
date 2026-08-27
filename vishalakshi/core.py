@@ -189,11 +189,7 @@ def _pii_kw(o,
             ): ...
 
 def gate(f):
-    """Apply the `pii=` policy to whatever a retrieval method returns.
-
-    The policy is one thing, so it is written once. A primitive that hands back section text
-    cannot forget the gate, and `pii=`/`pii_ner=` reach its signature (and so the CLI, the MCP
-    tools and the docs) from `_pii_kw` rather than from seven copies."""
+    'Apply the `pii=` policy to what a retrieval method returns, and put its two params on the signature.'
     @wraps(f)
     def _f(self, *a, pii:str='off', pii_ner:bool=False, **kw):
         o = f(self, *a, **kw)
