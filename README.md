@@ -66,11 +66,7 @@ if (hit := first(r.cited)): print(v.read(hit['node_id'])['text'][:400])
 
 ## PII and noise
 
-`ask`, `extract` and `explain` share one gate: **1.000 precision at recall 1.000 on a held-out corpus** run once, 0.996 on the corpus it was tuned against (`evals/pii.py`, which reports both and says which is which). Digits are read in context, so `EN 60601-1` is a standard rather than a ZIP and a ten-digit page id in a URL is not an NHS number. The detector is [rahasya](https://vedicreader.github.io/rahasya/): thirty-four kinds, including nineteen regional identifiers with their own checksums: Aadhaar, PAN and GSTIN, Australian TFN, ABN and Medicare, Singapore NRIC, Thai national ID, Dutch BSN, French NIR, Spanish DNI and NIE, Italian codice fiscale, Polish PESEL, Swedish personnummer, Norwegian fødselsnummer, German Steuer-IdNr, UK NINO, IMEI.
-
-Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
-
-Two learned detectors were measured and neither is shipped: both lose the gate to the patterns on precision *and* recall, and are 200 times slower. A DeBERTa-v3 ONNX classifier earns its gigabyte only on names no honorific introduces (2/8 to 5/8), and Liquid's 350M tflite encoder finds no names at all. Both live in `evals/backends.py` with their numbers in `evals/pii_model.py`, so the wheel stays arithmetic.
+`ask`, `extract` and `explain` share one gate: 0.962 precision at recall 1.000 over emails, cards, keys and street lines (`evals/pii.py`). Names are opt-in (`ner=True`, honorific-anchored); `scanned_ner` says whether anything looked. Answers are re-scanned with names on.
 
 Junk is separate: `suggest_noisy` scores 0.988 AUC with no labels; `mark_noisy` excludes. See [pii](09_pii.ipynb) and [quality](10_quality.ipynb).
 
@@ -101,7 +97,7 @@ r.scanned_ner, r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v
 | `pii=` | what happens |
 |----|----|
 | `local` (default) | local model answers; shape and quantity, not detail. Structured `fields` are scrubbed too |
-| [`redact`](https://vedicreader.github.io/vishalakshi/pii.html#redact) | mask recognised spans, then any model may answer. Names are not masked |
+| `redact` | mask recognised spans, then any model may answer. Names are not masked |
 | `refuse` | return the finding, no answer |
 | `off` | do not look |
 
@@ -275,8 +271,8 @@ reclaims what a dead worker was holding, enqueues what has come due, and drains.
 retries with backoff and dead-letters after five attempts, so `jobs(state='dead')` is where work
 goes when it will not succeed, rather than nowhere. See [jobs](11_jobs.ipynb).
 
-The clock is [pobblebonk](https://vedicreader.github.io/pobblebonk/), in the vault's own file, so
-a watch takes `cron='0 9 * * 1'` as well as `every='6h'`. Running the work is still the vault's own
+The clock is [pobblebonk](https://vedicreader.github.io/pobblebonk/), in the vault’s own file, so
+a watch takes `cron='0 9   1'` as well as `every='6h'`. Running the work is still the vault’s own
 queue: leases, fenced acks and the dead letter are unchanged.
 
 ``` python
@@ -301,7 +297,7 @@ L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['para
 | [extract](06_extract.ipynb) | the vault side of [varga](https://vedicreader.github.io/varga/): `categorize`, `extract`, `extract_all`, `reshelf` |
 | [concepts](07_concepts.ipynb) | encoders, shelves, backends, `reshelf` |
 | [skill](08_skill.ipynb) | agent cheat sheet (exported skill) |
-| [pii](09_pii.ipynb) | the retrieval gate over [rahasya](https://vedicreader.github.io/rahasya/): `mark_pii` / `mark_not_pii`, `gated`, `pii_ctx` |
+| [pii](09_pii.ipynb) | the retrieval gate over [rahasya](https://vedicreader.github.io/rahasya/): `mark_pii` / `mark_not_pii`, [`gated`](https://vedicreader.github.io/vishalakshi/pii.html#gated), [`pii_ctx`](https://vedicreader.github.io/vishalakshi/pii.html#pii_ctx) |
 | [jobs](11_jobs.ipynb) | [`Queue`](https://vedicreader.github.io/vishalakshi/jobs.html#queue), retries, leases, the dead letter |
 | [quality](10_quality.ipynb) | `suggest_noisy` / `accept_noisy`, `fit_noise`, ranker |
 
