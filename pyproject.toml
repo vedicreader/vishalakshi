@@ -30,6 +30,8 @@ dependencies = [
     "fastcore>=2.2.15",
     "rahasya>=0.0.1",
     "varga>=0.0.1",
+    "vruksha>=0.0.1",
+    "ganapati>=0.0.1",
     "pobblebonk>=0.0.2",
     "numpy>=1.26",
     "mcp",

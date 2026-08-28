@@ -13,9 +13,10 @@ import json, os, re, time, uuid, warnings
 from collections import Counter
 import numpy as np
 from functools import wraps
-from fastcore.all import AttrDict, L, Path, delegates, first, ifnone, patch, store_attr
-from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, build_graph,
-        resolve_entities, topic_nodes, FastEncode, DOC_EXTS, embedding_gemma, write_txn)
+from inspect import Parameter, signature
+from fastcore.all import AttrDict, L, Path, first, ifnone, patch, store_attr
+from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, topic_nodes,
+        FastEncode, DOC_EXTS, embedding_gemma, write_txn)
 
 # %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'image')
@@ -183,10 +184,10 @@ def note(self:Vault,
 
 
 # %% ../nbs/00_core.ipynb #8c956f257f4e
-def _pii_kw(o,
-            pii:str='off',       # off | redact | refuse, applied to every row returned
-            pii_ner:bool=False,  # gate on titled names too
-            ): ...
+#: `pii=` and `pii_ner=`, spliced onto every gated method so the CLI, the MCP tools and the docs
+#: all see them. `@wraps` alone would report the undecorated signature and hide both.
+_PII_PARAMS = [Parameter('pii', Parameter.KEYWORD_ONLY, default='off', annotation=str),
+               Parameter('pii_ner', Parameter.KEYWORD_ONLY, default=False, annotation=bool)]
 
 def gate(f):
     'Apply the `pii=` policy to what a retrieval method returns, and put its two params on the signature.'
@@ -197,7 +198,10 @@ def gate(f):
         from vishalakshi.pii import gated
         # `read` names the shelf a section came from; for the rest `gated` falls back to this one
         return gated(o, pii, self, ner=pii_ner, store=kw.get('store') or self.name)
-    return delegates(_pii_kw)(_f)
+    ps = list(signature(f).parameters.values())
+    at = next((i for i, p in enumerate(ps) if p.kind is Parameter.VAR_KEYWORD), len(ps))
+    _f.__signature__ = signature(f).replace(parameters=ps[:at] + _PII_PARAMS + ps[at:])
+    return _f
 
 @patch
 @gate
@@ -519,7 +523,7 @@ def _observe(self:Vault, out):
 KIND_SHELF = {'arxiv': 'papers', 'sanskrit': 'sanskrit'}
 
 def is_sanskrit_file(path) -> bool:
-    'Whether litesearch has a Sanskrit reader for this file.'
+    'Whether a Sanskrit reader is registered for this file. False until ganapati is imported.'
     from litesearch.data import profile_for
     p = Path(path)
     return p.is_file() and (pr := profile_for(p)) is not None and (pr.kind or '') == 'sanskrit'
@@ -530,7 +534,7 @@ def sanskrit_facets() -> bool:
     global _facets_on
     if _facets_on: return True
     try:
-        from litesearch.sanskrit import register_profiles, vidyut_pipe, mw_lexicon
+        from ganapati import register_profiles, vidyut_pipe, mw_lexicon
         register_profiles(nlp=vidyut_pipe(), mw=mw_lexicon())
         _facets_on = True
     except Exception as e:
@@ -583,10 +587,11 @@ def connect(self:Vault,
     if not self.store.count: return dict(entities=0, mentions=0, edges=0, windows=0)
     if 'terms_fn' not in kw:
         try:
-            from litesearch.sanskrit import is_sanskrit, sanskrit_terms
+            from ganapati import is_sanskrit, sanskrit_terms
             head = ' '.join(c['content'] or '' for c in self.store(limit=20))
             if is_sanskrit(head): kw['terms_fn'] = sanskrit_terms()
-        except Exception: pass          # vidyut is an extra; fall back to whatever litesearch defaults to
+        except Exception: pass          # no ganapati, so fall back to whatever the extractor defaults to
+    from vruksha import build_graph, resolve_entities
     self.db.get_graph(self.name, ndim=self.enc.dims, dtype=DTYPE)
     res = build_graph(self.db, _paged(self.store, batch), store=self.name, emb_fn=self.emb,
                       batch=batch, n_workers=n_workers, **kw)

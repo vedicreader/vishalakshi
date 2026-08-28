@@ -78,17 +78,6 @@ def _prose(v, q, n, kind=None, source:str='prose') -> L:
         lambda s: AttrDict(source=source, ref=s['node_id'], title=s['title'], where=s['breadcrumb'],
                            text=' '.join(s['snippets'])[:600], open=f"read({s['node_id']!r})"))
 
-def _code(rows, leg:str) -> L:
-    'kosha hits, normalised to the federated row shape.'
-    def row(r):
-        m = dict(r.get('metadata') or {})
-        mod, path, ln = m.get('mod_name', ''), m.get('path', ''), m.get('lineno')
-        return AttrDict(source=leg, ref=mod or path, title=mod or (Path(path).name if path else ''),
-                        where=f'{path}:{ln}' if path and ln else (path or mod),
-                        text=(r.get('content') or '')[:600],
-                        open=f'symbol({mod!r})' if mod else f'open {path}')
-    return L(rows).map(row)
-
 def _rg(matches) -> L:
     'ripgrep lines, normalised to the federated row shape.'
     return L(matches).map(lambda m: AttrDict(source='grep', ref=f'{m.path}:{m.line_number}',
@@ -121,8 +110,8 @@ def federate(self:Vault,
     for sh in names:
         s = sh if isinstance(sh, Vault) else self.shelf(sh)
         leg(nm := f'shelf:{s.name}', lambda s=s, nm=nm: _prose(s, q, n, kind=kind, source=nm))
-    if repo:  leg('repo', lambda: _code(self.kosha(dir).repo_context(q, limit=n), 'repo'))
-    if env:   leg('env', lambda: _code(self.kosha(dir).env_context(q, limit=n), 'env'))
+    if repo:  leg('repo', lambda: self.kosha(dir).rows(q, limit=n))
+    if env:   leg('env', lambda: self.kosha(dir).rows(q, limit=n, repo=False, env=True))
     if grep:  leg('grep', lambda: self.grep(q, dir or '.', limit=n))
     lists = {nm: rows for nm, rows in legs.items() if isinstance(rows, L) and rows}
     for nm, rows in lists.items():

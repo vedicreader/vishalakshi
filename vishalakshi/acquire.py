@@ -160,10 +160,7 @@ def grab(self:Vault,
     if kind == 'youtube':            return v.youtube(target, **kw)
     return v.url(target, title=title, sel=sel, **kw)
 
-@patch
-def code(self:Vault, dir:str, types:str=code_exts, **kw) -> L:
-    "File a source tree into the vault as `kind='code'`, so code and prose answer one query."
-    return self.add_dir(dir, types=types, kind='code', **kw)
+
 
 # %% ../nbs/01_acquire.ipynb #b665a3656d4982e4
 @patch
@@ -189,11 +186,12 @@ def add_tree(self:Vault,
     if srcs:
         try: out.code = self.index_code(p, verbose=verbose)
         except Exception as e:
+            # kosha owns code. Filing source as prose instead would put a second, worse copy of it
+            # in the vault, so the failure is reported and the source is left alone.
             warnings.warn(f'could not index {len(srcs)} source files with kosha '
-                          f'({type(e).__name__}: {str(e)[:120]}); filing them as prose instead, so '
-                          f'they are at least searchable. Install kosha for symbol search.')
-            out.code = dict(error=f'{type(e).__name__}: {str(e)[:200]}', filed_as_prose=len(srcs))
-            out.docs = docs + srcs.map(self.add_file, kind='code', **kw)
+                          f'({type(e).__name__}: {str(e)[:120]}); they are not searchable. '
+                          f'Install kosha for symbol search.')
+            out.code = dict(error=f'{type(e).__name__}: {str(e)[:200]}', indexed=0)
     if connect and (out.n_docs or out.code): out.graph = self.connect()
     return out
 
