@@ -1,4 +1,4 @@
-"""what a document *is*, the fields inside it, and an answer over the whole of it
+"""what a document is, the fields inside it, and an answer over the whole of it
 
 Docs: https://vedicreader.github.io/vishalakshi/extract.html.md"""
 
