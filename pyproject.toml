@@ -37,9 +37,8 @@ dependencies = [
     "mcp",
     "koshas>=0.0.36",
     "rgapi",
-    # rishi's own extras, not ours: `ask` runs a litert model by default, so a plain
-    # `pip install vishalakshi` has to arrive able to do it
-    "rishi[litert,remote]>=0.1.2",
+    "uraiyadal>=0.0.4",
+    "rishi>=0.1.32",
     "pyskills>=0.0.27",
 ]
 

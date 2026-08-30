@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.14
+using urai, rahsaya, varga, pobblebonk and liteserach index
+
 ## 0.1.13
 litert model string bug fix
 

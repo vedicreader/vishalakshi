@@ -6,7 +6,7 @@ Docs: https://vedicreader.github.io/vishalakshi/ask.html.md"""
 
 # %% auto #0
 __all__ = ['VAULT_SP', 'DFLT_MODEL', 'dflt_model', 'pii_model_', 'LOCAL_RUNTIMES', 'LITERT_GPU', 'PII_SP', 'CHAT', 'CHAT_CACHE',
-           'litert_gpu', 'rishi', 'new_chat', 'is_stock_chat', 'use_chat', 'mk_prompt', 'split_reasoning', 'cited',
+           'litert_gpu', 'urai', 'new_chat', 'is_stock_chat', 'use_chat', 'mk_prompt', 'split_reasoning', 'cited',
            'doc_note', 'CachedChat']
 
 # %% ../nbs/02_ask.ipynb #6a75ade4c079
@@ -65,24 +65,26 @@ def litert_gpu(model:str,   # the id a chat is about to be built from
     """`kw` with LiteRT's GPU backend added, when this is a LiteRT model and nothing already said otherwise."""
     if not LITERT_GPU or 'backend' in kw or 'engine' in kw: return kw
     try:
-        if rishi().resolve_runtime(model, kw.get('runtime'), kw.get('model_path'))[0] != 'litert': return kw
+        if urai().resolve_runtime(model, kw.get('runtime'), kw.get('model_path'))[0] != 'litert': return kw
         from litert_lm import Backend
         return {**kw, 'backend': Backend.GPU()}
-    except Exception: return kw   # an id rishi can't place, or a build without litert: leave it alone
+    except Exception: return kw   # an id Urai cannot place, or a build without litert: leave it alone
 
-def rishi():
-    "rishi's `core`, imported on use. A vault that never asks a question never loads a runtime."
-    try: from rishi import core
+def urai():
+    "Urai with Rishi's backends registered, imported when a vault first asks a question."
+    try:
+        import rishi.core
+        import urai as core
     except ImportError as e: raise ImportError('asking needs rishi: pip install rishi') from e
     return core
 
-#: What `new_chat` builds. `None` means rishi's own `Chat`, resolved when a chat is first built.
+#: What `new_chat` builds. `None` means Urai's `Chat`, resolved when a chat is first built.
 CHAT = None
 def new_chat(model:str=None,   # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
-             **kw              # anything else rishi's `Chat` takes: sp, temp, runtime, think, …
+             **kw              # anything else Urai's `Chat` takes: sp, temp, runtime, think, …
 ):
     """The one place a chat is built: a fresh one per call, so there is no conversation to keep fresh."""
-    model, mk = model or dflt_model, CHAT or rishi().Chat
+    model, mk = model or dflt_model, CHAT or urai().Chat
     gkw = litert_gpu(model, kw)
     if gkw is kw: return mk(model, **kw)
     try: return mk(model, **gkw)
@@ -92,13 +94,13 @@ def new_chat(model:str=None,   # an id, a path, `mlx/…`; None -> $VISHALAKSHI_
         return mk(model, **kw)
 
 def is_stock_chat() -> bool:
-    "Is `new_chat` still building rishi's own `Chat`? False while `use_chat` has something else in."
-    # `None` short-circuits, so the common answer costs no import; a swap means rishi is in use anyway
-    return CHAT is None or CHAT is rishi().Chat
+    "Is `new_chat` still building Urai's `Chat`? False while `use_chat` has something else in."
+    # `None` short-circuits, so the common answer costs no import; a swap means Urai is in use anyway
+    return CHAT is None or CHAT is urai().Chat
 
 @contextmanager
 def use_chat(f):
-    """Swap `rishi.Chat` for `f` inside the block. Process-global; for threaded hosts pass `mk_chat=` to `ask` instead."""
+    """Swap `urai.Chat` for `f` inside the block. Process-global; for threaded hosts pass `mk_chat=` to `ask` instead."""
     global CHAT
     old, CHAT = CHAT, f
     try: yield
@@ -124,8 +126,8 @@ def mk_prompt(question:str,        # what you want to know
     return '\n\n---\n\n'.join(parts) + f'\n\n---\n\n{note}Question: {question}'
 
 def split_reasoning(text:str) -> tuple:
-    "`(answer, thinking)`: rishi's `split_think`, plus the *closing*-only tag an MLX prefill leaves."
-    text, think = rishi().split_think(text)
+    "`(answer, thinking)`: Urai's `split_think`, plus the *closing*-only tag an MLX prefill leaves."
+    text, think = urai().split_think(text)
     if '</think>' in text:
         pre, _, text = text.partition('</think>')
         think = '\n'.join(L(think, pre.strip()).filter())
@@ -185,7 +187,7 @@ def ask(self:Vault,
         ref=None,              # documents to ask about: a doc_id, source, title or path, or a list of them
         schema=None,           # answer as this shape instead of prose: a SCHEMAS key, dataclass, or 'field:type' spec
         model:str=None,        # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
-        chat_kw:dict=None,     # anything else rishi's `Chat` takes: temp, runtime, think, …
+        chat_kw:dict=None,     # anything else Urai's `Chat` takes: temp, runtime, think, …
         sections:int=4,        # operative sections retrieved
         related:int=6,         # associative sections offered as leads
         kind:str=None,         # restrict retrieval to one or more KINDS
@@ -260,7 +262,7 @@ def ask(self:Vault,
     else:
         try: res = ch(prompt)
         except Exception as e:
-            if not (rishi().is_ctx_error(ch, e) or isinstance(e, (RuntimeError, ValueError))): raise
+            if not (urai().is_ctx_error(ch, e) or isinstance(e, (RuntimeError, ValueError))): raise
             warnings.warn(f'{type(e).__name__} on a {len(prompt)}-char prompt ({e}); retrying with less '
                           f'context. Lower `sections`/`doc_chars`/`max_chars`, or use a model with a '
                           f'bigger window.')
@@ -268,8 +270,8 @@ def ask(self:Vault,
             out.prompt = prompt = mk_prompt(question, ctx, max_chars=mc//3, related=False, note=note)
             ch = mk()
             res = ch(prompt)
-        out.answer, out.thinking = split_reasoning(rishi().resp_text(res))
-        out.answer, out.thinking = out.answer.strip(), out.thinking or rishi().thought(res)
+        out.answer, out.thinking = split_reasoning(urai().resp_text(res))
+        out.answer, out.thinking = out.answer.strip(), out.thinking or urai().thought(res)
         out.cited = cited(out.answer, ctx.results)
         out = _scrub_answer(out, private)
     out.usage = getattr(ch, 'use', None)
@@ -301,8 +303,8 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
               f"that read like it:\n" + '\n'.join(f"- {r['breadcrumb']}" for r in rel) +
               "\n\nExplain this section, then say what the related sections add or contradict.")
     res = ch(prompt)
-    answer, thinking = split_reasoning(rishi().resp_text(res))
-    out = AttrDict(node_id=node_id, answer=answer.strip(), thinking=thinking or rishi().thought(res),
+    answer, thinking = split_reasoning(urai().resp_text(res))
+    out = AttrDict(node_id=node_id, answer=answer.strip(), thinking=thinking or urai().thought(res),
                    section=sec, related=rel, model=mid, runtime=ch.runtime, pii=report)
     return _scrub_answer(out, private)
 
@@ -310,13 +312,13 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
 # %% ../nbs/02_ask.ipynb #b5b57ec3744bc877
 CHAT_CACHE = 'chatcache'   # a diskcache directory; the one under nbs/ is committed, for CI
 class CachedChat:
-    """A `rishi.Chat` whose replies are recorded to disk and replayed on a second ask."""
+    """A `urai.Chat` whose replies are recorded to disk and replayed on a second ask."""
     def __init__(self,
-                 model:str=None,   # anything rishi takes; None -> $VISHALAKSHI_MODEL
+                 model:str=None,   # anything Urai takes; None -> $VISHALAKSHI_MODEL
                  path:str=None,    # the diskcache directory; None -> CHAT_CACHE
                  record:bool=None, # allow a miss to reach a real model; None -> $VISHALAKSHI_RECORD_CHAT
                  sp:str='',        # system prompt, part of the key
-                 **kw              # forwarded to `rishi.Chat` on a miss
+                 **kw              # forwarded to `urai.Chat` on a miss
     ):
         from diskcache import Cache
         self.model, self.sp, self.kw = model or dflt_model, sp, kw
@@ -327,10 +329,10 @@ class CachedChat:
     @property
     def chat(self):
         'The real chat, built only when something actually has to be asked; on the GPU, as `new_chat` would.'
-        if self._chat is None: self._chat = rishi().Chat(self.model, sp=self.sp, **litert_gpu(self.model, self.kw))
+        if self._chat is None: self._chat = urai().Chat(self.model, sp=self.sp, **litert_gpu(self.model, self.kw))
         return self._chat
     @property
-    def runtime(self): return rishi().resolve_runtime(self.model)[0]
+    def runtime(self): return urai().resolve_runtime(self.model)[0]
 
     def _ask(self, key:str, f):
         'Replay `key`, else run `f()` and record what it did, including how it failed.'

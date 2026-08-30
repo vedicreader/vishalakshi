@@ -21,7 +21,7 @@ from varga.schema import (EXTRACT_SP, FIELD_TYPES, SCHEMAS, Catalogue, Contract,
                           schema_str, structured)
 from .core import Vault
 from .ask import (LOCAL_RUNTIMES, PII_SP, dflt_model, is_stock_chat,
-                            new_chat, pii_model_, rishi)   # also patches Vault.ask
+                            new_chat, pii_model_, urai)   # also patches Vault.ask
 
 # re-exported: what varga decides is still reachable from the vault that stores the verdict
 _all_ = ['DOCTYPES', 'EXTRACT_SP', 'FIELD_TYPES', 'KIND_BONUS', 'KIND_HINT', 'MIN_MARGIN',
@@ -43,7 +43,7 @@ def model_cached(mid:str) -> bool:
 def categorize(self:Vault,
                ref,                # doc_id, source, title, a path on disk, or a loaded `document()`
                model:str=None,     # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
-               chat_kw:dict=None,  # anything else rishi's `Chat` takes: temp, runtime, think, …
+               chat_kw:dict=None,  # anything else Urai's `Chat` takes: temp, runtime, think, …
                llm:str='auto',     # 'auto' -> only when the cues cannot decide | 'always' | 'never'
                labels:str=None,    # comma-separated labels to choose from; None -> DOCTYPES
                max_chars:int=6000, # chars of the document the model and the cues see
@@ -66,11 +66,11 @@ def categorize(self:Vault,
         mid = model or dflt_model
         try:
             # auto may use a model already loaded; it must not download one
-            if mode == 'auto' and is_stock_chat() and rishi().infer_runtime(mid) != 'remote' and not model_cached(mid):
+            if mode == 'auto' and is_stock_chat() and urai().infer_runtime(mid) != 'remote' and not model_cached(mid):
                 by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
                 said = new_chat(mid, **(chat_kw or {})).classify(f'{d.title}\n\n{txt}', list(lbls)+['other'], sp=TYPE_SP)
-                if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "rishi default"})'
+                if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "Urai default"})'
                 else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
         except Exception as e:
             # keep the cue verdict when the model leg fails
@@ -156,7 +156,7 @@ def extract(self:Vault,
             ref:str,               # doc_id, source, title substring, or a path on disk
             schema=None,           # a SCHEMAS key, a dataclass, or a 'field:type, …' spec; None -> from the doctype
             model:str=None,        # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
-            chat_kw:dict=None,     # anything else rishi's `Chat` takes: temp, runtime, think, …
+            chat_kw:dict=None,     # anything else Urai's `Chat` takes: temp, runtime, think, …
             max_chars:int=8000,    # chars of the document the model sees
             sp:str=EXTRACT_SP,     # system prompt for the extraction
             save:bool=False,       # write the fields into the document's meta

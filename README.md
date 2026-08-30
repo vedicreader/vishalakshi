@@ -42,7 +42,7 @@ v.stats()
      'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmp0ufdxnt4/vault.db',
      'by_kind': {'notebook': 12, 'md': 5, 'txt': 1, 'note': 1}}
 
-Default model: `gemma-4-E2B` on LiteRT GPU, no API key. Name any rishi model id/path; `chat_kw=` reaches its constructor. `$VISHALAKSHI_MODEL` replaces the id; `$VISHALAKSHI_GPU=0` puts LiteRT on CPU. Context budget is `sections=4`, `max_chars=1500`.
+Default model: `gemma-4-E2B` on LiteRT GPU, no API key. Name any model id or path registered by Rishi; `chat_kw=` reaches Urai’s constructor. `$VISHALAKSHI_MODEL` replaces the id. `$VISHALAKSHI_GPU=0` puts LiteRT on CPU. Context budget is `sections=4`, `max_chars=1500`.
 
 ``` python
 r = v.ask('why are rankings fused instead of distances?')
@@ -266,14 +266,9 @@ L(v.grep('rrf_all', root, limit=4)).attrgot('where')   # ripgrep; no kosha neede
 
 ## Watches and the queue
 
-An action is an acquisition method name. `poll()` is the tick (cron, scheduler, or button): it
-reclaims what a dead worker was holding, enqueues what has come due, and drains. A failed fetch
-retries with backoff and dead-letters after five attempts, so `jobs(state='dead')` is where work
-goes when it will not succeed, rather than nowhere. See [jobs](11_jobs.ipynb).
+An action is an acquisition method name. `poll()` reclaims work from dead workers. It enqueues due watches and drains the queue. A failed fetch retries with backoff and dead-letters after five attempts. `jobs(state='dead')` lists work that used all five attempts. See [jobs](11_jobs.ipynb).
 
-The clock is [pobblebonk](https://vedicreader.github.io/pobblebonk/), in the vault’s own file, so
-a watch takes `cron='0 9   1'` as well as `every='6h'`. Running the work is still the vault’s own
-queue: leases, fenced acks and the dead letter are unchanged.
+[pobblebonk](https://vedicreader.github.io/pobblebonk/) stores the clock in the vault file. A watch accepts `cron='0 9 * * 1'` or `every='6h'`. The vault queue retains leases, fenced acknowledgements and the dead letter.
 
 ``` python
 v.watch('https://example.com/changelog', action='url', every='6h')
@@ -318,7 +313,7 @@ MCP client config is on [mcp](05_mcp.ipynb). Retrieval trade-offs and measured d
 
 ## Development
 
-The notebooks in `nbs/` are the source; the modules are generated.
+The notebooks in `nbs/` are the source. `nbdev-export` generates the modules.
 
 ``` sh
 pip install -e .

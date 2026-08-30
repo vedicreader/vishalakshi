@@ -84,13 +84,12 @@ Nothing in these repos declares an optional-dependency group. Every extra guarde
 that already existed and already raised. The messages named the extra to install. They now name
 the package, which is what a caller can act on without knowing how anything is packaged.
 
-rishi is the one that mattered. It was imported at module scope, so a machine without a model
-runtime could not import the vault at all. It is reached through `rishi()` now, on first use.
-Importing vishalakshi, adding documents, searching, categorising on cues and running the pii gate
-all work with rishi absent. `ask` raises `asking needs rishi: pip install rishi`.
+Rishi is the backend package. Vishalakshi imports it through `urai()` when a chat is first built.
+Importing Vishalakshi, adding documents, searching, categorising on cues and running the PII gate
+work without Rishi. `ask` raises `asking needs rishi: pip install rishi` when it is absent.
 
-`rishi[litert,remote]` stays a runtime dependency. That is rishi's extra rather than ours, and
-`ask` runs a litert model by default. Dropping it would leave a plain install unable to answer.
+Urai is a direct dependency because Vishalakshi imports its portable chat API. Rishi remains a
+runtime dependency because it registers the backends. The default model uses its LiteRT backend.
 
 litesearch lost two runtime dependencies it never imported. `notebook` alone pulls 93
 distributions, JupyterLab included.
