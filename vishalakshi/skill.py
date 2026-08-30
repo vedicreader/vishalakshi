@@ -114,7 +114,7 @@ READ = ('search sections context related read toc doc document sources stats she
         'doctypes of_type ner categorize extract extract_all ask ask_doc explain doc_context topic_tree show_topics '
         'code_search symbol where_to_add grep federate watches apis assets images').split()
 WRITE = ('add add_file add_files add_dir add_tree add_records add_code note grab url web crawl arxiv '
-         'pdf youtube github gh_file code connect index_code harvest watch poll run_watch '
+         'pdf youtube github gh_file connect index_code harvest watch poll run_watch '
          'categorize_all set_meta reshelf shelf route '
          'add_image add_images tag_image label_images').split()
 
