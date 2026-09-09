@@ -40,7 +40,9 @@ ENCODERS = {'multilingual': DFLT_ENC,                                    # 100+ 
 # %% ../nbs/00_core.ipynb #6c733f86
 class HashEmbed:
     "litesearch's `hash_embed` behind an `.encode`, so an offline vault is an encoder like any other."
-    def __init__(self, dims:int=256, dtype=DTYPE): store_attr()
+    def __init__(self, dims:int=256, dtype=DTYPE):
+        store_attr()
+        self.ls_id = f'hash-{dims}'   # litesearch stamps it on the store, so a reopen cannot mix spaces
     def encode(self, xs, **kw): return hash_embed(list(xs), ndim=self.dims, dtype=self.dtype)
 
 def _load(nm:str, dtype):
