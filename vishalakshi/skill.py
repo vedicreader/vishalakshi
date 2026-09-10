@@ -74,7 +74,6 @@ Retrieval defaults are litesearch's. Reach for:
 - `rerank=True` on `search` / `sections` / `context` when precision matters more than latency
 - `v.shelf(name)` to keep two corpora from diluting each other
 - `llm=` for how hard `categorize` / `extract` try
-- `db.graph_search` for queries that share no words with the answer (costly on ordinary ones)
 
 ## Marks and feedback
 
@@ -88,7 +87,7 @@ v.learn()                        # log every ask as feedback
 
 Marks live in `doc_marks` (survive re-ingest). `suggest_noisy` is 0.988 AUC. Leave `fit_ranker` / `use_ranker` off unless your corpus says otherwise (`evals/RESULTS.md`).
 
-`connect()` builds the entity graph; `map` / `topic_tree` / `show_topics` read topics. Run `connect()` after a batch of ingests.
+`connect()` labels topic nodes; `map` / `topic_tree` / `show_topics` read them. Run `connect()` after a batch of ingests.
 
 ## Notes
 

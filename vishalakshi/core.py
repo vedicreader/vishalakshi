@@ -565,42 +565,16 @@ def elsewhere(self:Vault,
 
 
 # %% ../nbs/00_core.ipynb #36eaae10
-def _paged(tbl, batch:int=2000):
-    'Rows out of `tbl` a page at a time, so nothing has to hold the whole corpus at once.'
-    if not batch: yield from tbl(); return   # `batch=0` is "do not page", not "page by nothing"
-    off = 0
-    while (rows := list(tbl(limit=batch, offset=off, order_by='rowid'))):
-        yield from rows
-        off += len(rows)
-
 @patch
-def connect(self:Vault,
-            resolve:bool=True,   # merge duplicate entities once the build is in
-            topics:bool=True,    # (re)write the labelled topic nodes
-            batch:int=2000,      # chunks per flush; keeps co-occurrence windows on disk, not in memory
-            n_workers:int=None,  # extraction workers; 0 is serial, None picks by queue size
-            **kw) -> dict:
-    '(Re)build the entity graph over everything in the vault.'
-    if not self.store.count: return dict(entities=0, mentions=0, edges=0, windows=0)
-    if 'terms_fn' not in kw:
-        try:
-            from ganapati import is_sanskrit, sanskrit_terms
-            head = ' '.join(c['content'] or '' for c in self.store(limit=20))
-            if is_sanskrit(head): kw['terms_fn'] = sanskrit_terms()
-        except Exception: pass          # no ganapati, so fall back to whatever the extractor defaults to
-    from vruksha import build_graph, resolve_entities
-    self.db.get_graph(self.name, ndim=self.enc.dims, dtype=DTYPE)
-    res = build_graph(self.db, _paged(self.store, batch), store=self.name, emb_fn=self.emb,
-                      batch=batch, n_workers=n_workers, **kw)
-    if resolve: res = dict(res, resolved=resolve_entities(self.db, store=self.name, dtype=DTYPE))
-    if topics:
-        g = self.db.get_graph(self.name)
-        try: g.mentions.delete_where(f"entity_id IN (SELECT id FROM {g.prefix}entities WHERE kind='topic')")
-        except Exception: pass
-        try: g.entities.delete_where("kind='topic'")
-        except Exception: pass
-        res = dict(res, **topic_nodes(self.db, store=self.name, dtype=DTYPE))
-    return res
+def connect(self:Vault) -> dict:
+    '(Re)write the labelled topic nodes so `map` and `topic_tree` read them instead of re-clustering.'
+    if not self.store.count: return dict(topics=0, method=None)
+    g = self.db.get_graph(self.name, ndim=self.enc.dims, dtype=DTYPE)
+    try: g.mentions.delete_where(f"entity_id IN (SELECT id FROM {g.prefix}entities WHERE kind='topic')")
+    except Exception: pass
+    try: g.entities.delete_where("kind='topic'")
+    except Exception: pass
+    return topic_nodes(self.db, store=self.name, dtype=DTYPE)
 
 def _map_from_graph(db, store, store_table, members:int=24) -> AttrDict|None:
     'Read topic clusters persisted by `connect()`: instant DB read, no re-clustering.'
