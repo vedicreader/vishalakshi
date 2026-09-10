@@ -37,6 +37,7 @@ dependencies = [
     "koshas>=0.0.36",
     "rgapi",
     "uraiyadal>=0.0.4",
+    "vruksha>=0.1.0",
     "rishi>=0.1.32",
     "pyskills>=0.0.27",
 ]
