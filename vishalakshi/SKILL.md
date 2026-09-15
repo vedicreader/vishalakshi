@@ -101,8 +101,8 @@ and a script fold that makes Devanagari and IAST reach the same row.
 | `llm=` on `categorize` / `extract` | how hard to try before giving up on the cue table |
 | `db.graph_search` | the entity-graph leg by name, for bridge queries |
 
-The graph leg is off for ranking and should stay off: it costs 0.070 to 0.160 weighted MRR on
-ordinary questions. It wins only where the answer shares no word with the question.
+The graph leg is off for ranking. It wins only where the answer shares no word with the
+question.
 
 `v.connect()` builds the graph and `v.map()` reads its topics. Neither ranks anything. They answer
 what is in here and what connects to what, which is the question you ask before you know what to

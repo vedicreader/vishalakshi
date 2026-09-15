@@ -32,7 +32,7 @@ _all_ = ['DOCTYPES', 'EXTRACT_SP', 'FIELD_TYPES', 'KIND_BONUS', 'KIND_HINT', 'MI
 
 
 # %% ../nbs/06_extract.ipynb #c93f1d68
-REVIEW_SCORE = 0.2   # varga's floor: a neutral paragraph scores under 0.2 against any label
+REVIEW_SCORE = 0.2
 
 def model_cached(mid:str) -> bool:
     'Is this model already in the Hugging Face cache? A cache scan, never a download.'

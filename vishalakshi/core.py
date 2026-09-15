@@ -14,9 +14,9 @@ from collections import Counter
 import numpy as np
 from functools import wraps
 from inspect import Parameter, signature
-from fastcore.all import AttrDict, L, Path, first, ifnone, patch, store_attr
+from fastcore.all import AttrDict, L, Path, chunked, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, topic_nodes,
-                        DOC_EXTS, write_txn)
+                        DOC_EXTS, write_txn, sql_in)
 
 # %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'image')
@@ -105,7 +105,7 @@ class Vault(Index):
         s = self.stats()
         return (f"Vault({self.path!r}: {s['docs']} docs, {s['chunks']} chunks, {s['entities']} entities, encoder={self.enc.method})")
 
-def _kw(kind) -> str: return 'kind IN (%s)' % ','.join(map(repr, kinds(kind)))
+def _kw(kind) -> str: return sql_in('kind', kinds(kind))
 
 
 # %% ../nbs/00_core.ipynb #f07669ec
@@ -533,8 +533,10 @@ def _observe(self:Vault, out):
 KIND_SHELF = {'arxiv': 'papers', 'sanskrit': 'sanskrit'}
 
 def is_sanskrit_file(path) -> bool:
-    'Whether a Sanskrit reader is registered for this file. False until ganapati is imported.'
+    'Whether a Sanskrit reader is registered for this file.'
     from litesearch.data import profile_for
+    try: import ganapati
+    except ImportError: return False
     p = Path(path)
     return p.is_file() and (pr := profile_for(p)) is not None and (pr.kind or '') == 'sanskrit'
 
@@ -609,9 +611,7 @@ def map(self:Vault, min_count:int=2, force:bool=False, **kw) -> AttrDict:
 
 def _sql_in(col, xs, batch:int=2000):
     "`col IN (...)` clauses over `xs`, split so no one statement grows unbounded."
-    xs = list(xs)
-    for i in range(0, len(xs), batch):
-        yield f"{col} IN ({','.join(repr(x) for x in xs[i:i+batch])})"
+    for c in chunked(xs, batch): yield sql_in(col, c)
 
 @patch
 def topic_tree(self:Vault,
@@ -722,7 +722,7 @@ def connect(self:Vault,
     'Build the typed entity graph and the topic nodes so `graph_search`, `map` and `topic_tree` have them.'
     if not self.store.count: return dict(entities=0, mentions=0, edges=0, topics=0)
     res = self.build_graph(chat=chat, seed=seed) if graph else dict(entities=0, mentions=0, edges=0, new=0)
-    g = self.db.get_graph(self.name, ndim=self.enc.dims, dtype=DTYPE)
+    g = self.db.get_graph(self.name)
     if topics:
         try: g.mentions.delete_where(f"entity_id IN (SELECT id FROM {g.prefix}entities WHERE kind='topic')")
         except Exception: pass

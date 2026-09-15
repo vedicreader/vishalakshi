@@ -6,8 +6,8 @@ Docs: https://vedicreader.github.io/vishalakshi/ask.html.md"""
 
 # %% auto #0
 __all__ = ['VAULT_SP', 'DFLT_MODEL', 'dflt_model', 'pii_model_', 'LOCAL_RUNTIMES', 'LITERT_GPU', 'PII_SP', 'CHAT', 'CHAT_CACHE',
-           'litert_gpu', 'urai', 'new_chat', 'is_stock_chat', 'use_chat', 'mk_prompt', 'split_reasoning', 'cited',
-           'doc_note', 'CachedChat']
+           'is_local', 'litert_gpu', 'urai', 'new_chat', 'is_stock_chat', 'use_chat', 'mk_prompt', 'split_reasoning',
+           'cited', 'doc_note', 'CachedChat']
 
 # %% ../nbs/02_ask.ipynb #6a75ade4c079
 import os, re, warnings
@@ -36,6 +36,15 @@ DFLT_MODEL = 'litert/litert-community/gemma-4-E2B-it-litert-lm'   # local, small
 dflt_model = os.getenv('VISHALAKSHI_MODEL') or DFLT_MODEL
 pii_model_ = os.getenv('VISHALAKSHI_PII_MODEL') or dflt_model
 LOCAL_RUNTIMES = frozenset({'litert', 'mlx', 'llama'})
+
+def is_local(rt) -> bool:
+    'Whether `rt` answers on this machine. Ollama counts only when `$OLLAMA_HOST` is local.'
+    rt = str(rt or '')
+    if rt in LOCAL_RUNTIMES: return True
+    if rt != 'ollama': return False
+    from urllib.parse import urlparse
+    from rishi.ollama import LOCAL_HOSTS, ollama_url
+    return urlparse(ollama_url()).hostname in LOCAL_HOSTS
 #: Ask LiteRT for its GPU backend. A consumer turns it off with `$VISHALAKSHI_GPU=0`, by setting
 #: this to False, or per call with `chat_kw={'backend': Backend.CPU()}`.
 LITERT_GPU = os.getenv('VISHALAKSHI_GPU', '1').lower() not in ('0', 'false', 'no', 'off')
@@ -127,11 +136,8 @@ def mk_prompt(question:str,        # what you want to know
     return '\n\n---\n\n'.join(parts) + f'\n\n---\n\n{note}Question: {question}'
 
 def split_reasoning(text:str) -> tuple:
-    "`(answer, thinking)`: Urai's `split_think`, plus the *closing*-only tag an MLX prefill leaves."
+    '`(answer, thinking)`.'
     text, think = urai().split_think(text)
-    if '</think>' in text:
-        pre, _, text = text.partition('</think>')
-        think = '\n'.join(L(think, pre.strip()).filter())
     return text.strip(), think
 
 def cited(answer:str, results) -> L:
@@ -247,7 +253,7 @@ def ask(self:Vault,
     out.pii = report
     if private and pii != 'redact':
         rt = str(getattr(ch, 'runtime', '') or '')
-        if pii == 'refuse' or rt not in LOCAL_RUNTIMES:
+        if pii == 'refuse' or not is_local(rt):
             out.answer = (f"held back: these sections hold personal information "
                           f"({', '.join(sorted(report.identifying))}) and "
                           + ('the policy is to refuse' if pii == 'refuse' else
@@ -297,7 +303,7 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
         return AttrDict(answer=f"held back: section holds personal information ({', '.join(sorted(report.identifying))})",
                         refused=True, pii=report, node_id=node_id)
     ch = (mk_chat or new_chat)(mid, sp=sys_sp, **(chat_kw or {}))
-    if private and pii == 'local' and str(getattr(ch, 'runtime', '') or '') not in LOCAL_RUNTIMES:
+    if private and pii == 'local' and not is_local(getattr(ch, 'runtime', '')):
         return AttrDict(answer=f"held back: section holds personal information and {ch.runtime} is not local",
                         refused=True, pii=report, node_id=node_id, runtime=ch.runtime)
     prompt = (f"Section: {sec.get('title','')}\n\n{text}\n\nOther sections in the vault "
