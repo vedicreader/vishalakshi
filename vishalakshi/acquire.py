@@ -169,7 +169,7 @@ def add_tree(self:Vault,
              types:str=DOC_EXTS,     # extensions filed into the vault as prose
              code:bool=True,         # index source files with kosha, when the tree has any
              kind:str=None,          # override the kind for the prose half
-             connect:bool=False,     # rebuild the entity graph at the end; see below
+             connect:bool=False,     # rebuild the topic nodes at the end; see below
              verbose:bool=False,
              queue:bool=False,       # enqueue the work instead of doing it; `poll` or `drain` runs it
              batch:int=50,           # files per job when queueing
@@ -257,7 +257,7 @@ def _job_index_code(self:Vault, payload:dict) -> dict:
 
 @patch
 def _job_connect(self:Vault, payload:dict) -> dict:
-    'Queue handler rebuilding the entity graph, once the ingests it should cover have landed.'
+    'Queue handler rebuilding the topic nodes, once the ingests it should cover have landed.'
     # the graph is of the whole vault, so any pending ingest is one this should wait for
     if (n := self.q.pending('ingest')): raise Retry(f'{n} ingest jobs still to run')
     return dict(graph=self.connect())

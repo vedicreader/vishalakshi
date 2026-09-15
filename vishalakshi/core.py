@@ -578,43 +578,6 @@ def elsewhere(self:Vault,
 
 
 # %% ../nbs/00_core.ipynb #36eaae10
-def _paged(tbl, batch:int=2000):
-    'Rows out of `tbl` a page at a time, so nothing has to hold the whole corpus at once.'
-    if not batch: yield from tbl(); return   # `batch=0` is "do not page", not "page by nothing"
-    off = 0
-    while (rows := list(tbl(limit=batch, offset=off, order_by='rowid'))):
-        yield from rows
-        off += len(rows)
-
-@patch
-def connect(self:Vault,
-            resolve:bool=True,   # merge duplicate entities once the build is in
-            topics:bool=True,    # (re)write the labelled topic nodes
-            batch:int=2000,      # chunks per flush; keeps co-occurrence windows on disk, not in memory
-            n_workers:int=None,  # extraction workers; 0 is serial, None picks by queue size
-            **kw) -> dict:
-    '(Re)build the entity graph over everything in the vault.'
-    if not self.store.count: return dict(entities=0, mentions=0, edges=0, windows=0)
-    if 'terms_fn' not in kw:
-        try:
-            from ganapati import is_sanskrit, sanskrit_terms
-            head = ' '.join(c['content'] or '' for c in self.store(limit=20))
-            if is_sanskrit(head): kw['terms_fn'] = sanskrit_terms()
-        except Exception: pass          # no ganapati, so fall back to whatever the extractor defaults to
-    from vruksha import build_graph, resolve_entities
-    self.db.get_graph(self.name, ndim=self.enc.dims, dtype=DTYPE)
-    res = build_graph(self.db, _paged(self.store, batch), store=self.name, emb_fn=self.emb,
-                      batch=batch, n_workers=n_workers, **kw)
-    if resolve: res = dict(res, resolved=resolve_entities(self.db, store=self.name, dtype=DTYPE))
-    if topics:
-        g = self.db.get_graph(self.name)
-        try: g.mentions.delete_where(f"entity_id IN (SELECT id FROM {g.prefix}entities WHERE kind='topic')")
-        except Exception: pass
-        try: g.entities.delete_where("kind='topic'")
-        except Exception: pass
-        res = dict(res, **topic_nodes(self.db, store=self.name, dtype=DTYPE))
-    return res
-
 def _map_from_graph(db, store, store_table, members:int=24) -> AttrDict|None:
     'Read topic clusters persisted by `connect()`: instant DB read, no re-clustering.'
     try: g = db.get_graph(store)
@@ -738,3 +701,36 @@ def stats(self:Vault) -> dict:
                 entities=ents, path=self.path,
                 by_kind={r['kind']: r['n'] for r in self.db.q(f'select kind, count(*) as n from {p}docs group by kind order by n desc')})
 
+# %% ../nbs/00_core.ipynb #typedgraph02
+@patch
+def build_graph(self:Vault, chat=None, seed:bool=False, **kw) -> dict:
+    'Extract the typed entity graph over new chunks with vruksha, using the vault model. Incremental.'
+    from vruksha import build_graph as _bg, cites, norm_cite
+    from .ask import new_chat
+    if seed: kw = dict(kw, seed_fn=cites, canon=norm_cite)
+    return _bg(self.db, chat or new_chat(), self.emb, store=self.name, **kw)
+
+@patch
+def connect(self:Vault,
+            graph:bool=True,   # build the typed entity graph over new chunks (vruksha)
+            topics:bool=True,  # (re)write the labelled topic nodes
+            chat=None,         # a urai Chat; None builds one with `new_chat()`
+            seed:bool=False    # regex-seed structured citations (a legal corpus booster)
+            ) -> dict:
+    'Build the typed entity graph and the topic nodes so `graph_search`, `map` and `topic_tree` have them.'
+    if not self.store.count: return dict(entities=0, mentions=0, edges=0, topics=0)
+    res = self.build_graph(chat=chat, seed=seed) if graph else dict(entities=0, mentions=0, edges=0, new=0)
+    g = self.db.get_graph(self.name, ndim=self.enc.dims, dtype=DTYPE)
+    if topics:
+        try: g.mentions.delete_where(f"entity_id IN (SELECT id FROM {g.prefix}entities WHERE kind='topic')")
+        except Exception: pass
+        try: g.entities.delete_where("kind='topic'")
+        except Exception: pass
+        res = dict(res, **topic_nodes(self.db, store=self.name, dtype=DTYPE))
+    return res
+
+@patch
+def graph_search(self:Vault, q:str, limit:int=10, graph_w:float=1.0, **kw) -> list:
+    'Typed-graph retrieval: hybrid plus chunks reached by walking the graph. For queries that share no words with the answer.'
+    import vruksha  # applies Database.graph_search
+    return self.db.graph_search(q, self.qemb(q), store=self.name, limit=limit, graph_w=graph_w, **kw)
