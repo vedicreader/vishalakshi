@@ -706,9 +706,11 @@ def stats(self:Vault) -> dict:
 def build_graph(self:Vault, chat=None, seed:bool=False, **kw) -> dict:
     'Extract the typed entity graph over new chunks with vruksha, using the vault model. Incremental.'
     from vruksha import build_graph as _bg, cites, norm_cite
-    from .ask import new_chat
     if seed: kw = dict(kw, seed_fn=cites, canon=norm_cite)
-    return _bg(self.db, chat or new_chat(), self.emb, store=self.name, **kw)
+    if chat is None:
+        from vishalakshi.ask import new_chat   # absolute: this cell's patch runs outside the package
+        chat = new_chat()
+    return _bg(self.db, chat, self.emb, store=self.name, **kw)
 
 @patch
 def connect(self:Vault,
