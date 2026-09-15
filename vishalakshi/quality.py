@@ -14,7 +14,7 @@ from collections import Counter, defaultdict
 from fastcore.all import AttrDict, L, patch, first
 from litesearch.quality import (NOISE_FEATURES, NOISE_W, Ranker, chunk_idf, noise_features,
                                 noise_scores, _robust_z, _TOK)
-from .core import Vault, DTYPE
+from .core import Vault, DTYPE, _epoch
 
 # %% ../nbs/10_quality.ipynb #63c65614
 #: signal -> (label, weight)
@@ -163,16 +163,6 @@ def accept_noisy(self:Vault, k:int=20, reason:str='suggested', **kw) -> L:
     return self.mark_noisy_many(self.suggest_noisy(k=k, **kw), reason=reason)
 
 # %% ../nbs/10_quality.ipynb #c2b09e6b
-def _epoch(v) -> float:
-    "`added_at` is an epoch on some rows and a SQL timestamp string on others. Take either."
-    if v is None: return time.time()
-    try: return float(v)
-    except (TypeError, ValueError): pass
-    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S'):
-        try: return time.mktime(time.strptime(str(v)[:26], fmt))
-        except ValueError: continue
-    return time.time()
-
 PAIR_FEATURES = ('score', 'rank', 'gap', 'overlap', 'idf_overlap', 'cos', 'len',
                  'prior', 'is_code', 'is_web', 'is_note', 'age') + NOISE_FEATURES
 

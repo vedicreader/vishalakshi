@@ -40,7 +40,9 @@ ENCODERS = {'multilingual': DFLT_ENC,                                    # 100+ 
 # %% ../nbs/00_core.ipynb #6c733f86
 class HashEmbed:
     "litesearch's `hash_embed` behind an `.encode`, so an offline vault is an encoder like any other."
-    def __init__(self, dims:int=256, dtype=DTYPE): store_attr()
+    def __init__(self, dims:int=256, dtype=DTYPE):
+        store_attr()
+        self.ls_id = f'hash-{dims}'   # litesearch stamps it on the store, so a reopen cannot mix spaces
     def encode(self, xs, **kw): return hash_embed(list(xs), ndim=self.dims, dtype=self.dtype)
 
 def _load(nm:str, dtype):
@@ -283,6 +285,16 @@ def read(self:Vault, node_id:str, max_chars:int=6000,
     return Index.read(self, node_id, store=store or self.name, max_chars=max_chars)
 
 # %% ../nbs/00_core.ipynb #d1788576de66
+def _epoch(v) -> float:
+    "`added_at` is an epoch on some rows and a SQL timestamp string on others. Take either."
+    if v is None: return time.time()
+    try: return float(v)
+    except (TypeError, ValueError): pass
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S'):
+        try: return time.mktime(time.strptime(str(v)[:26], fmt))
+        except ValueError: continue
+    return time.time()
+
 @patch
 def doc(self:Vault, ref:str) -> dict:
     'One document row, by `doc_id`, exact `source`, or a title substring; `meta` already decoded.'
@@ -308,8 +320,8 @@ def document(self:Vault,
         if not (disk and p.is_file()): raise ValueError(f'no document in the vault matching {ref!r}')
         txt = p.read_text(errors='replace')
         return AttrDict(doc_id=None, title=p.name, source=str(p), kind='file', meta={}, pages=None,
-                        origin='disk', nodes=0, chars=len(txt), truncated=len(txt) > max_chars,
-                        text=txt[:max_chars])
+                        origin='disk', nodes=0, added_at=p.stat().st_mtime, chars=len(txt),
+                        truncated=len(txt) > max_chars, text=txt[:max_chars])
     did = d['id'].replace("'", "''")
     chunks = {}
     for c in self.store(where=f"doc_id='{did}'", select='content, node_id, page, rowid as rowid'):
@@ -322,7 +334,8 @@ def document(self:Vault,
     txt = '\n\n'.join(p for p in parts if (p or '').strip())
     return AttrDict(doc_id=d['id'], title=d['title'], source=d['source'], kind=d['kind'],
                     meta=d['meta'], pages=d['pages'], origin='vault', nodes=len(nodes),
-                    chars=len(txt), truncated=len(txt) > max_chars, text=txt[:max_chars])
+                    added_at=_epoch(d.get('added_at')), chars=len(txt),
+                    truncated=len(txt) > max_chars, text=txt[:max_chars])
 
 @patch
 def set_meta(self:Vault, doc_id:str, **kv) -> dict:
