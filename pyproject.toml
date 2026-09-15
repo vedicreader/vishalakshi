@@ -36,7 +36,7 @@ dependencies = [
     "mcp",
     "koshas>=0.0.36",
     "rgapi",
-    "uraiyadal>=0.0.4",
+    "uraiyadal>=0.0.7",   # CachedChat with structured, runtime and the env it switches on
     "vruksha>=0.1.0",
     "rishi>=0.1.32",
     "pyskills>=0.0.27",
