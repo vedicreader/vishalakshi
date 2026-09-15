@@ -12,6 +12,7 @@ __all__ = ['VAULT_SP', 'DFLT_MODEL', 'dflt_model', 'pii_model_', 'LOCAL_RUNTIMES
 # %% ../nbs/02_ask.ipynb #6a75ade4c079
 import os, re, warnings
 from contextlib import contextmanager
+from urai.record import CachedChat as _CachedChat
 from fastcore.all import AttrDict, L, patch
 from .core import Vault, gate, tidy_bc
 from .pii import _pii_marks, _section_private, gated, pii_ctx, pii_report, redact, redact_obj
@@ -311,55 +312,13 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
 
 # %% ../nbs/02_ask.ipynb #b5b57ec3744bc877
 CHAT_CACHE = 'chatcache'   # a diskcache directory; the one under nbs/ is committed, for CI
-class CachedChat:
-    """A `urai.Chat` whose replies are recorded to disk and replayed on a second ask."""
+class CachedChat(_CachedChat):
+    """Urai's recorder, with this package's default model, cache directory and recording switch."""
     def __init__(self,
                  model:str=None,   # anything Urai takes; None -> $VISHALAKSHI_MODEL
                  path:str=None,    # the diskcache directory; None -> CHAT_CACHE
                  record:bool=None, # allow a miss to reach a real model; None -> $VISHALAKSHI_RECORD_CHAT
-                 sp:str='',        # system prompt, part of the key
                  **kw              # forwarded to `urai.Chat` on a miss
     ):
-        from diskcache import Cache
-        self.model, self.sp, self.kw = model or dflt_model, sp, kw
-        self.cache = Cache(str(path or CHAT_CACHE))
-        self.record = bool(os.getenv('VISHALAKSHI_RECORD_CHAT')) if record is None else record
-        self._chat, self.hist, self.use = None, [], None
-
-    @property
-    def chat(self):
-        'The real chat, built only when something actually has to be asked; on the GPU, as `new_chat` would.'
-        if self._chat is None: self._chat = urai().Chat(self.model, sp=self.sp, **litert_gpu(self.model, self.kw))
-        return self._chat
-    @property
-    def runtime(self): return urai().resolve_runtime(self.model)[0]
-
-    def _ask(self, key:str, f):
-        'Replay `key`, else run `f()` and record what it did, including how it failed.'
-        if key in self.cache:
-            kind, val = self.cache[key]
-            if kind == 'exc': raise RuntimeError(val)
-            return val
-        if not self.record: raise KeyError(
-            f'no recorded reply for {key[:120]}… Set VISHALAKSHI_RECORD_CHAT=1 and re-run to record it')
-        try: val = f()
-        except Exception as e:
-            self.cache[key] = ('exc', f'{type(e).__name__}: {e}'); raise
-        self.cache[key] = ('ok', val)
-        return val
-
-    def __call__(self, prompt, **kw):
-        return self._ask(f'{self.model}|call|{self.sp}|{prompt}', lambda: dict(self.chat(prompt, **kw)))
-    def classify(self, text, labels, sp=None):
-        return self._ask(f'{self.model}|classify|{sp}|{",".join(labels)}|{text}',
-                         lambda: self.chat.classify(text, labels, sp=sp))
-    def structured(self, prompt, schema, sp=None):
-        # the reply is stored as a dict, not the object: a `dyn_schema` class cannot be pickled
-        from dataclasses import asdict, fields, is_dataclass
-        flds = [f.name for f in fields(schema)]
-        d = self._ask(f'{self.model}|structured|{sp}|{schema.__name__}{flds}|{prompt}',
-                      lambda: (lambda o: asdict(o) if is_dataclass(o) else dict(o))(
-                          self.chat.structured(prompt, schema, sp=sp)))
-        return schema(**d)
-    def close(self):
-        if self._chat is not None: self._chat.close(); self._chat = None
+        super().__init__(model or dflt_model, path=path or CHAT_CACHE, record=record,
+                         env='VISHALAKSHI_RECORD_CHAT', **kw)
