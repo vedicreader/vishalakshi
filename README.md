@@ -210,7 +210,7 @@ e.schema, e.fields, a
 
 ``` python
 v.index_code(root)                # fills .kosha/; context then appends code sections
-c = v.context('where does the entity graph get rebuilt?', sections=3, related=0, code=3, dir=root)
+c = v.context('where do topic nodes get rebuilt?', sections=3, related=0, code=3, dir=root)
 # code hits have no node_id; their handle is path:line on disk
 c.code, L(c.results).filter(lambda r: r.node_id is None).attrgot('breadcrumb')
 ```
@@ -283,7 +283,7 @@ L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['para
 
 | page | what is on it |
 |----|----|
-| [core](00_core.ipynb) | [`Vault`](https://vedicreader.github.io/vishalakshi/core.html#vault), shelves, `context`, entity graph, `document` |
+| [core](00_core.ipynb) | [`Vault`](https://vedicreader.github.io/vishalakshi/core.html#vault), shelves, `context`, topic maps, `document` |
 | [acquire](01_acquire.ipynb) | `grab`, `url`, `web`, `crawl`, `arxiv`, `pdf`, `youtube`, `github`, `apis`, `harvest`, watches |
 | [ask](02_ask.ipynb) | `ask`, `ask_doc`, citations, model plumbing, CachedChat |
 | [code](03_code.ipynb) | kosha, `symbol`, `where_to_add`, `grep`, `federate` |
