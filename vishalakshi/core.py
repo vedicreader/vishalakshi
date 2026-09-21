@@ -16,7 +16,7 @@ from functools import wraps
 from inspect import Parameter, signature
 from fastcore.all import AttrDict, L, Path, chunked, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, topic_nodes,
-                        DOC_EXTS, write_txn, sql_in)
+                        DOC_EXTS, write_txn, sql_in, StoreMismatch, encoder_id)
 
 # %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'image')
@@ -349,11 +349,6 @@ def set_meta(self:Vault, doc_id:str, **kv) -> dict:
 
 # %% ../nbs/00_core.ipynb #4b8f347d
 @patch
-def _stores(self:Vault):
-    'Shelf encoder registry.'
-    return self.db.t.vault_stores
-
-@patch
 def _rankers(self:Vault):
     'Ranker configuration by shelf.'
     return self.db.t.rankers
@@ -368,13 +363,6 @@ def _ensure_rankers(self:Vault):
         have = {c.name for c in t.columns}
         for col, ty in (('noise', 'TEXT'), ('noise_on', 'INTEGER')):
             if col not in have: self.db.conn.execute(f'ALTER TABLE rankers ADD COLUMN {col} {ty}')
-
-@patch
-def _ensure_store(self:Vault):
-    'Create the shelf registry.'
-    with write_txn(self.db):
-        self.db.t.vault_stores.create(store=str, encoder=str, dims=int, method=str, added_at=float,
-            pk='store', if_not_exists=True)
 
 @patch
 def _ensure_marks(self:Vault):
@@ -398,32 +386,41 @@ def _ensure_schema(self:Vault):
     'Create fixed vault tables once per connection.'
     if getattr(self.db, '_vishalakshi_schema', False): return
     had_marks = 'doc_marks' in self.db.t
-    self._ensure_store()
     self._ensure_marks()
     self._ensure_rankers()
     self._ensure_fb()
     if not had_marks: self._migrate_marks()
     self.db._vishalakshi_schema = True
 
+def _legacy_id(r) -> str:
+    'The `encoder_id` a legacy `vault_stores` row stands for; empty when it named a custom object.'
+    if not r or r['method'] == 'given': return ''
+    return f"hash-{r['dims']}" if r['method'] == 'hash' else r['encoder']
+
+@patch
+def _recorded(self:Vault, name:str) -> str:
+    "The `encoder_id` litesearch recorded for a shelf, copying a legacy `vault_stores` row into `store_meta` once."
+    m = self.db._store_meta(name)
+    if m is None: return ''
+    if not m['encoder'] and 'vault_stores' in self.db.t:
+        old = _legacy_id(first(self.db.t.vault_stores(where=f'store={name!r}')))
+        if old: self.db.t.store_meta.update(dict(name=name, encoder=old)); return old
+    return m['encoder']
+
 @patch
 def _register(self:Vault):
-    'Register this shelf and its encoder.'
+    "Stamp this shelf's encoder in litesearch's `store_meta`; a mismatch raises."
     self._ensure_schema()
-    t, now = self._stores(), time.time()
-    r = first(t(where=f'store={self.name!r}'))
-    if r and (r['encoder'], r['dims']) != (self.enc.name, self.enc.dims):
-        warnings.warn(f"store {self.name!r} was written by {r['encoder']} ({r['dims']}d) but this Vault is "
-            f"using {self.enc.name} ({self.enc.dims}d). Distances across the two are meaningless. "
-            f"Re-ingest, or keep them apart with shelf('{self.name}-{self.enc.method}').")
-    elif not r: t.insert(dict(store=self.name, encoder=self.enc.name, dims=self.enc.dims, method=self.enc.method, added_at=now), replace=True)
+    eid = encoder_id(self.enc.model)
+    if self._recorded(self.name) not in ('', eid): self.db._stamp_store(self.name, encoder=eid)
 
 @patch
 def shelf(self:Vault, name:str, encoder:str=None, **kw) -> Vault:
-    'Open another shelf in this vault file.'
-    was = first(self._stores()(where=f'store={name!r}')) or {}
-    enc = encoder or was.get('encoder')
-    if enc is None or enc == self.enc.name: enc = self.enc
-    if enc == 'hash': enc, kw = None, dict(kw, offline=True)   # nothing to load; do not try
+    'Open another shelf in this vault file, with the encoder litesearch recorded for it.'
+    enc = encoder or self._recorded(name)
+    if not enc or enc == encoder_id(self.enc.model): enc = self.enc
+    elif isinstance(enc, str) and enc.startswith('hash'):   # nothing to load; do not try
+        enc, kw = None, dict(kw, offline=True, dims=int(enc[5:] or kw.get('dims', 256)))
     return Vault(self.path, encoder=enc, store=name, db=self.db, **kw)
 
 @patch
@@ -440,9 +437,7 @@ def drop_shelf(self:Vault, name:str, force:bool=False) -> dict:
     for r in self.db.q('select path from usearch_indices where name=?', [name]):
         try: Path(r['path']).unlink(missing_ok=True)
         except Exception: pass
-    self.db.q('delete from usearch_indices where name=?', [name])
-    try: self._stores().delete_where(f'store={name!r}')
-    except Exception: pass
+    for tn in ('usearch_indices', 'store_meta'): self.db.q(f'delete from {tn} where name=?', [name])
     self.db.forget_ensured(name)
     return dict(shelf=name, dropped=gone)
 
@@ -453,7 +448,10 @@ def shelves(self:Vault) -> L:
         p = '' if s == 'store' else f'{s}_'
         try: return self.db.t[f'{p}docs'].count
         except Exception: return 0
-    return L(self._stores()(order_by='added_at')).map(lambda r: dict(r, docs=n(r['store'])))
+    rows = self.db.q("select m.name as store, m.encoder, u.ndim as dims, cast(strftime('%s', m.created_at) as real) as added_at "
+                     "from store_meta m left join usearch_indices u on u.name=m.name order by m.rowid")
+    eid = encoder_id(self.enc.model)   # an empty shelf has no ANN index yet, but shares this vault's width
+    return L(rows).map(lambda r: dict(r, dims=r['dims'] or (self.enc.dims if r['encoder'] == eid else None), docs=n(r['store'])))
 
 # Shelf names, not encoder assignments
 SHELVES = ('store',      # the main shelf: notes, pages, anything unrouted
