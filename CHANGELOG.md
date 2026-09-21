@@ -3,11 +3,16 @@
 <!-- do not remove -->
 
 ## 0.1.15
-`connect()` builds the typed entity graph with vruksha and writes the topic nodes; `graph_search` walks it. The offline encoder is named, so litesearch stamps the store it writes.
-`extract` checks the values it pulls with varga's `check_fields`, and `categorize` proposes an undecided doctype rather than writing it (`proposed_types`, `accept_type`, `reject_type`). A job that retrying cannot fix is dead-lettered.
-`CachedChat` is urai's recorder with this package's defaults; `VISHALAKSHI_RECORD_CHAT` still switches it, and the recorded replies are re-recorded under the new keys.
-Sanskrit files reach the sanskrit shelf: detection imports ganapati itself. The PII gate asks `is_local`, which counts ollama only when `$OLLAMA_HOST` is local.
-Needs litesearch 0.1.35, varga 0.0.5, vruksha 0.1.0, uraiyadal 0.0.7.
+- `connect()` builds the typed entity graph with vruksha and writes the topic nodes; `graph_search` walks it.
+- The offline encoder is named, so litesearch stamps the store it writes.
+- Shelf encoders live in litesearch's `store_meta`; `vault_stores` rows are read once and migrated; a wrong-width reopen raises `StoreMismatch`.
+- `extract` checks pulled values with varga's `check_fields`.
+- `categorize` proposes an undecided doctype instead of writing it: `proposed_types`, `accept_type`, `reject_type`.
+- A job that retrying cannot fix is dead-lettered.
+- `CachedChat` is urai's recorder with this package's defaults; `VISHALAKSHI_RECORD_CHAT` still switches it; recorded replies re-recorded under the new keys.
+- Sanskrit detection imports ganapati, so Sanskrit files reach the sanskrit shelf.
+- PII gate `is_local` counts ollama only when `$OLLAMA_HOST` is local.
+- Needs litesearch 0.1.35, varga 0.0.5, vruksha 0.1.0, uraiyadal 0.0.7.
 
 ## 0.1.14
 using urai, rahsaya, varga, pobblebonk and liteserach index
