@@ -114,6 +114,8 @@ def federate(self:Vault,
     if env:   leg('env', lambda: self.kosha(dir).rows(q, limit=n, repo=False, env=True))
     if grep:  leg('grep', lambda: self.grep(q, dir or '.', limit=n))
     lists = {nm: rows for nm, rows in legs.items() if isinstance(rows, L) and rows}
+    failed = [f"{nm.removesuffix('_error')} ({legs[nm]})" for nm in legs if nm.endswith('_error')]
+    warn = f"search incomplete, {', '.join(failed)} failed; " if failed else ''
     for nm, rows in lists.items():
         for i, r in enumerate(rows): r['_fid'] = f'{nm}:{r.ref or i}'
     fused = rrf_all(list(lists.values()), limit=limit, id_key='_fid',
@@ -121,7 +123,7 @@ def federate(self:Vault,
     # the code legs are files, not sections, so a mark cannot reach them; `gate` scans the text
     return AttrDict(query=q, hits=L(fused).map(AttrDict),
                     legs={nm: (len(r) if isinstance(r, L) else r) for nm, r in legs.items()},
-                    note=f"RRF over {', '.join(lists) or 'nothing'}; the legs use different "
+                    note=warn + f"RRF over {', '.join(lists) or 'nothing'}; the legs use different "
                          f"encoders, so ranks are fused, not distances")
 
 # %% ../nbs/03_code.ipynb #9e4d1a76
