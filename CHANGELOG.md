@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.16
+- `federate` leads its note with `search incomplete, <leg> (<error>) failed;` when a leg raised.
+
 ## 0.1.15
 - `connect()` builds the typed entity graph with vruksha and writes the topic nodes; `graph_search` walks it.
 - The offline encoder is named, so litesearch stamps the store it writes.
