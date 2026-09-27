@@ -78,7 +78,7 @@ Retrieval defaults are litesearch's. Reach for:
 - `rerank=True` on `search` / `sections` / `context` when precision matters more than latency
 - `v.shelf(name)` to keep two corpora from diluting each other
 - `llm=` for how hard `categorize` / `extract` try
-- `ask(q, pii=)`: default `local` when a local runtime is installed, else `redact`; never off. The result's `policy` says which ran
+- `ask(q, pii=)`: default `local` when `local_ok()` (the local runtime is importable), else `redact`; never off. The result's `policy` says which ran; a host sets `vishalakshi.ask.LOCAL_OK = False` to force `redact`
 
 ## Marks and feedback
 
@@ -93,8 +93,6 @@ v.learn()                        # log every ask as feedback
 Marks live in `doc_marks` (survive re-ingest). `suggest_noisy` is 0.988 AUC. Leave `fit_ranker` / `use_ranker` off unless your corpus says otherwise (`evals/RESULTS.md`).
 
 `connect()` builds the typed entity graph (LLM `refers_to`/`defines` edges) and the topic nodes; `graph_search` walks it, `map` / `topic_tree` read topics. Run `connect()` after a batch of ingests.
-
-## Notes
 
 ## Watches
 

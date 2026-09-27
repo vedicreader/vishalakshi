@@ -445,7 +445,7 @@ def folder_changes(self:Vault, w:dict) -> dict:
     'What moved under a folder watch since its last look; advances the snapshot.'
     old, new = w['params'].get('snap') or {}, _snap(w['target'], w['pattern'])
     added, removed = sorted(set(new) - set(old)), sorted(set(old) - set(new))
-    changed = sorted(p for p in set(new) & set(old) if new[p] > old[p])
+    changed = sorted(p for p in set(new) & set(old) if new[p] != old[p])
     self._w().update(dict(id=w['id'], params=json.dumps(dict(w['params'], snap=new))))
     if not (added or removed or changed): return dict(skipped='no changes')
     return dict(folder=w['target'], added=added, changed=changed, removed=removed, instructions=w['instructions'], note=w['note'])
@@ -455,6 +455,7 @@ def _do_watch(self:Vault, w:dict):
     'Perform one watch action. Raises on failure, and `Retry` where the failure is worth another try.'
     params = dict(w['params'])
     if w['action'] in ('url', 'arxiv', 'youtube', 'path'): params.setdefault('force', True)
+    if w['action'] != 'folder' and w.get('pattern'): params.setdefault('pattern', w['pattern'])
     res = (self.folder_changes(w) if w['action'] == 'folder' else
            self.note(w['target'], title=w.get('note') or None, tags=['reminder'], key=f"reminder:{w['id']}", meta=dict(watch_id=w['id']))
            if w['action'] == 'remind' else self.grab(w['target'], **params)
