@@ -3,13 +3,7 @@
 <!-- do not remove -->
 
 ## 0.1.17
-- `note(key=)` upserts by `note:{key or slug(title)}` when a key or an explicit title is given; a reminder keeps one document (`reminder:{watch_id}`).
-- `add(refresh=True)` re-ingests a document already filed when its content hash changed; `add`, `add_file` and `add_files` report `changed`.
-- Retrieval rows (`search`, `sections`, `context`, `toc`, `sources`) carry `age` and `stale`; stale rows sort last; `mark_stale` sets the flag and a real re-ingest clears it.
-- `poll` runs `housekeep`: stale on vanished or modified files, on unwatched web documents past their TTL, and on copies a watch superseded; prunes only stale and superseded.
-- Watches persist `kind` (an alias of `action`), `instructions` and `pattern`; `watch(..., pattern=)` is a column now, read from `w['pattern']` and still forwarded to `harvest`; a `folder` kind snapshots a directory and fires with what was added, changed (any mtime change) or removed.
-- `ask` and `explain` policy defaults to `local` when `local_ok()` finds an importable local runtime, else `redact`; a host sets `vishalakshi.ask.LOCAL_OK = False` to force `redact`; `pii='off'` is coerced with a warning; the result carries `policy`.
-- `marks(ref)` on a document the vault does not hold returns `{}`.
+
 
 ## 0.1.16
 - `federate` leads its note with `search incomplete, <leg> (<error>) failed;` when a leg raised.
