@@ -25,22 +25,17 @@ v.enc.note
 
     'minishlab/potion-multilingual-128M (256d, float16, model2vec)'
 
-`add` takes a directory, a file, or text. `grab` routes an arXiv id, YouTube link, GitHub repo, PDF, file, or directory.
+`add` takes a directory, a file, or text. `grab` routes an arXiv id, YouTube link, GitHub repo, PDF, file, or directory. Re-adding a source re-ingests only when its content changed (`changed` says so). `note(..., key=)` or an explicit title names one document to replace; a note with neither appends.
+
+Every retrieval row carries `age` (seconds since it was filed) and `stale`; stale rows sort last. `poll()` marks documents stale when a file moved on, an unwatched page aged out, or a watch superseded a copy, and prunes only those both stale and superseded.
 
 ``` python
 v.add(root)                       # README.md and every notebook under nbs/
 v.note('federate fuses the legs by rank because they share no vector space: the vault embeds '
        'prose, kosha embeds identifiers, ripgrep embeds nothing.', tags=['retrieval', 'design'])
+v.note('one document per key: writing it again replaces it', title='federation', key='federation')
 v.stats()
 ```
-
-    {'docs': 19,
-     'nodes': 166,
-     'chunks': 672,
-     'encoder': 'model2vec',
-     'entities': 0,
-     'path': '/var/folders/kg/9vdw4mdd1fs58svgh4k1qhr09x7dqh/T/tmp0ufdxnt4/vault.db',
-     'by_kind': {'notebook': 12, 'md': 5, 'txt': 1, 'note': 1}}
 
 Default model: `gemma-4-E2B` on LiteRT GPU, no API key. Name any model id or path registered by Rishi; `chat_kw=` reaches Urai’s constructor. `$VISHALAKSHI_MODEL` replaces the id. `$VISHALAKSHI_GPU=0` puts LiteRT on CPU. Context budget is `sections=4`, `max_chars=1500`.
 
@@ -96,10 +91,11 @@ r.scanned_ner, r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v
 
 | `pii=` | what happens |
 |----|----|
-| `local` (default) | local model answers; shape and quantity, not detail. Structured `fields` are scrubbed too |
+| `local` | local model answers; shape and quantity, not detail. Structured `fields` are scrubbed too |
 | `redact` | mask recognised spans, then any model may answer. Names are not masked |
 | `refuse` | return the finding, no answer |
-| `off` | do not look |
+
+The default is `local` when a local runtime is installed, else `redact`; `ask` never runs with detection off (`pii='off'` warns and applies the default). The result’s `policy` says which was applied. Retrieval methods keep their own `pii=` setting, default `off`.
 
 ``` python
 v.mark_not_pii(doc_id, reason='my own invoice')
@@ -266,7 +262,7 @@ L(v.grep('rrf_all', root, limit=4)).attrgot('where')   # ripgrep; no kosha neede
 
 ## Watches and the queue
 
-An action is an acquisition method name. `poll()` reclaims work from dead workers. It enqueues due watches and drains the queue. A failed fetch retries with backoff and dead-letters after five attempts. `jobs(state='dead')` lists work that used all five attempts. See [jobs](11_jobs.ipynb).
+An action is an acquisition method name (`kind` is the same column by another name). A `folder` watch snapshots a directory and fires with what was added, changed or removed, carrying its `instructions` for whoever reviews the change. `poll()` reclaims work from dead workers. It enqueues due watches, drains the queue and, every ten minutes, runs `housekeep`. A failed fetch retries with backoff and dead-letters after five attempts. `jobs(state='dead')` lists work that used all five attempts. See [jobs](11_jobs.ipynb).
 
 [pobblebonk](https://vedicreader.github.io/pobblebonk/) stores the clock in the vault file. A watch accepts `cron='0 9 * * 1'` or `every='6h'`. The vault queue retains leases, fenced acknowledgements and the dead letter.
 
@@ -274,10 +270,9 @@ An action is an acquisition method name. `poll()` reclaims work from dead worker
 v.watch('https://example.com/changelog', action='url', every='6h')
 v.watch('late chunking retrieval', action='web', every='1d', n=5)
 v.watch('Re-read the evals', action='remind', every='1w')
-L(v.watches()).map(lambda w: (w['action'], w['target'][:34], w['every'], w['params']))
+v.watch(Path(root)/'nbs', kind='folder', every='1h', instructions='flag any print() left in a notebook', pattern='*.ipynb')
+L(v.watches()).map(lambda w: (w['kind'], w['target'][:34], w['every'], w['pattern']))
 ```
-
-    [('url', 'https://example.com/changelog', 21600.0, {}), ('web', 'late chunking retrieval', 86400.0, {'n': 5}), ('remind', 'Re-read the evals', 604800.0, {})]
 
 ## The rest
 

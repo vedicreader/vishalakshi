@@ -396,7 +396,7 @@ def watch(self:Vault,
           **params            # forwarded to the action (n=, pages=, sel=, ...)
 ) -> dict:
     'Register a recurring job: re-read a page, re-run a search, re-harvest an API, watch a folder, or remind you.'
-    action = kind or action
+    action, target = kind or action, str(target)
     assert action in ACTIONS, f'action must be one of {ACTIONS}'
     if action == 'folder':
         if not (instructions or '').strip(): raise ValueError('a folder watch needs `instructions`: what its reviewer should look for')

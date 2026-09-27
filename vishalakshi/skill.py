@@ -9,7 +9,10 @@ v = vault()                      # $VISHALAKSHI_VAULT, else ~/.vishalakshi/vault
 v.add('~/notes')                 # directory, file, or text
 v.grab('1706.03762')             # arXiv id, YouTube url, GitHub repo, PDF url, path
 v.note('what I concluded', tags=['retrieval'])
+v.note('what I concluded', title='late chunking', key='late-chunking')   # same key: one document, replaced
 ```
+
+Re-adding a source re-ingests only when its content changed; results carry `changed`.
 
 ## Reading it back
 
@@ -22,6 +25,7 @@ v.read(node_id)                  # section behind a citation
 ```
 
 `kind` filters without a second pass: `v.search(q, kind='pdf')` or `'note,web'`.
+Every row carries `age` (seconds since filed) and `stale`; stale rows sort last. `v.mark_stale(ref, reason=)` sets it, a re-ingest clears it.
 Kinds: `web`, `pdf`, `arxiv`, `youtube`, `file`, `code`, `data`, `note`.
 
 ## Named documents
@@ -74,6 +78,7 @@ Retrieval defaults are litesearch's. Reach for:
 - `rerank=True` on `search` / `sections` / `context` when precision matters more than latency
 - `v.shelf(name)` to keep two corpora from diluting each other
 - `llm=` for how hard `categorize` / `extract` try
+- `ask(q, pii=)`: default `local` when a local runtime is installed, else `redact`; never off. The result's `policy` says which ran
 
 ## Marks and feedback
 
@@ -88,6 +93,19 @@ v.learn()                        # log every ask as feedback
 Marks live in `doc_marks` (survive re-ingest). `suggest_noisy` is 0.988 AUC. Leave `fit_ranker` / `use_ranker` off unless your corpus says otherwise (`evals/RESULTS.md`).
 
 `connect()` builds the typed entity graph (LLM `refers_to`/`defines` edges) and the topic nodes; `graph_search` walks it, `map` / `topic_tree` read topics. Run `connect()` after a batch of ingests.
+
+## Notes
+
+## Watches
+
+```python
+v.watch(url, every='6h')                                   # kind='url': re-read when it changed
+v.watch(dir, kind='folder', every='1h', instructions='flag any print()', pattern='*.py')
+v.watch('re-read the evals', kind='remind', every='1w')    # one note per reminder
+v.watches(); v.poll()                                      # poll drains due work and housekeeps stale documents
+```
+
+`kind` is `action` by another name; a `folder` watch fires with `added`, `changed`, `removed` and its `instructions`, verbatim.
 
 ## Notes
 
