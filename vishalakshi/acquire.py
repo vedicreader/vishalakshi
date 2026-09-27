@@ -427,7 +427,7 @@ def _do_watch(self:Vault, w:dict):
     'Perform one watch action. Raises on failure, and `Retry` where the failure is worth another try.'
     params = dict(w['params'])
     if w['action'] in ('url', 'arxiv', 'youtube', 'path'): params.setdefault('force', True)
-    res = (self.note(w['target'], title=w.get('note') or None, tags=['reminder'])
+    res = (self.note(w['target'], title=w.get('note') or None, tags=['reminder'], key=f"reminder:{w['id']}", meta=dict(watch_id=w['id']))
            if w['action'] == 'remind' else self.grab(w['target'], **params)
            if w['action'] == 'path' else getattr(self, w['action'])(w['target'], **params))
     # a bot wall is a skip worth retrying; 'no transcript' is a skip that will never change

@@ -6,10 +6,10 @@ Docs: https://vedicreader.github.io/vishalakshi/core.html.md"""
 
 # %% auto #0
 __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'MARK_COLS', 'KIND_SHELF', 'tidy_bc', 'kinds', 'HashEmbed', 'mk_encoder',
-           'Vault', 'gate', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
+           'Vault', 'slug', 'gate', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
 
 # %% ../nbs/00_core.ipynb #66b23414ed2b
-import json, os, re, time, uuid, warnings
+import json, os, re, time, unicodedata, uuid, warnings
 from collections import Counter
 import numpy as np
 from functools import wraps
@@ -171,15 +171,40 @@ def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,
     if sa: out += self.route('sanskrit').add_files(sa, kind=kind, **kw)
     return out
 
+def slug(s:str, n:int=60) -> str:
+    'ASCII-folded, lower-cased, hyphenated, clipped: a stable key from a title.'
+    s = unicodedata.normalize('NFKD', str(s or '')).encode('ascii', 'ignore').decode()
+    return re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')[:n].strip('-')
+
+@patch
+def _by_source(self:Vault, src:str) -> L:
+    'Every document row filed under exactly this source, newest first.'
+    return L(self.t.docs(where='source=?', where_args=[src], order_by='added_at desc'))
+
+@patch
+def _replace_source(self:Vault, src:str, keep:str) -> int:
+    'Forget every document under `src` except `keep`; one source, one document.'
+    gone = self._by_source(src).filter(lambda r: r['id'] != keep)
+    for r in gone: self.forget(r['id'])
+    return len(gone)
+
 @patch
 def note(self:Vault,
          text:str,            # what you want to remember
          title:str=None,      # defaults to the first line
          tags:list=None,      # free-form tags, kept in the doc's meta
+         key:str='',          # upsert key; defaults to `slug(title)`. Same key, same document
+         meta:dict=None,      # merged into the doc's meta beside `tags` and `key`
 ) -> dict:
-    'Write a note into the vault so it is searched alongside the corpus.'
+    'Write or replace a note. Notes are searched alongside the corpus and keyed by `key` or their title.'
     ttl = title or (text.strip().splitlines() or ['note'])[0].lstrip('# ')[:80]
-    return self.add(text.strip(), ttl, source=f'note:{uuid.uuid4().hex[:12]}', kind='note', meta=dict(tags=list(tags or [])))
+    k = key or slug(ttl)
+    src = f'note:{k}' if k else f'note:{uuid.uuid4().hex[:12]}'
+    had = bool(self._by_source(src))
+    out = self.add(text.strip(), ttl, source=src, kind='note', force=True,
+                   meta=dict(meta or {}, tags=list(tags or []), key=k))
+    self._replace_source(src, out['doc_id'])
+    return dict(out, source=src, replaced=had)
 
 
 # %% ../nbs/00_core.ipynb #8c956f257f4e
