@@ -176,8 +176,9 @@ def add_files(self:Vault,
     files = L(files).map(Path)
     # an empty list would still reach `rebuild_index`, which is a real cost for no documents
     if not files: return L()
-    return L(self.db.add_dir(files=files, store=self.name, kind=kind, emb_fn=self.emb,
-                             n_workers=n_workers, embed_batch=embed_batch, **kw))
+    outs = self.db.add_dir(files=files, store=self.name, kind=kind, emb_fn=self.emb,
+                           n_workers=n_workers, embed_batch=embed_batch, **kw)
+    return L(self._settled(o, str(p)) for p, o in zip(files, outs))
 
 @patch
 def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,
@@ -573,8 +574,8 @@ def _annotate(self:Vault, rows, key:str='doc_id'):
 def marks(self:Vault, ref=None) -> dict|L:
     "Every judgement on this shelf, or the one on `ref` (an empty dict when there is none)."
     if ref is None: return L(self._marks()(where=f'store={self.name!r}', order_by='at desc'))
-    d = self.doc(ref)
-    return dict(first(self._marks()(where=f"doc_id={(d or {}).get('id')!r} AND store={self.name!r}")) or {})
+    if (d := self.doc(ref)) is None: return {}
+    return dict(first(self._marks()(where='doc_id=? AND store=?', where_args=[d['id'], self.name])) or {})
 
 @patch
 def _migrate_marks(self:Vault) -> int:
