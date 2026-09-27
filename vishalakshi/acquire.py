@@ -328,7 +328,7 @@ def add_records(self:Vault, recs:list, title:str, source:str=None, kind:str='dat
                     kind=kind, force=force, meta=dict(meta or {}, records=len(L(recs))))
 
 # %% ../nbs/01_acquire.ipynb #30e68805575acb49
-ACTIONS = ('url', 'web', 'harvest', 'arxiv', 'youtube', 'crawl', 'path', 'remind')
+ACTIONS = ('url', 'web', 'harvest', 'arxiv', 'youtube', 'crawl', 'path', 'remind', 'folder')
 
 @patch(as_prop=True)
 def q(self:Vault) -> Queue:
@@ -364,11 +364,22 @@ def _w(self:Vault):
     t = self.db.t.watches
     t.create(id=str, action=str, target=str, params=str, every=float, cron=str, note=str,
              enabled=int, last_run=float, last_status=str, runs=int, catchup=int, missed=int,
-             pk='id', if_not_exists=True)
+             instructions=str, pattern=str, pk='id', if_not_exists=True)
     have = set(t.columns_dict)
-    for c, d in dict(catchup='INTEGER DEFAULT 1', missed='INTEGER DEFAULT 0', cron='TEXT').items():
+    for c, d in dict(catchup='INTEGER DEFAULT 1', missed='INTEGER DEFAULT 0', cron='TEXT',
+                     instructions="TEXT DEFAULT ''", pattern="TEXT DEFAULT ''").items():
         if c not in have: self.db.conn.execute(f'ALTER TABLE watches ADD COLUMN {c} {d}')
     return t
+
+def _snap(folder:str, pattern:str='', cap:int=5000) -> dict:
+    'Files under `folder` matching `pattern`, with their mtimes.'
+    fs = L(Path(folder).expanduser().rglob(pattern or '*')).filter(Path.is_file).sorted()[:cap]
+    return {str(p): p.stat().st_mtime for p in fs}
+
+def _wrow(r:dict) -> dict:
+    'A watches row as callers see it: params decoded, `kind` beside `action`, text columns never None.'
+    return dict(r, params=json.loads(r['params'] or '{}'), kind=r['action'],
+                instructions=r.get('instructions') or '', pattern=r.get('pattern') or '')
 
 @patch
 def watch(self:Vault,
@@ -379,13 +390,20 @@ def watch(self:Vault,
           note:str=None,      # why you are watching
           start:float=None,   # first run time (epoch); defaults to the next boundary
           catchup:int=1,      # missed intervals to make up after a gap; the rest count as `missed`
-          **params            # forwarded to the action (n=, pattern=, pages=, sel=, ...)
+          kind:str=None,      # alias for action; what the target set calls it
+          instructions:str='',# the standing brief a folder watch's reviewer gets, verbatim
+          pattern:str='',     # globs limiting a folder watch
+          **params            # forwarded to the action (n=, pages=, sel=, ...)
 ) -> dict:
-    'Register a recurring job: re-read a page, re-run a search, re-harvest an API, or remind you.'
+    'Register a recurring job: re-read a page, re-run a search, re-harvest an API, watch a folder, or remind you.'
+    action = kind or action
     assert action in ACTIONS, f'action must be one of {ACTIONS}'
+    if action == 'folder':
+        if not (instructions or '').strip(): raise ValueError('a folder watch needs `instructions`: what its reviewer should look for')
+        params['snap'] = _snap(target, pattern)
     row = dict(id=uuid.uuid4().hex[:12], action=action, target=target, params=json.dumps(params),
                every=None if cron else secs(every), cron=cron, note=note or '', enabled=1, runs=0,
-               catchup=max(1, int(catchup)), missed=0)
+               catchup=max(1, int(catchup)), missed=0, instructions=instructions or '', pattern=pattern or '')
     self._w().insert(row, replace=True)
     p = self.pob
     p.runners[row['id']] = self._fire_watch
@@ -393,14 +411,13 @@ def watch(self:Vault,
     sched = p.add(row['id'], cron=cron, every=None if cron else row['every'],
                   catchup=row['catchup'],
                   start=start if start is not None else (None if cron else time.time()))
-    return dict(row, params=params, next_run=sched.next_fire_at)
+    return dict(_wrow(row), next_run=sched.next_fire_at)
 
 @patch
 def watches(self:Vault, due_only:bool=False, at:float=None) -> L:
     'Every registered watch, soonest first; `due_only` keeps the ones whose next run has arrived.'
     nxt = {s['name']: s['next_fire_at'] for s in self.pob.all()}
-    rows = L(self._w()(where='enabled=1' if due_only else None)).map(
-        lambda r: dict(r, params=json.loads(r['params'] or '{}'), next_run=nxt.get(r['id'])))
+    rows = L(self._w()(where='enabled=1' if due_only else None)).map(lambda r: dict(_wrow(r), next_run=nxt.get(r['id'])))
     now = time.time() if at is None else at
     if due_only: rows = rows.filter(lambda r: r['next_run'] is not None and r['next_run'] <= now)
     return rows.sorted(key=lambda r: (r['next_run'] is None, r['next_run'] or 0))
@@ -409,7 +426,7 @@ def watches(self:Vault, due_only:bool=False, at:float=None) -> L:
 def _watch_row(self:Vault, wid:str) -> dict|None:
     'One watch by id, with its params parsed.'
     r = first(self._w()(where='id=?', where_args=[wid]))
-    return dict(r, params=json.loads(r['params'] or '{}')) if r else None
+    return _wrow(r) if r else None
 
 @patch
 def unwatch(self:Vault, watch_id:str):
@@ -424,11 +441,22 @@ def pause(self:Vault, watch_id:str, enabled:bool=False):
     self._w().update(dict(id=watch_id, enabled=int(enabled)))
 
 @patch
+def folder_changes(self:Vault, w:dict) -> dict:
+    'What moved under a folder watch since its last look; advances the snapshot.'
+    old, new = w['params'].get('snap') or {}, _snap(w['target'], w['pattern'])
+    added, removed = sorted(set(new) - set(old)), sorted(set(old) - set(new))
+    changed = sorted(p for p in set(new) & set(old) if new[p] > old[p])
+    self._w().update(dict(id=w['id'], params=json.dumps(dict(w['params'], snap=new))))
+    if not (added or removed or changed): return dict(skipped='no changes')
+    return dict(folder=w['target'], added=added, changed=changed, removed=removed, instructions=w['instructions'], note=w['note'])
+
+@patch
 def _do_watch(self:Vault, w:dict):
     'Perform one watch action. Raises on failure, and `Retry` where the failure is worth another try.'
     params = dict(w['params'])
     if w['action'] in ('url', 'arxiv', 'youtube', 'path'): params.setdefault('force', True)
-    res = (self.note(w['target'], title=w.get('note') or None, tags=['reminder'], key=f"reminder:{w['id']}", meta=dict(watch_id=w['id']))
+    res = (self.folder_changes(w) if w['action'] == 'folder' else
+           self.note(w['target'], title=w.get('note') or None, tags=['reminder'], key=f"reminder:{w['id']}", meta=dict(watch_id=w['id']))
            if w['action'] == 'remind' else self.grab(w['target'], **params)
            if w['action'] == 'path' else getattr(self, w['action'])(w['target'], **params))
     # a bot wall is a skip worth retrying; 'no transcript' is a skip that will never change
