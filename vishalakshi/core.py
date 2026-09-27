@@ -6,10 +6,10 @@ Docs: https://vedicreader.github.io/vishalakshi/core.html.md"""
 
 # %% auto #0
 __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'MARK_COLS', 'KIND_SHELF', 'tidy_bc', 'kinds', 'HashEmbed', 'mk_encoder',
-           'Vault', 'slug', 'gate', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
+           'Vault', 'content_hash', 'slug', 'gate', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
 
 # %% ../nbs/00_core.ipynb #66b23414ed2b
-import json, os, re, time, unicodedata, uuid, warnings
+import hashlib, json, os, re, time, unicodedata, uuid, warnings
 from collections import Counter
 import numpy as np
 from functools import wraps
@@ -17,6 +17,7 @@ from inspect import Parameter, signature
 from fastcore.all import AttrDict, L, Path, chunked, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, topic_nodes,
                         DOC_EXTS, write_txn, sql_in, StoreMismatch, encoder_id)
+from litesearch.tree import doc_id
 
 # %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'image')
@@ -117,6 +118,7 @@ def add(self:Vault,
         kind:str=None,        # one of KINDS: the facet you filter and report on
         meta:dict=None,       # provenance: the query that found it, when, which tier fetched it
         force:bool=False,     # re-ingest a source already present
+        refresh:bool=True,    # re-ingest when the content hash differs from what is filed
         **kw                  # forwarded to litesearch add_doc (chunker, summarize, with_heading)
 ) -> dict:
     '''Ingest anything into the vault: tree, chunks, embeddings, ANN index.'''
@@ -125,8 +127,19 @@ def add(self:Vault,
     if p is not None and p.is_dir():  return self.add_dir(str(p), kind=kind, **kw)
     if p is not None and p.is_file(): return self.add_file(str(p), title=title, kind=kind, **kw)
     ttl = title or _first_line(src)
-    return self.db.add_doc(src, ttl, source=source, kind=kind or 'file', store=self.name,
-                           emb_fn=self.emb, meta=meta, force=force, **kw)
+    h, src_ = content_hash(src), str(ifnone(source, ttl))
+    prev = first(self.t.docs(where='id=?', where_args=[doc_id(src_, ttl)]))
+    if prev and not force and refresh:
+        force = json.loads(prev['meta'] or '{}').get('content_hash') != h
+    out = self.db.add_doc(src, ttl, source=source, kind=kind or 'file', store=self.name, emb_fn=self.emb,
+                          meta=dict(meta or {}, content_hash=h), force=force, **kw)
+    if not out.get('skipped'): self._replace_source(src_, out['doc_id'])
+    return dict(out, changed=not out.get('skipped'))
+
+def content_hash(src) -> str:
+    'sha1 of the text a document was built from; pages are joined by newlines.'
+    txt = src if isinstance(src, str) else '\n'.join(t or '' for _, t in (src or []))
+    return hashlib.sha1(txt.encode()).hexdigest()
 
 def _first_line(src, n:int=80) -> str:
     'A title for text that came without one: the first non-empty line, as `toc()` will show it.'
