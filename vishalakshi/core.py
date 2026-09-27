@@ -9,7 +9,7 @@ __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'MARK_COLS', 'KIND_SHELF'
            'Vault', 'content_hash', 'slug', 'gate', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
 
 # %% ../nbs/00_core.ipynb #66b23414ed2b
-import hashlib, json, os, re, time, unicodedata, uuid, warnings
+import calendar, hashlib, json, os, re, time, unicodedata, uuid, warnings
 from collections import Counter
 import numpy as np
 from functools import wraps
@@ -118,14 +118,14 @@ def add(self:Vault,
         kind:str=None,        # one of KINDS: the facet you filter and report on
         meta:dict=None,       # provenance: the query that found it, when, which tier fetched it
         force:bool=False,     # re-ingest a source already present
-        refresh:bool=True,    # re-ingest when the content hash differs from what is filed
+        refresh:bool=True,    # re-ingest text whose content hash differs from what is filed; files refresh via `force` or `housekeep`
         **kw                  # forwarded to litesearch add_doc (chunker, summarize, with_heading)
 ) -> dict:
     '''Ingest anything into the vault: tree, chunks, embeddings, ANN index.'''
     # a document's text is not a path, and asking the filesystem about a 40kB "filename" raises
     p = Path(src) if isinstance(src, (str, Path)) and len(str(src)) < 255 and '\n' not in str(src) else None
     if p is not None and p.is_dir():  return self.add_dir(str(p), kind=kind, **kw)
-    if p is not None and p.is_file(): return self.add_file(str(p), title=title, kind=kind, **kw)
+    if p is not None and p.is_file(): return self.add_file(str(p), title=title, kind=kind, force=force, **kw)
     ttl = title or _first_line(src)
     h, src_ = content_hash(src), str(ifnone(source, ttl))
     prev = first(self.t.docs(where='id=?', where_args=[doc_id(src_, ttl)]))
@@ -133,7 +133,15 @@ def add(self:Vault,
         force = json.loads(prev['meta'] or '{}').get('content_hash') != h
     out = self.db.add_doc(src, ttl, source=source, kind=kind or 'file', store=self.name, emb_fn=self.emb,
                           meta=dict(meta or {}, content_hash=h), force=force, **kw)
-    if not out.get('skipped'): self._replace_source(src_, out['doc_id'])
+    return self._settled(out, src_)
+
+@patch
+def _settled(self:Vault, out:dict, src:str) -> dict:
+    'After an ingest: one document per source, a stale mark lifted, and `changed` saying whether anything was written.'
+    if not out.get('skipped'):
+        self._replace_source(src, out['doc_id'])
+        if first(self._marks()(where='doc_id=? AND store=? AND stale=1', where_args=[out['doc_id'], self.name])):
+            self.mark_stale(out['doc_id'], stale=False)
     return dict(out, changed=not out.get('skipped'))
 
 def content_hash(src) -> str:
@@ -154,7 +162,7 @@ def assets(self:Vault, name:str=None) -> Path:
 @patch
 def add_file(self:Vault, path:str, title:str=None, kind:str=None, **kw) -> dict:
     'Ingest one local file into the vault: tree, chunks, embeddings, ANN index.'
-    return self.db.add_file(path, title=title, kind=kind, store=self.name, emb_fn=self.emb, **kw)
+    return self._settled(self.db.add_file(path, title=title, kind=kind, store=self.name, emb_fn=self.emb, **kw), str(Path(path)))
 
 @patch
 def add_files(self:Vault,
@@ -206,17 +214,16 @@ def note(self:Vault,
          text:str,            # what you want to remember
          title:str=None,      # defaults to the first line
          tags:list=None,      # free-form tags, kept in the doc's meta
-         key:str='',          # upsert key; defaults to `slug(title)`. Same key, same document
+         key:str='',          # upsert key; defaults to `slug(title)` when a title is given. Same key, same document
          meta:dict=None,      # merged into the doc's meta beside `tags` and `key`
 ) -> dict:
-    'Write or replace a note. Notes are searched alongside the corpus and keyed by `key` or their title.'
+    'Write or replace a note. Notes are searched alongside the corpus; `key` or an explicit title names the one to replace.'
     ttl = title or (text.strip().splitlines() or ['note'])[0].lstrip('# ')[:80]
-    k = key or slug(ttl)
+    k = key or (slug(title) if title else '')
     src = f'note:{k}' if k else f'note:{uuid.uuid4().hex[:12]}'
     had = bool(self._by_source(src))
     out = self.add(text.strip(), ttl, source=src, kind='note', force=True,
                    meta=dict(meta or {}, tags=list(tags or []), key=k))
-    self._replace_source(src, out['doc_id'])
     return dict(out, source=src, replaced=had)
 
 
@@ -288,9 +295,10 @@ def context(self:Vault,
     ctx = Index.context(self, q, related=related, max_read=max_read, sections=sections,
                         where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for r in (*ctx.results, *ctx.related): r.breadcrumb = tidy_bc(r.breadcrumb)
-    ctx.results, ctx.related = self._annotate(ctx.results), self._annotate(ctx.related)
-    # retune this shelf before federated legs; code hits are not scored here
+    ctx.related = self._annotate(ctx.related)
+    # retune this shelf before federated legs; code hits are not scored here. Stale sorts last whatever the ranker said
     ctx = self._post(q, ctx)
+    ctx.results = self._annotate(ctx.results)
     ctx.encoder, ctx.code, ctx.shelves = self.enc.note, 0, 0
     if shelves:
         found = self.elsewhere(q, limit=shelves)
@@ -327,12 +335,12 @@ def read(self:Vault, node_id:str, max_chars:int=6000,
 
 # %% ../nbs/00_core.ipynb #d1788576de66
 def _epoch(v) -> float|None:
-    "`added_at` is an epoch on some rows and a SQL timestamp string on others. Take either; None when neither."
+    "`added_at` is an epoch on some rows and a UTC `CURRENT_TIMESTAMP` string on others. Take either; None when neither."
     if v is None: return None
     try: return float(v)
     except (TypeError, ValueError): pass
     for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S'):
-        try: return time.mktime(time.strptime(str(v)[:26], fmt))
+        try: return float(calendar.timegm(time.strptime(str(v)[:26], fmt)))
         except ValueError: continue
     return None
 

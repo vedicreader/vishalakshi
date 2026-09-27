@@ -504,7 +504,8 @@ def _file_state(src:str, added:float) -> str|None:
     p = Path(src or '')
     if not p.is_absolute() or not p.parent.exists(): return None
     if not p.exists(): return 'vanished'
-    return 'modified' if added is not None and p.stat().st_mtime > added else None
+    # `added_at` is stamped in whole seconds; a file written and filed inside one second is not an edit
+    return 'modified' if added is not None and int(p.stat().st_mtime) > added else None
 
 @patch
 def housekeep(self:Vault, now:float=None, prune:bool=True) -> dict:
