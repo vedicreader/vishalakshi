@@ -155,4 +155,4 @@ def toc(self:Vault,
 ) -> list:
     "The heading tree. Node titles are the openings of their sections, and a policy covers them too."
     from litesearch import Index
-    return Index.toc(self, doc, **kw)
+    return self._annotate(Index.toc(self, doc, **kw))

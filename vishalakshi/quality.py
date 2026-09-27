@@ -172,7 +172,7 @@ def _doc_side(self:Vault, refresh:bool=False) -> tuple:
     if refresh or getattr(self, '_ds', None) is None:
         f = self.noise_features()
         nz = dict(zip(f.doc_ids, _robust_z(f.X))) if len(f.doc_ids) else {}
-        meta = {r['id']: (r['kind'] or '', _epoch(r['added_at'])) for r in self.t.docs(select='id, kind, added_at')}
+        meta = {r['id']: (r['kind'] or '', _epoch(r['added_at']) or time.time()) for r in self.t.docs(select='id, kind, added_at')}
         self._ds = (nz, meta)
     return self._ds
 

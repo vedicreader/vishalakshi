@@ -254,9 +254,9 @@ def search(self:Vault,
     """Chunk-level hybrid search; hits carry breadcrumb and `node_id`. Honours kind and noisy marks."""
     hits = Index.search(self, q, limit=limit, rerank=rerank,
                         where=self._where(kind, include_noisy), **kw)
-    return L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
-                      breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
-                      snippet=(h.get('content') or '')[:chars]) for h in hits)
+    return self._annotate(L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
+                                     breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
+                                     snippet=(h.get('content') or '')[:chars]) for h in hits))
 
 @patch
 @gate
@@ -266,7 +266,7 @@ def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bo
     secs = Index.sections(self, q, limit=limit, per=per,
                           where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for s in secs: s['breadcrumb'] = tidy_bc(s.get('breadcrumb'))
-    return secs
+    return self._annotate(secs)
 
 @patch
 @gate
@@ -288,6 +288,7 @@ def context(self:Vault,
     ctx = Index.context(self, q, related=related, max_read=max_read, sections=sections,
                         where=self._where(kind, include_noisy), rerank=rerank, **kw)
     for r in (*ctx.results, *ctx.related): r.breadcrumb = tidy_bc(r.breadcrumb)
+    ctx.results, ctx.related = self._annotate(ctx.results), self._annotate(ctx.related)
     # retune this shelf before federated legs; code hits are not scored here
     ctx = self._post(q, ctx)
     ctx.encoder, ctx.code, ctx.shelves = self.enc.note, 0, 0
@@ -299,6 +300,8 @@ def context(self:Vault,
         if kosha_indexed(dir):
             hits = code_sections(self, q, n=code or 4, dir=dir)
             ctx.results, ctx.code = ctx.results + hits, len(hits)
+    # rows from other shelves and kosha carry no age here: say so rather than leave the key off
+    for r in ctx.results: r.setdefault('age', None); r.setdefault('stale', False)
     return ctx
 
 @patch
@@ -323,15 +326,15 @@ def read(self:Vault, node_id:str, max_chars:int=6000,
     return Index.read(self, node_id, store=store or self.name, max_chars=max_chars)
 
 # %% ../nbs/00_core.ipynb #d1788576de66
-def _epoch(v) -> float:
-    "`added_at` is an epoch on some rows and a SQL timestamp string on others. Take either."
-    if v is None: return time.time()
+def _epoch(v) -> float|None:
+    "`added_at` is an epoch on some rows and a SQL timestamp string on others. Take either; None when neither."
+    if v is None: return None
     try: return float(v)
     except (TypeError, ValueError): pass
     for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S'):
         try: return time.mktime(time.strptime(str(v)[:26], fmt))
         except ValueError: continue
-    return time.time()
+    return None
 
 @patch
 def doc(self:Vault, ref:str) -> dict:
@@ -372,7 +375,7 @@ def document(self:Vault,
     txt = '\n\n'.join(p for p in parts if (p or '').strip())
     return AttrDict(doc_id=d['id'], title=d['title'], source=d['source'], kind=d['kind'],
                     meta=d['meta'], pages=d['pages'], origin='vault', nodes=len(nodes),
-                    added_at=_epoch(d.get('added_at')), chars=len(txt),
+                    added_at=_epoch(d.get('added_at')) or time.time(), chars=len(txt),
                     truncated=len(txt) > max_chars, text=txt[:max_chars])
 
 @patch
@@ -407,7 +410,11 @@ def _ensure_marks(self:Vault):
     'Create document marks and its lookup index.'
     with write_txn(self.db):
         self.db.t.doc_marks.create(doc_id=str, store=str, noisy=int, noisy_reason=str,
-            pii_override=str, pii_reason=str, at=float, pk=('doc_id', 'store'), if_not_exists=True)
+            pii_override=str, pii_reason=str, stale=int, stale_reason=str, superseded=str, at=float,
+            pk=('doc_id', 'store'), if_not_exists=True)
+        have = {c.name for c in self.db.t.doc_marks.columns}
+        for col, ty in (('stale', 'INTEGER'), ('stale_reason', 'TEXT'), ('superseded', 'TEXT')):
+            if col not in have: self.db.conn.execute(f'ALTER TABLE doc_marks ADD COLUMN {col} {ty}')
         self.db.conn.execute('CREATE INDEX IF NOT EXISTS doc_marks_noisy ON doc_marks(store, noisy)')
 
 @patch
@@ -500,7 +507,7 @@ SHELVES = ('store',      # the main shelf: notes, pages, anything unrouted
 
 
 # %% ../nbs/00_core.ipynb #f7898394
-MARK_COLS = ('noisy', 'noisy_reason', 'pii_override', 'pii_reason')
+MARK_COLS = ('noisy', 'noisy_reason', 'pii_override', 'pii_reason', 'stale', 'stale_reason', 'superseded')
 
 @patch
 def _marks(self:Vault):
@@ -530,6 +537,29 @@ def mark(self:Vault, ref, **kv) -> dict:
     t.insert(row, replace=True)
     self._any_noisy = None
     return dict(row, title=d['title'])
+
+@patch
+def mark_stale(self:Vault, ref, stale:bool=True, reason:str='', superseded:str=None) -> dict:
+    'Say a document no longer reflects its source; retrieval still returns it, sorted last and flagged.'
+    return self.mark(ref, stale=int(bool(stale)), stale_reason=(reason or None) if stale else None,
+                     superseded=superseded if stale else None)
+
+def _sql_in(col, xs, batch:int=2000):
+    "`col IN (...)` clauses over `xs`, split so no one statement grows unbounded."
+    for c in chunked(xs, batch): yield sql_in(col, c)
+
+@patch
+def _annotate(self:Vault, rows, key:str='doc_id'):
+    'Put `age` and `stale` on retrieval rows and sort the stale ones last.'
+    did = lambda r: str(r.get(key) or r.get('node_id') or '').split('#')[0]
+    ids = list({d for r in rows if (d := did(r))})
+    if not ids: return rows
+    now, at, st = time.time(), {}, set()
+    for w in _sql_in('id', ids): at.update({r['id']: _epoch(r['added_at']) for r in self.t.docs(select='id, added_at', where=w)})
+    for w in _sql_in('doc_id', ids): st.update(r['doc_id'] for r in self._marks()(where=f'store={self.name!r} AND stale=1 AND {w}'))
+    for r in rows:
+        e = at.get(did(r)); r['age'], r['stale'] = (None if e is None else max(0, int(now - e))), did(r) in st
+    return type(rows)(sorted(rows, key=lambda r: r['stale']))
 
 @patch
 def marks(self:Vault, ref=None) -> dict|L:
@@ -645,10 +675,6 @@ def map(self:Vault, min_count:int=2, force:bool=False, **kw) -> AttrDict:
         if cached is not None: return cached
     return self.store.clusters(min_count=min_count, dtype=DTYPE, columns=['content', 'doc_id'], **kw)
 
-def _sql_in(col, xs, batch:int=2000):
-    "`col IN (...)` clauses over `xs`, split so no one statement grows unbounded."
-    for c in chunked(xs, batch): yield sql_in(col, c)
-
 @patch
 def topic_tree(self:Vault,
                limit:int=20,      # topics returned, largest first
@@ -714,9 +740,11 @@ def sources(self:Vault, kind:str=None, include_noisy:bool=True) -> L:
                                   f'id NOT IN (SELECT doc_id FROM doc_marks WHERE store={self.name!r} AND noisy=1)'
                                   if not include_noisy else '') if x) or None
     rows = self.t.docs(where=wh, order_by='added_at desc')
-    mk = {r['doc_id']: r for r in self._marks()(where=f'store={self.name!r}')}
-    return L(rows).map(lambda d: dict(d, meta=json.loads(d['meta'] or '{}'),
-                                      noisy=bool((mk.get(d['id']) or {}).get('noisy'))))
+    mk, now = {r['doc_id']: r for r in self._marks()(where=f'store={self.name!r}')}, time.time()
+    def _age(d): return None if (e := _epoch(d['added_at'])) is None else max(0, int(now - e))
+    return L(rows).map(lambda d: dict(d, meta=json.loads(d['meta'] or '{}'), age=_age(d),
+                                      noisy=bool((mk.get(d['id']) or {}).get('noisy')),
+                                      stale=bool((mk.get(d['id']) or {}).get('stale'))))
 
 @patch
 def mark_noisy(self:Vault, ref, noisy:bool=True, reason:str='') -> dict:
