@@ -1125,6 +1125,22 @@ wheels = [
 ]
 
 [[package]]
+name = "flashrank"
+version = "0.2.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "onnxruntime" },
+    { name = "requests" },
+    { name = "tokenizers" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/55/1f/176cb4a857a70c3538f637e19389ab6aed21548a1ba1d1424fccc8bba108/FlashRank-0.2.10.tar.gz", hash = "sha256:f8f82a25c32fdfc668a09dc4089421d6aab8e7f71308424b541f40bb3f01d9db", size = 18905, upload-time = "2025-01-06T13:33:01.657Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/99/72639cc1c9221c5bc77a2df1c2d352fe11965553bdf7d3e0856e7fcc8fd6/FlashRank-0.2.10-py3-none-any.whl", hash = "sha256:5d3272ae657d793c132d1e7917ed9e2adf49e0e1c60735583a67b051c6f0434a", size = 14511, upload-time = "2025-01-06T13:32:59.42Z" },
+]
+
+[[package]]
 name = "flatbuffers"
 version = "25.12.19"
 source = { registry = "https://pypi.org/simple" }
@@ -2024,7 +2040,7 @@ wheels = [
 
 [[package]]
 name = "litesearch"
-version = "0.1.35"
+version = "0.1.36"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chonkie" },
@@ -2037,9 +2053,9 @@ dependencies = [
     { name = "tokenizers" },
     { name = "usearch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/82/09/b3d227d800fdc8a8e8aa16ebc765bba8fa96cbc247fee53ab2f083a2d64c/litesearch-0.1.35.tar.gz", hash = "sha256:eb0708c662fe1a2c3d525feb98c5bad7a99f335a2789c8f27b678ad5f01f29a0", size = 68981, upload-time = "2026-09-21T10:10:24.702Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5c/5f/3f9bce321f0facfefe4e79c46fd755ee8e6051c3e2089d387072bbacab61/litesearch-0.1.36.tar.gz", hash = "sha256:62d3b4ca0d952f0aa4fa32c8fb85a02b487e0eaf8555bf5b2554debd88479820", size = 69435, upload-time = "2026-10-02T21:04:37.37Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3a/46/274e5a3905d73eb018652b1ff7754376eb62d4de5430972f1562233e3fbd/litesearch-0.1.35-py3-none-any.whl", hash = "sha256:d9e6b6dec62a970d385e5fa667c1380d2846f66b3c5f73f0c29a8f337fd400f6", size = 74347, upload-time = "2026-09-21T10:10:23.087Z" },
+    { url = "https://files.pythonhosted.org/packages/84/80/e7adc3288663cd9684dd70e1381bc4523f78e94273620a528dd3267344f6/litesearch-0.1.36-py3-none-any.whl", hash = "sha256:8237d88130082d9d4a30fce23cb23e19b649d43fc02d8107303248b6903c806e", size = 74647, upload-time = "2026-10-02T21:04:35.909Z" },
 ]
 
 [[package]]
@@ -4599,6 +4615,11 @@ dependencies = [
     { name = "vruksha" },
 ]
 
+[package.optional-dependencies]
+rerank = [
+    { name = "flashrank" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "ai-edge-litert" },
@@ -4615,10 +4636,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastcore", specifier = ">=2.2.15" },
+    { name = "flashrank", marker = "extra == 'rerank'", specifier = ">=0.2.10" },
     { name = "fossick", specifier = ">=0.1.15" },
     { name = "ganapati", specifier = ">=0.0.1" },
     { name = "koshas", specifier = ">=0.0.36" },
-    { name = "litesearch", specifier = ">=0.1.35" },
+    { name = "litesearch", specifier = ">=0.1.36" },
     { name = "mcp" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pobblebonk", specifier = ">=0.0.2" },
@@ -4628,8 +4650,9 @@ requires-dist = [
     { name = "rishi", specifier = ">=0.1.32" },
     { name = "uraiyadal", specifier = ">=0.0.7" },
     { name = "varga", specifier = ">=0.0.5" },
-    { name = "vruksha", specifier = ">=0.1.0" },
+    { name = "vruksha", specifier = ">=0.1.1" },
 ]
+provides-extras = ["rerank"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -4646,16 +4669,16 @@ dev = [
 
 [[package]]
 name = "vruksha"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastcore" },
     { name = "litesearch" },
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/74/ff/0cd78c1db3971853e4016edf4b07a3f430376cd01290a4ffd08f6d2910e9/vruksha-0.1.0.tar.gz", hash = "sha256:8ab8b9d106cb7f121a785a60a9a48ae09e224cfc64bcf6a7b932e0aa163d4365", size = 12442, upload-time = "2026-09-21T10:09:34.04Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/b3/225dcc507f7cc0b341474aa539accb602152ca9cf2251d4f9f1dbbb83524/vruksha-0.1.1.tar.gz", hash = "sha256:93db35e13f597a2046c3150d49b4de038bcd57c2971c5f254160a3c587b1db29", size = 12992, upload-time = "2026-10-02T21:06:11.855Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f8/30/d395089498ab6188e2dbb094371898cdcb0d40a14b58e647f0085c01898f/vruksha-0.1.0-py3-none-any.whl", hash = "sha256:ebea6a47469e20ad23ed5249b0b5126a314d632ae2175aac9f9afa2a466289a3", size = 13456, upload-time = "2026-09-21T10:09:32.835Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/ad/29b21e921cb1f6d06c7161ed0a7a0730ed1305f3ee2cab17e94b266f955b/vruksha-0.1.1-py3-none-any.whl", hash = "sha256:ba343a944d85f92dd911379fa133c7e1aaf9bf1c18b2ad361da7b24447ae0b78", size = 14038, upload-time = "2026-10-02T21:06:10.757Z" },
 ]
 
 [[package]]

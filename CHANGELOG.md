@@ -2,6 +2,11 @@
 
 <!-- do not remove -->
 
+## 0.1.18
+- `search`, `sections` and `context` take `where=`, ANDed with the kind and noisy filter, so `context(where="doc_id='…'")` scopes to one document instead of raising `TypeError`.
+- `rerank=True` without flashrank raises naming the new `rerank` extra: `pip install 'vishalakshi[rerank]'`.
+- Needs litesearch>=0.1.36 (plain-English spellings fold with IAST and Devanagari) and vruksha>=0.1.1 (one-word names merge across romanisations).
+
 ## 0.1.17
 
 
