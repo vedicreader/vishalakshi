@@ -13,6 +13,7 @@ import calendar, hashlib, json, os, re, time, unicodedata, uuid, warnings
 from collections import Counter
 import numpy as np
 from functools import wraps
+from importlib.util import find_spec
 from inspect import Parameter, signature
 from fastcore.all import AttrDict, L, Path, chunked, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, topic_nodes,
@@ -93,14 +94,13 @@ class Vault(Index):
         super().__init__(ifnone(path, Path.home()/'.vishalakshi'/'vault.db'), encoder=self.enc.model, name=store, db=db)
         self._register()
 
-    def _where(self, kind=None, include_noisy:bool=False) -> str|None:
-        '''A chunk-store `WHERE` for kind and quality policy, pushed into retrieval.'''
+    def _where(self, kind=None, include_noisy:bool=False, where:str=None) -> str|None:
+        '''A chunk-store `WHERE` for kind and quality policy, ANDed with a caller's own `where`.'''
         clauses = []
         if kinds(kind): clauses.append(_kw(kind))
         sub = None if include_noisy else self._noisy_sql()
-        if not (clauses or sub): return None
         docq = f'doc_id IN (SELECT id FROM [{self.t.prefix}docs] WHERE {" AND ".join(clauses)})' if clauses else None
-        return ' AND '.join(x for x in (docq, sub) if x)
+        return ' AND '.join(f'({x})' for x in (docq, sub, where) if x) or None
 
     def __repr__(self):
         s = self.stats()
@@ -248,6 +248,10 @@ def gate(f):
     _f.__signature__ = signature(f).replace(parameters=ps[:at] + _PII_PARAMS + ps[at:])
     return _f
 
+def _rerank_ok(rerank):
+    "`rerank=True` needs flashrank, which only the `rerank` extra installs."
+    if rerank and not find_spec('flashrank'): raise ImportError("rerank=True needs flashrank: pip install 'vishalakshi[rerank]'")
+
 @patch
 @gate
 def search(self:Vault,
@@ -257,11 +261,13 @@ def search(self:Vault,
            chars:int=300,      # chars of each hit kept as `snippet`
            rerank:bool=False,  # reorder the candidates with a cross-encoder (see below)
            include_noisy:bool=False, # include documents explicitly marked as noisy
+           where:str=None,     # extra chunk-store `WHERE`, ANDed with the kind and noisy filter
            **kw                # forwarded to litesearch doc_search
 ) -> L:
     """Chunk-level hybrid search; hits carry breadcrumb and `node_id`. Honours kind and noisy marks."""
+    _rerank_ok(rerank)
     hits = Index.search(self, q, limit=limit, rerank=rerank,
-                        where=self._where(kind, include_noisy), **kw)
+                        where=self._where(kind, include_noisy, where), **kw)
     return self._annotate(L(AttrDict(node_id=h.get('node_id'), doc_id=h.get('doc_id'), page=h.get('page'),
                                      breadcrumb=tidy_bc(h.get('breadcrumb')), score=h.get('_rrf_score'),
                                      snippet=(h.get('content') or '')[:chars]) for h in hits))
@@ -269,10 +275,11 @@ def search(self:Vault,
 @patch
 @gate
 def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False,
-             include_noisy:bool=False, **kw) -> list:
+             include_noisy:bool=False, where:str=None, **kw) -> list:
     'Ranked *sections* rather than chunks. Noisy documents are excluded unless requested.'
+    _rerank_ok(rerank)
     secs = Index.sections(self, q, limit=limit, per=per,
-                          where=self._where(kind, include_noisy), rerank=rerank, **kw)
+                          where=self._where(kind, include_noisy, where), rerank=rerank, **kw)
     for s in secs: s['breadcrumb'] = tidy_bc(s.get('breadcrumb'))
     return self._annotate(secs)
 
@@ -281,7 +288,7 @@ def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bo
 def context(self:Vault,
             q:str,              # the question
             sections:int=6,     # operative sections returned
-            related:int=8,      # related sections reached by graph + vector
+            related:int=8,      # related sections reached by vector
             kind:str=None,      # restrict to one or more KINDS ('note' or 'note,web')
             max_read:int=6000,  # chars of assembled text per section
             code:int=None,      # code sections to append; None -> 4 if kosha has indexed the repo
@@ -289,12 +296,14 @@ def context(self:Vault,
             dir:str=None,       # repo for the code legs; None -> the cwd repo
             rerank:bool=False,  # reorder the chunk hits before they are rolled up into sections
             include_noisy:bool=False, # include documents explicitly marked as noisy
+            where:str=None,     # extra chunk-store `WHERE`, e.g. `doc_id='…'` for one document
             **kw                # forwarded to litesearch context
 ) -> AttrDict:
     'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
+    _rerank_ok(rerank)
     # litesearch already fans out sections*3; don't multiply again
     ctx = Index.context(self, q, related=related, max_read=max_read, sections=sections,
-                        where=self._where(kind, include_noisy), rerank=rerank, **kw)
+                        where=self._where(kind, include_noisy, where), rerank=rerank, **kw)
     for r in (*ctx.results, *ctx.related): r.breadcrumb = tidy_bc(r.breadcrumb)
     ctx.related = self._annotate(ctx.related)
     # retune this shelf before federated legs; code hits are not scored here. Stale sorts last whatever the ranker said

@@ -75,7 +75,7 @@ Once `.kosha/code.db` exists, `context` appends code sections on its own.
 
 Retrieval defaults are litesearch's. Reach for:
 
-- `rerank=True` on `search` / `sections` / `context` when precision matters more than latency
+- `rerank=True` on `search` / `sections` / `context` when precision matters more than latency (needs `vishalakshi[rerank]`)
 - `v.shelf(name)` to keep two corpora from diluting each other
 - `llm=` for how hard `categorize` / `extract` try
 - `ask(q, pii=)`: default `local` when `local_ok()` (the local runtime is importable), else `redact`; never off. The result's `policy` says which ran; a host sets `vishalakshi.ask.LOCAL_OK = False` to force `redact`
