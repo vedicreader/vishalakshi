@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.1.19
+- `read_doc(path, parse=, model=, preset=, script=, hint=, pages=)`: a PDF or page image page by page; a sound text layer kept, scanned pages OCRed, pages still scanned or flagged read by a vision model. `Vault.read_doc` reads a file or folder into the vault, keeping each page's text, route and flags as versions (`pages`). `reparse` reads pages again.
+- `flags`, `disagree`, `render`, `PRESETS` (generic, sanskrit, tamil, tables), `reading_prompt`.
+- `proofread(doc, readers)`: other readers' word changes, `proposed` where two agree; `changes`, `accept`, `reject`, `proof_md`.
+- CLI: `read_doc`, `pages`, `reparse`, `proofread`, `changes`, `accept`, `reject`, `proof_md`.
+- Needs litesearch>=0.1.41 and pdflite>=0.0.3.
+
 ## 0.1.18
 - `search`, `sections` and `context` take `where=`, ANDed with the kind and noisy filter, so `context(where="doc_id='…'")` scopes to one document instead of raising `TypeError`.
 - `rerank=True` without flashrank raises naming the new `rerank` extra: `pip install 'vishalakshi[rerank]'`.
