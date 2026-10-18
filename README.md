@@ -274,6 +274,20 @@ v.watch(Path(root)/'nbs', kind='folder', every='1h', instructions='flag any prin
 L(v.watches()).map(lambda w: (w['kind'], w['target'][:34], w['every'], w['pattern']))
 ```
 
+## Books and scans
+
+[`read_doc`](https://vedicreader.github.io/vishalakshi/read.html#read_doc) reads a PDF or a page image page by page and keeps what it read: a sound text layer as it is, a scanned page through OCR, and a page that is still scanned or looks garbled (a legacy Devanagari font, split akṣaras, too few letters) through a vision model, local or hosted. A folder reads every PDF and image under it. Each page keeps its text, how it was read and its flags as versions. `proofread` has other models read the pages again and files their word changes, `proposed` where two agree; the owner accepts or rejects them.
+
+``` python
+v.read_doc('books/', parse='auto', model='claude/sonnet', preset='sanskrit', hint='verses end in ॥ n ॥')
+doc = v.read_doc('scan.pdf', parse='llm', model='gemini/gemini-2.5-flash')['doc_id']
+v.pages(doc)                                   # text, route (text, ocr, model, proof), flags, version
+v.reparse(doc, pages=[3, 4], model='claude/opus')
+v.proofread(doc, ['claude/sonnet', 'gemini/gemini-2.5-pro'])
+v.changes(doc, 'proposed'); v.accept(doc); print(v.proof_md(doc))
+read_doc('scan.pdf', parse='auto', model='claude/sonnet')   # no vault: the pages alone
+```
+
 ## The rest
 
 | page | what is on it |

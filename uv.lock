@@ -2040,7 +2040,7 @@ wheels = [
 
 [[package]]
 name = "litesearch"
-version = "0.1.36"
+version = "0.1.41"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chonkie" },
@@ -2053,9 +2053,9 @@ dependencies = [
     { name = "tokenizers" },
     { name = "usearch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5c/5f/3f9bce321f0facfefe4e79c46fd755ee8e6051c3e2089d387072bbacab61/litesearch-0.1.36.tar.gz", hash = "sha256:62d3b4ca0d952f0aa4fa32c8fb85a02b487e0eaf8555bf5b2554debd88479820", size = 69435, upload-time = "2026-10-02T21:04:37.37Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/99/82c72ba7186ee130375e0f94c55e593cb446c6831c2f98705a95e145ba2f/litesearch-0.1.41.tar.gz", hash = "sha256:244c67869442a14dbf6ae90d700c654afc2adeac76bda9e393cf9b223070a3f3", size = 77656, upload-time = "2026-10-18T09:37:03.12Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/80/e7adc3288663cd9684dd70e1381bc4523f78e94273620a528dd3267344f6/litesearch-0.1.36-py3-none-any.whl", hash = "sha256:8237d88130082d9d4a30fce23cb23e19b649d43fc02d8107303248b6903c806e", size = 74647, upload-time = "2026-10-02T21:04:35.909Z" },
+    { url = "https://files.pythonhosted.org/packages/cb/b6/9f33d571290b609b0c355a08d45e383490cfa557b054d12af1538f7a1fc4/litesearch-0.1.41-py3-none-any.whl", hash = "sha256:052a8b61f323cdac278c4ea60e9a19d0df9e3b226bcdc7141200a8ae7a9bcb04", size = 83136, upload-time = "2026-10-18T09:37:01.89Z" },
 ]
 
 [[package]]
@@ -3050,15 +3050,15 @@ wheels = [
 
 [[package]]
 name = "pdflite"
-version = "0.0.1"
+version = "0.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastcore" },
     { name = "pdf-oxide" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/f2/208acf01a9e3e44f4a81e6dac308a1b52a120f2e2247a1192df4da6fde14/pdflite-0.0.1.tar.gz", hash = "sha256:49aefb491f7aa4088c0cb1746bd5457a97fa5545f1d094495f1d702812a4cfee", size = 8960, upload-time = "2026-08-28T09:48:10.253Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/23/122a79213b175c894fffe78c9e87a126179fa0cf119574c42fede38fd1fe/pdflite-0.0.3.tar.gz", hash = "sha256:ee04f0b22b3d78f219db9294c96d9923a85f9c0eee291b699f04d6900138c7e2", size = 9386, upload-time = "2026-10-18T09:52:16.129Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/e0/e91505faafc29025545687859d50fbc9c9ba17aebd2d84c399bbbe1c825c/pdflite-0.0.1-py3-none-any.whl", hash = "sha256:8503971990cb90e7fbf11a0eef98a7f12d161a5d3a3cca72912a6accc57eaeb3", size = 9190, upload-time = "2026-08-28T09:48:09Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/61/239f99d7412fc47546007d14eeb61d9436230f1da2c862c1b710d112787a/pdflite-0.0.3-py3-none-any.whl", hash = "sha256:a1d78df36486ebc3ba6d305e64994e6d9c56521a458ed48be1f269f5f1211668", size = 9635, upload-time = "2026-10-18T09:52:14.858Z" },
 ]
 
 [[package]]
@@ -4605,6 +4605,7 @@ dependencies = [
     { name = "litesearch" },
     { name = "mcp" },
     { name = "numpy" },
+    { name = "pdflite" },
     { name = "pobblebonk" },
     { name = "pyskills" },
     { name = "rahasya" },
@@ -4640,9 +4641,10 @@ requires-dist = [
     { name = "fossick", specifier = ">=0.1.15" },
     { name = "ganapati", specifier = ">=0.0.1" },
     { name = "koshas", specifier = ">=0.0.36" },
-    { name = "litesearch", specifier = ">=0.1.36" },
+    { name = "litesearch", specifier = ">=0.1.41" },
     { name = "mcp" },
     { name = "numpy", specifier = ">=1.26" },
+    { name = "pdflite", specifier = ">=0.0.3" },
     { name = "pobblebonk", specifier = ">=0.0.2" },
     { name = "pyskills", specifier = ">=0.0.27" },
     { name = "rahasya", specifier = ">=0.0.1" },
