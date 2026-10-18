@@ -6,7 +6,7 @@ Docs: https://vedicreader.github.io/vishalakshi/read.html.md"""
 
 # %% auto #0
 __all__ = ['PRESETS', 'IMG_EXTS', 'DEP', 'AKSHARA', 'FOREIGN', 'LEGACY', 'PARSE', 'reading_prompt', 'render', 'flags', 'disagree',
-           'read_page', 'as_list', 'read_doc', 'doc_files']
+           'backends', 'read_page', 'as_list', 'read_doc', 'doc_files']
 
 # %% ../nbs/12_read.ipynb #385ccc57
 import json, re, time
@@ -100,9 +100,14 @@ def _json(s):
     s = re.sub(r'^```(?:json)?\s*|\s*```$', '', (s or '').strip())
     return json.loads(s[s.find('{'):s.rfind('}') + 1])
 
+def backends():
+    "Register rishi's model backends with urai, which knows none of its own: `claude/sonnet` resolves only after."
+    import rishi
+
 def read_page(img:bytes, model:str=None, preset:str='generic', title:str='', script:str='', hint:str='', chat=None) -> AttrDict:
     "One page image read by a vision model: its `blocks`, their markdown `text`, the `model` and its `cost`."
     from vishalakshi.ask import CachedChat
+    if chat is None: backends()
     c = chat or CachedChat(model, sp=reading_prompt(preset, title, script, hint), max_output_tokens=16000)
     try: r = c([img, 'Transcribe the text on this page.'])
     finally:
