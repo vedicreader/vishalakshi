@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.21
+- `read_page` registers rishi's backends first: in 0.1.19-0.1.20 a model name such as `claude/sonnet` did not resolve. `backends()`.
+
 ## 0.1.20
 - A model-read page keeps its `blocks` (kind, n, text) in `read_doc`, `read_pages` and `pages`.
 
