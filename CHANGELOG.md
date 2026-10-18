@@ -2,6 +2,14 @@
 
 <!-- do not remove -->
 
+## 0.1.23
+- `read_doc`, `Vault.read_doc`, `Vault.reparse` and `Vault.proofread` take `progress=`. It is called as `progress(done, total, page, route, cost)` once with `done=0` and after each page sent to a model. Errors in it are swallowed. Returning False stops the rest: unread pages keep their text layer or OCR, and a cancelled `reparse` leaves them as they were.
+- Results carry `cancelled` and `unread`. `read_doc` sets them as attributes on the returned `L`.
+- `doc_cost(rows)` sums the cost of model-read pages. `Vault.read_doc` and `reparse` results carry `cost` and `model_pages`. `proofread` carries `cost`, the readers' summed usage.
+- Every preset asks for an optional `box`, `[x0, y0, x1, y1]` in page fractions, per item. `read_page` keeps a sane box clamped to 0-1 and drops any other (`sane_box`). Boxes are stored with the blocks.
+- `crop(img, box, pad=.02)` returns that region as PNG. Without a sane box or without Pillow it returns the whole image.
+- Proof changes carry the `box` of the block they fall in (`change_box`) when the page's blocks read as its text. `proof_changes` gains a `box` column on first use.
+
 ## 0.1.22
 - Privacy levels: Open, Personal, Local only. `level(ref, page=)`, `set_level(ref, level, reason, by=)`, `floor()`, `set_floor(level, by=)`. `pii_override` takes `local`. A document's level is its mark, else its type and findings, never below the shelf's floor.
 - Only a person lowers a level, clears a mark, rejects a finding or lowers a floor: `by='agent'` raises `PermissionError`. MCP tools always pass `by='agent'`, so `mark_not_pii` over MCP now raises.
