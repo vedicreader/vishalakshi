@@ -117,7 +117,7 @@ def as_list(x, f=str):
     return None if x is None else [f(v) for v in (x.split(',') if isinstance(x, str) else x) if str(v).strip()]
 def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title:str='', script:str='', hint:str='',
              pages=None, dpi:int=200, out=None, workers:int=4, chat=None) -> L:
-    """Each page of a PDF or image as `{page, text, route, flags}`. `parse`: `auto` keeps a sound text layer and sends scanned or flagged pages to
+    """Each page of a PDF or image as `{page, text, route, flags}`, with `blocks`, `model` and `cost` where the model read it. `parse`: `auto` keeps a sound text layer and sends scanned or flagged pages to
     `model`; `text` the text layer only; `ocr` OCR every page; `llm` the model on every page."""
     assert parse in PARSE, f'parse is one of {PARSE}'
     pages = as_list(pages, int)
@@ -131,7 +131,7 @@ def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title
     def go(r):
         img = p.read_bytes() if p.suffix.lower() in IMG_EXTS else render(p, r.page, dpi)
         got = read_page(img, model, preset, title, script, hint, chat=chat)
-        if got.text.strip(): r.update(text=got.text, route='model', model=got.model, cost=got.cost, flags=flags(got.text))
+        if got.text.strip(): r.update(text=got.text, route='model', model=got.model, cost=got.cost, flags=flags(got.text), blocks=got.blocks)
         return r
     if todo:
         with ThreadPoolExecutor(max(1, workers)) as ex: list(ex.map(go, todo))
@@ -147,8 +147,9 @@ def _pages_t(self:Vault):
     t = self.db.t.read_pages
     if not t.exists():
         with write_txn(self.db):
-            t.create(doc_id=str, store=str, page=int, version=int, route=str, text=str, flags=str, model=str, preset=str, at=float,
+            t.create(doc_id=str, store=str, page=int, version=int, route=str, text=str, flags=str, model=str, preset=str, at=float, blocks=str,
                      pk=('doc_id', 'store', 'page', 'version'))
+    elif 'blocks' not in t.columns_dict: self.db.execute('alter table read_pages add column blocks text')
     return t
 
 @patch
@@ -158,16 +159,17 @@ def pages(self:Vault, doc_id:str, history:bool=False) -> L:
     if history: return rs.map(AttrDict)
     last = {}
     for r in rs: last[r['page']] = r
-    return L(AttrDict(r, flags=json.loads(r['flags'] or '[]')) for r in last.values())
+    return L(AttrDict(r, flags=json.loads(r['flags'] or '[]'), blocks=json.loads(r.get('blocks') or 'null')) for r in last.values())
 
 @patch
 def _file_pages(self:Vault, doc_id, rows, preset):
     t, now, have = self._pages_t(), time.time(), {r.page: r for r in self.pages(doc_id)}
     with write_txn(self.db):
         for r in rows:
-            if (o := have.get(r.page)) and o.text == r.text and o.route == r.route: continue
+            if (o := have.get(r.page)) and o.text == r.text and o.route == r.route and not r.get('blocks'): continue
             t.insert(dict(doc_id=doc_id, store=self.name, page=r.page, version=(o.version if o else 0) + 1, route=r.route, text=r.text,
-                          flags=json.dumps(r.flags), model=r.get('model'), preset=preset if r.route == 'model' else None, at=now))
+                          flags=json.dumps(r.flags), model=r.get('model'), preset=preset if r.route == 'model' else None, at=now,
+                          blocks=json.dumps(r['blocks'], ensure_ascii=False) if r.get('blocks') else None))
 
 @patch
 def read_doc(self:Vault, src, title:str=None, kind:str=None, parse:str='auto', model:str=None, preset:str='generic', script:str='', hint:str='',
