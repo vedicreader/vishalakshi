@@ -2,6 +2,14 @@
 
 <!-- do not remove -->
 
+## 0.1.24
+- `Vault.edit_change(doc_id, id, after, by='person')` replaces an open change's proposed text. It returns `{ok, change}`, or `kind: not_found` or `stale` for a change that is not `proposed` or `doubt`.
+- `Vault.revert_page(doc_id, page, version, by='person')` files an old version of a page as its newest version, route `revert`, and re-indexes the document. It returns `{ok, doc_id, page, version}`, or `kind: not_found`.
+- `Vault.undo_decision(doc_id, ids, by='person')` takes decisions back. A rejected change returns to `proposed` or `doubt`, whichever it was. An accepted change's page is reverted to its text before the accept, and every change that accept applied is `proposed` again against the new version. It returns `{ok, doc_id, undone, pages}`, or `kind: stale` when the change is not decided or its page has changed since the accept.
+- `Vault.reset_pii(ref, ids, by='person')` sets findings back to `found`, every occurrence of the value with them.
+- Only a person may call these four: `by='agent'` raises `PermissionError`. They are CLI commands. They are not MCP tools, and neither are the other proof and finding verdicts.
+- `reject` records the state a change had in a new `was` column of `proof_changes`. The column is added on first use.
+
 ## 0.1.23
 - `read_doc`, `Vault.read_doc`, `Vault.reparse` and `Vault.proofread` take `progress=`. It is called as `progress(done, total, page, route, cost)` once with `done=0` and after each page sent to a model. Errors in it are swallowed. Returning False stops the rest: unread pages keep their text layer or OCR, and a cancelled `reparse` leaves them as they were.
 - Results carry `cancelled` and `unread`. `read_doc` sets them as attributes on the returned `L`.
