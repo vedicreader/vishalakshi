@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.20
+- A model-read page keeps its `blocks` (kind, n, text) in `read_doc`, `read_pages` and `pages`.
+
 ## 0.1.19
 - `read_doc(path, parse=, model=, preset=, script=, hint=, pages=)`: a PDF or page image page by page; a sound text layer kept, scanned pages OCRed, pages still scanned or flagged read by a vision model. `Vault.read_doc` reads a file or folder into the vault, keeping each page's text, route and flags as versions (`pages`). `reparse` reads pages again.
 - `flags`, `disagree`, `render`, `PRESETS` (generic, sanskrit, tamil, tables), `reading_prompt`.
