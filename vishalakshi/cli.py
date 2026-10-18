@@ -25,9 +25,9 @@ CMDS = ('stats search sections context ask explain read related toc map topic_tr
         'extract '
         'extract_all ask_doc '
         'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks '
-        'level set_level floor set_floor findings scan_pii accept_pii reject_pii send_check sends '
+        'level set_level floor set_floor findings scan_pii accept_pii reject_pii reset_pii send_check sends '
         'suggest_noisy accept_noisy learn fit_noise use_noise '
-        'read_doc pages reparse proofread changes accept reject proof_md').split()
+        'read_doc pages reparse proofread changes accept reject edit_change undo_decision revert_page proof_md').split()
 
 @cache
 def vault(path:str=None) -> Vault:

@@ -14,7 +14,8 @@ from difflib import SequenceMatcher
 from fastcore.all import AttrDict, L, Path, first, ifnone, patch
 from litesearch import write_txn
 from .core import Vault
-from .read import _md, read_page, render, as_list, IMG_EXTS
+from .pii import _person
+from .read import _md, read_page, render, as_list, flags, IMG_EXTS
 
 # %% ../nbs/13_proof.ipynb #d617cb0d
 _TOK = re.compile(r'\S+|\s+')
@@ -56,8 +57,9 @@ def _proof_t(self:Vault):
     t = self.db.t.proof_changes
     if not t.exists():
         with write_txn(self.db):
-            t.create(id=str, doc_id=str, store=str, page=int, version=int, at=int, n=int, before=str, after=str, by=str, state=str, ts=float, box=str, pk='id')
-    elif 'box' not in t.columns_dict: self.db.execute('alter table proof_changes add column box text')
+            t.create(id=str, doc_id=str, store=str, page=int, version=int, at=int, n=int, before=str, after=str, by=str, state=str, ts=float, box=str, was=str, pk='id')
+    for c in ('box', 'was'):
+        if c not in t.columns_dict: self.db.execute(f'alter table proof_changes add column {c} text')
     return t
 
 @patch
@@ -114,10 +116,10 @@ def changes(self:Vault, doc_id:str, state:str=None, page:int=None) -> L:
 
 @patch
 def reject(self:Vault, doc_id:str, ids) -> int:
-    "Set changes aside; they stay in the record as not taken."
-    ids = as_list(ids)
+    "Set changes aside; they stay in the record as not taken, with the state they had."
+    ids = as_list(ids); self._proof_t()
     with write_txn(self.db):
-        for i in ids: self._proof_t().update(dict(id=i, state='rejected'))
+        for i in ids: self.db.execute("update proof_changes set was=case when state in ('proposed', 'doubt') then state else was end, state='rejected' where id=?", [i])
     return len(ids)
 
 @patch
@@ -132,15 +134,69 @@ def accept(self:Vault, doc_id:str, ids=None) -> dict:
     for k, g in cs.groupby(lambda c: c.page).items():
         rows.append(AttrDict(page=k, text=apply_changes(pg[k].text, g), route='proof', flags=pg[k].flags, model=None))
     if rows:
-        from vishalakshi.read import flags
         for r in rows: r.flags = flags(r.text)
         self._file_pages(doc_id, rows, None)
         with write_txn(self.db):
             for c in cs: self._proof_t().update(dict(id=c.id, state='accepted'))
-        d = first(self.t.docs(where='id=?', where_args=[doc_id]))
-        new = {p.page: p for p in self.pages(doc_id)}
-        self.add([(k, new[k].text) for k in sorted(new)], d['title'], source=d['source'], kind=d['kind'], meta=json.loads(d['meta'] or '{}'), force=True)
+        self._reindex(doc_id)
     return dict(doc_id=doc_id, accepted=len(cs), pages=[r.page for r in rows])
+
+@patch
+def _reindex(self:Vault, doc_id):
+    d, new = first(self.t.docs(where='id=?', where_args=[doc_id])), {p.page: p for p in self.pages(doc_id)}
+    self.add([(k, new[k].text) for k in sorted(new)], d['title'], source=d['source'], kind=d['kind'], meta=json.loads(d['meta'] or '{}'), force=True)
+
+def _no(kind, error, **kw): return dict(ok=False, kind=kind, error=error, **kw)
+
+@patch
+def edit_change(self:Vault, doc_id:str, id:str, after:str, by:str='person') -> dict:
+    "Replace an open change's proposed text before it is accepted. Only a person may."
+    _person(by, 'edit a change')
+    c = first(self.changes(doc_id).filter(lambda c: c.id == id))
+    if c is None: return _no('not_found', f'no change {id} on this document', ids=[id])
+    if c.state not in ('proposed', 'doubt'): return _no('stale', f'change {id} is {c.state}: only an open change is edited', ids=[id])
+    self._proof_t().update(dict(id=id, after=str(after or '')))
+    return dict(ok=True, change=first(self.changes(doc_id).filter(lambda c: c.id == id)))
+
+@patch
+def _refile(self:Vault, doc_id, page, version):
+    "File `version` of `page` again as its newest version, route `revert`; False when there is no such version."
+    o = first(self.pages(doc_id, history=True).filter(lambda p: p.page == page and p.version == version))
+    if o is None: return False
+    self._file_pages(doc_id, [AttrDict(page=page, text=o.text, route='revert', flags=flags(o.text), model=None,
+                                       blocks=json.loads(o.get('blocks') or 'null'))], None)
+    return True
+
+@patch
+def revert_page(self:Vault, doc_id:str, page:int, version:int, by:str='person') -> dict:
+    "File an old `version` of `page`'s text as its newest version (route `revert`) and re-index the document. Only a person may."
+    _person(by, 'revert a page')
+    page, version = int(page), int(version)
+    if not self._refile(doc_id, page, version): return _no('not_found', f'page {page + 1} has no version {version}', page=page, version=version)
+    self._reindex(doc_id)
+    return dict(ok=True, doc_id=doc_id, page=page, version=first(self.pages(doc_id).filter(lambda p: p.page == page)).version)
+
+@patch
+def undo_decision(self:Vault, doc_id:str, ids, by:str='person') -> dict:
+    "Take decisions back: a rejected change to what it was, an accepted one's page to its text before, its changes `proposed`. Only a person may."
+    _person(by, 'undo a decision')
+    ids, cs = as_list(ids) or [], {c.id: c for c in self.changes(doc_id)}
+    if bad := [i for i in ids if i not in cs]: return _no('not_found', 'no such change on this document', ids=bad)
+    if bad := [i for i in ids if cs[i].state not in ('accepted', 'rejected')]: return _no('stale', 'these changes are not decided', ids=bad)
+    cur, acc = {p.page: p.version for p in self.pages(doc_id)}, [cs[i] for i in ids if cs[i].state == 'accepted']
+    if bad := [c.id for c in acc if cur.get(c.page) != c.version + 1]:
+        return _no('stale', 'the page changed again after that accept', ids=bad)
+    pv = {(c.page, c.version) for c in acc}
+    for pg, v in sorted(pv): self._refile(doc_id, pg, v)
+    now = {p.page: p.version for p in self.pages(doc_id)}
+    # an accept made one version of the page: undoing it takes back every change it applied
+    acc = [c for c in cs.values() if c.state == 'accepted' and (c.page, c.version) in pv]
+    rej = [cs[i] for i in ids if cs[i].state == 'rejected']
+    with write_txn(self.db):
+        for c in acc: self._proof_t().update(dict(id=c.id, state='proposed', version=now[c.page]))
+        for c in rej: self._proof_t().update(dict(id=c.id, state=c.get('was') or 'proposed'))
+    if pv: self._reindex(doc_id)
+    return dict(ok=True, doc_id=doc_id, undone=[c.id for c in acc + rej], pages=sorted({pg for pg, _ in pv}))
 
 @patch
 def proof_md(self:Vault, doc_id:str) -> str:

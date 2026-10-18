@@ -354,3 +354,9 @@ def reject_pii(self:Vault, ref, ids, by:str='person') -> dict:
     _person(by, 'clear a finding')
     return self._judge(ref, ids, 'rejected')
 
+@patch
+def reset_pii(self:Vault, ref, ids, by:str='person') -> dict:
+    "Take a verdict on findings back: every occurrence of the value is `found` again, for detection to judge. Only a person may."
+    _person(by, 'clear a finding')
+    return self._judge(ref, ids, 'found')
+
