@@ -25,6 +25,7 @@ CMDS = ('stats search sections context ask explain read related toc map topic_tr
         'extract '
         'extract_all ask_doc '
         'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks '
+        'level set_level floor set_floor findings scan_pii accept_pii reject_pii send_check sends '
         'suggest_noisy accept_noisy learn fit_noise use_noise '
         'read_doc pages reparse proofread changes accept reject proof_md').split()
 
@@ -36,7 +37,7 @@ def vault(path:str=None) -> Vault:
 
 def _spellable(p) -> bool:
     'Can this parameter be written on a command line? `self`, `**kw`, a test stand-in chat and callable defaults cannot.'
-    return (p.name not in ('self', 'chat', 'chats') and p.kind is not Parameter.VAR_KEYWORD
+    return (p.name not in ('self', 'chat', 'chats', 'local_chat') and p.kind is not Parameter.VAR_KEYWORD
             and not (p.default is not Parameter.empty and callable(p.default)))
 
 def cmd(name:str, vault_fn=vault):

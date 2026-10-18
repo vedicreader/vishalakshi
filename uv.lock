@@ -3700,14 +3700,14 @@ wheels = [
 
 [[package]]
 name = "rahasya"
-version = "0.0.2"
+version = "0.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastcore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/b4/42706ed241c673c573a8ee201e4978d0320f92b9c76f2c87f330a5fe62c0/rahasya-0.0.2.tar.gz", hash = "sha256:b1da4171c09eeaf8d3459c4d05f110d21586575c51de5334b49fdc968c7ae6cc", size = 17049, upload-time = "2026-08-28T09:18:13.702Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/21/6d140a98156e434f7c37f374f8371a62b01477aa9ad6a1deec05c1a423cd/rahasya-0.0.3.tar.gz", hash = "sha256:45468fe6772f1cfaa31dd8af9fc2c3442788dd53742afe6a0aede013f9f57284", size = 18833, upload-time = "2026-10-18T10:52:12.545Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/71/74/ea2540becce789f5002c0547f3b4e1072beedbeb042a0d91a941affef45a/rahasya-0.0.2-py3-none-any.whl", hash = "sha256:7bf0902c549d002b8e4894acd5183cb3d3862c601209d6808fec7218ec42fab8", size = 17333, upload-time = "2026-08-28T09:18:12.552Z" },
+    { url = "https://files.pythonhosted.org/packages/70/dc/3619fb642343479676bf74aa9eac2e4f2d008dc8bc317b0534f062644e2d/rahasya-0.0.3-py3-none-any.whl", hash = "sha256:64433936283cb013cc039701fc89db4e64136b75bde95890d592bb831bfd8e4c", size = 19167, upload-time = "2026-10-18T10:52:11.237Z" },
 ]
 
 [[package]]
@@ -4549,15 +4549,15 @@ wheels = [
 
 [[package]]
 name = "varga"
-version = "0.0.5"
+version = "0.0.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastcore" },
     { name = "rahasya" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a6/41/a1ac2d8bdc9fd23f4289ee3e3b39c186cfcbc5e8a8d9b5dbaa049b103a31/varga-0.0.5.tar.gz", hash = "sha256:6aebe5190e870154de15e69b158bb099e99b67aabadbbc840a1fa93c62d4f74e", size = 19902, upload-time = "2026-09-21T10:10:36.595Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/77/bf9a11cbae960bc836df3c33fddedd2c1f7150ff0bd700096005c3f36ede/varga-0.0.6.tar.gz", hash = "sha256:340b1b5d484fe7529f8d21d410b2d4e4997fb057dab24aeebd0eaa22d7f85b09", size = 22396, upload-time = "2026-10-18T10:53:09.938Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/7e/30abb1aa98b5aea5c560977cfabbd66d0680c1a1fae59064f9bf235be1aa/varga-0.0.5-py3-none-any.whl", hash = "sha256:b6d85abf40ba371fd65c826f09e9303b020955ad5d45b72e68401708c43274ac", size = 20819, upload-time = "2026-09-21T10:10:35.569Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/c8/da0c206288ee9ae1ad13fcfe269ffceadafe151e828a5748ba22d102b9ac/varga-0.0.6-py3-none-any.whl", hash = "sha256:cd7ec002fbdeb237f6948aee65ff1946ae4cb9ef866e91903bd2d3d17b4fb006", size = 23308, upload-time = "2026-10-18T10:53:08.507Z" },
 ]
 
 [[package]]
@@ -4647,11 +4647,11 @@ requires-dist = [
     { name = "pdflite", specifier = ">=0.0.3" },
     { name = "pobblebonk", specifier = ">=0.0.2" },
     { name = "pyskills", specifier = ">=0.0.27" },
-    { name = "rahasya", specifier = ">=0.0.1" },
+    { name = "rahasya", specifier = ">=0.0.3" },
     { name = "rgapi" },
     { name = "rishi", specifier = ">=0.1.32" },
     { name = "uraiyadal", specifier = ">=0.0.7" },
-    { name = "varga", specifier = ">=0.0.5" },
+    { name = "varga", specifier = ">=0.0.6" },
     { name = "vruksha", specifier = ">=0.1.1" },
 ]
 provides-extras = ["rerank"]

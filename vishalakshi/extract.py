@@ -6,29 +6,31 @@ Docs: https://vedicreader.github.io/vishalakshi/extract.html.md"""
 
 # %% auto #0
 __all__ = ['REVIEW_SCORE', 'DOCTYPE_SHELF', 'model_cached', 'DOCTYPES', 'EXTRACT_SP', 'FIELD_TYPES', 'KIND_BONUS', 'KIND_HINT',
-           'MIN_MARGIN', 'MIN_SCORE', 'NER_CHARS', 'SCHEMAS', 'SIGNALS', 'TYPE_SP', 'Catalogue', 'Contract', 'Invoice',
-           'MeetingNotes', 'Paper', 'Receipt', 'Resume', 'Summary', 'as_schema', 'check_fields', 'cue_scores',
-           'dyn_schema', 'guess_type', 'iso_date', 'money', 'schema_str', 'signals', 'structured']
+           'MIN_MARGIN', 'MIN_SCORE', 'NER_CHARS', 'SCHEMAS', 'SIGNALS', 'TYPE_SP', 'Catalogue', 'Contract',
+           'IdentityDoc', 'Invoice', 'MeetingNotes', 'Paper', 'Receipt', 'Resume', 'Statement', 'Summary', 'as_schema',
+           'check_fields', 'cite_schema', 'cue_scores', 'dyn_schema', 'guess_type', 'iso_date', 'locate', 'money',
+           'schema_str', 'signals', 'structured']
 
 # %% ../nbs/06_extract.ipynb #a4b60d92
 from collections import Counter
 from fastcore.all import AttrDict, L, patch
 from rahasya import NER_CHARS, pii_report, redact, redact_obj
 from varga import (DOCTYPES, KIND_BONUS, KIND_HINT, MIN_MARGIN, MIN_SCORE, SIGNALS, TYPE_SP,
-                   cue_scores, guess_type, signals)
-from varga.schema import (EXTRACT_SP, FIELD_TYPES, SCHEMAS, Catalogue, Contract, Invoice,
-                          MeetingNotes, Paper, Receipt, Resume, Summary, as_schema, check_fields,
-                          dyn_schema, iso_date, money, schema_str, structured)
+                   cue_scores, guess_type, signals, SENSITIVE)
+from varga.schema import (EXTRACT_SP, FIELD_TYPES, SCHEMAS, Catalogue, Contract, IdentityDoc, Invoice,
+                          MeetingNotes, Paper, Receipt, Resume, Statement, Summary, as_schema, check_fields,
+                          cite_schema, dyn_schema, iso_date, locate, money, schema_str, structured)
 from .core import Vault
-from .ask import (LOCAL_RUNTIMES, PII_SP, dflt_model, is_stock_chat,
+from .pii import LEVEL_LABELS, top
+from .ask import (LOCAL_RUNTIMES, PII_SP, dflt_model, is_local, is_stock_chat, model_local,
                             new_chat, pii_model_, urai)   # also patches Vault.ask
 
 # re-exported: what varga decides is still reachable from the vault that stores the verdict
 _all_ = ['DOCTYPES', 'EXTRACT_SP', 'FIELD_TYPES', 'KIND_BONUS', 'KIND_HINT', 'MIN_MARGIN',
          'MIN_SCORE', 'NER_CHARS', 'SCHEMAS', 'SIGNALS',
-         'TYPE_SP', 'Catalogue', 'Contract', 'Invoice', 'MeetingNotes', 'Paper', 'Receipt',
-         'Resume', 'Summary', 'as_schema', 'check_fields', 'cue_scores', 'dyn_schema', 'guess_type',
-         'iso_date', 'money', 'schema_str', 'signals', 'structured']
+         'TYPE_SP', 'Catalogue', 'Contract', 'IdentityDoc', 'Invoice', 'MeetingNotes', 'Paper', 'Receipt',
+         'Resume', 'Statement', 'Summary', 'as_schema', 'check_fields', 'cite_schema', 'cue_scores', 'dyn_schema',
+         'guess_type', 'iso_date', 'locate', 'money', 'schema_str', 'signals', 'structured']
 
 
 # %% ../nbs/06_extract.ipynb #c93f1d68
@@ -52,6 +54,7 @@ def categorize(self:Vault,
                ner:bool=True,      # run entity extraction alongside the regex signals
                save:bool=True,     # write the verdict into the document's meta
                review:float=REVIEW_SCORE,  # an undecided verdict at or above this is proposed, not written
+               pii:str='redact',   # off|local|redact|refuse: what a hosted model gets of a private document, via `send_check`
 ) -> AttrDict:
     'What kind of document this is: invoice, catalogue, contract, paper, transcript, code…'
     d = (ref if isinstance(ref, dict) and 'text' in ref
@@ -72,16 +75,23 @@ def categorize(self:Vault,
             if mode == 'auto' and is_stock_chat() and urai().infer_runtime(mid) != 'remote' and not model_cached(mid):
                 by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
-                said = new_chat(mid, **(chat_kw or {})).classify(f'{d.title}\n\n{txt}', list(lbls)+['other'], sp=TYPE_SP)
-                if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "Urai default"})'
-                else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
+                ch = new_chat(mid, **(chat_kw or {}))
+                chk = self.send_check(refs=[d.doc_id] if d.doc_id else None, text=None if d.doc_id else txt, model=ch, policy=pii,
+                                      level='local' if g.sensitive and g.score >= MIN_SCORE else None)
+                it = chk.rows[0]
+                if it.how == 'withheld': by = f'cues ({g.method}); the document is {LEVEL_LABELS[it.level]} and {mid} is hosted, so none was asked'
+                else:
+                    said = ch.classify(f"{d.title}\n\n{txt if it.how == 'whole' else it.get('text') or redact(txt, ner=True)}", list(lbls)+['other'], sp=TYPE_SP)
+                    self._sent(chk, mid, getattr(ch, 'runtime', None))
+                    if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "Urai default"})'
+                    else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
         except Exception as e:
             # keep the cue verdict when the model leg fails
             if mode == 'always': raise
             by = f'cues ({g.method}); no model available ({type(e).__name__})'
     # a model was asked precisely because the cues could not decide, so its answer is the confident one
     conf = by.startswith('llm') or g.decisive
-    res = AttrDict(doc_id=d.doc_id, title=d.title, kind=d.kind, doctype=dt, score=g.score,
+    res = AttrDict(doc_id=d.doc_id, title=d.title, kind=d.kind, doctype=dt, score=g.score, sensitive=dt in SENSITIVE,
                    margin=g.margin, decisive=g.decisive, confident=conf, by=by, scores=g.scores,
                    signals=sig.counts, ents=sig.ents, saved=False, proposed=False)
     if save and d.doc_id:
@@ -204,6 +214,7 @@ def extract(self:Vault,
             pii:str='local',       # local|redact|refuse|off; same contract as `ask`
             pii_model:str=None,    # local model when private; None -> $VISHALAKSHI_PII_MODEL
             check:bool=True,       # read the values back through `check_fields` and report what did not
+            cite:bool=False,       # ask for the quote each value was read from; `src` carries it
 ) -> AttrDict:
     "Pull structured fields out of one document: an invoice's totals, a catalogue's products."
     d = self.document(ref, max_chars=max_chars)
@@ -211,15 +222,18 @@ def extract(self:Vault,
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
                         fields={}, skipped='no text to extract from')
     # marks win over arithmetic, so this is `self.pii` rather than a bare `pii_report`
-    report = (self.pii(d.doc_id, max_chars=max_chars) if d.doc_id else pii_report(d.text)) if pii != 'off' else None
-    private, text = bool(report and report.has_pii), d.text
+    report = (self.pii(d.doc_id, max_chars=max_chars, ner=True) if d.doc_id else pii_report(d.text, ner=True)) if pii != 'off' else None
+    lvl = self._doc_level(None, d.doc_id) if d.doc_id else top(self.floor(), 'personal' if report and report.has_pii else 'open')
+    private, text = pii != 'off' and (bool(report and report.has_pii) or lvl != 'open'), d.text
     if private and pii == 'refuse':
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
-                        fields={}, skipped='pii', refused=True, pii=report)
-    if private and pii == 'redact': text = redact(d.text)
+                        fields={}, skipped='pii', refused=True, pii=report, level=lvl, kind='pii_blocked')
+    if private and pii == 'redact': text = redact(d.text, ner=True)
     dt, cat = None, None
     if schema is None:
-        cat = self.categorize(d, model=model, chat_kw=chat_kw, llm=llm, save=save)
+        # the categorising leg goes where the extraction would, and through the same check
+        cat = self.categorize(d, model=(pii_model or pii_model_) if private and pii == 'local' else model, chat_kw=chat_kw, llm=llm,
+                              save=save, pii=pii)
         dt = cat.doctype
         sch = SCHEMAS.get(dt, Summary)
     else: sch = as_schema(schema)
@@ -229,17 +243,25 @@ def extract(self:Vault,
     if private and pii == 'local':
         mid, sys_sp = pii_model or pii_model_, PII_SP
     ch = new_chat(mid, **(chat_kw or {}))
-    if private and pii == 'local' and str(getattr(ch, 'runtime', '') or '') not in LOCAL_RUNTIMES:
-        return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=None,
-                        fields={}, skipped='pii', refused=True, pii=report, runtime=ch.runtime)
-    flds = structured(ch, prompt, sch, sp=sys_sp)
+    if (private and pii == 'local' and not is_local(getattr(ch, 'runtime', ''))) or (lvl == 'local' and not model_local(ch)):
+        return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=None, fields={}, skipped='pii', refused=True,
+                        pii=report, runtime=ch.runtime, level=lvl, kind='local_only' if lvl == 'local' else 'pii_blocked')
+    raw = structured(ch, prompt, sch, sp=sys_sp, cite=cite)
+    if d.doc_id and not model_local(ch):
+        self._sent(AttrDict(local=False, send=[AttrDict(doc_id=d.doc_id, page=None)], model=mid, runtime=ch.runtime, policy=pii,
+                            kinds=dict(report.identifying) if report else {}))
+    flds = {k: v['value'] for k, v in raw.items()} if cite else raw
+    at = locate(raw, {k: t for k, (t, _) in self._page_texts(d.doc_id).items()}) if d.doc_id else {}
+    src = {f: dict(page=at.get(f, {}).get('page'), block=at.get(f, {}).get('block'), quote=raw[f]['quote'] if cite else None)
+           for f in flds if f in at or cite}
     # the document's own timestamp supplies the year a date omits, never the date itself
     flds, errs = check_fields(sch, flds, ref=d.get('added_at')) if check else (flds, L())
     # the same backstop `ask` applies to an answer: fields are short, so names are looked for
     if private and pii_report(str(flds), ner=True).has_pii: flds = redact_obj(flds, ner=True)
-    if save and d.doc_id: self.set_meta(d.doc_id, extracted=flds, extracted_as=sch.__name__)
+    if private: src = redact_obj(src, ner=True)
+    if save and d.doc_id: self.set_meta(d.doc_id, extracted=flds, extracted_as=sch.__name__, extracted_src=src)
     return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=sch.__name__,
-                    fields=flds, errors=errs, chars=len(d.text), truncated=d.truncated,
+                    fields=flds, src=src, level=lvl, errors=errs, chars=len(d.text), truncated=d.truncated,
                     model=mid or dflt_model, runtime=ch.runtime, categorized=cat,
                     usage=getattr(ch, 'use', None), pii=report)
 

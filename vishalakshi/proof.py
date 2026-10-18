@@ -54,27 +54,36 @@ def _proof_t(self:Vault):
 
 @patch
 def proofread(self:Vault, doc_id:str, readers, pages=None, agree:int=2, preset:str=None, script:str=None, hint:str=None,
-              dpi:int=200, chats:dict=None) -> dict:
+              dpi:int=200, chats:dict=None,
+              pii:str='redact',    # what `read_page` applies: a reader that may not see a page is skipped for it and reported in `blocked`
+              allow:bool=False,    # allow once, for Personal pages
+) -> dict:
     "Each of `readers` reads `pages` (all when None) again; their word changes to the current text are filed, `proposed` where `agree` agree."
     d, readers, pages = first(self.t.docs(where='id=?', where_args=[doc_id])), as_list(readers), as_list(pages, int)
     assert d, f'no document {doc_id}'
     m, src, t = json.loads(d['meta'] or '{}'), Path(d['source']), self._proof_t()
     preset, script, hint = ifnone(preset, m.get('preset', 'generic')), ifnone(script, m.get('script', '')), ifnone(hint, m.get('hint', ''))
     cur = [p for p in self.pages(doc_id) if pages is None or p.page in set(pages)]
-    n = 0
+    n, blocked = 0, []
     for p in cur:
         img = src.read_bytes() if src.suffix.lower() in IMG_EXTS else render(src, p.page, dpi)
-        got = {}
+        got, lv, read = {}, self.level(doc_id, page=p.page).level, 0
         for r in readers:
-            txt = read_page(img, r, preset, d['title'], script, hint, chat=(chats or {}).get(r)).text
-            for c in word_changes(p.text, txt): got.setdefault((c['at'], c['n'], c['after']), dict(c, by=[]))['by'].append(r)
+            ch = (chats or {}).get(r)
+            pg = read_page(img, r, preset, d['title'], script, hint, chat=ch, pii=pii, level=lv, text=p.text, allow=allow)
+            if pg.get('blocked'):
+                blocked.append(dict(page=p.page, reader=r, **pg.blocked)); continue
+            read += 1
+            self._read_sent(doc_id, [AttrDict(page=p.page, route='model', model=getattr(ch, 'model', r))], r, ch, pii)
+            for c in word_changes(p.text, pg.text): got.setdefault((c['at'], c['n'], c['after']), dict(c, by=[]))['by'].append(r)
+        if not read: continue
         with write_txn(self.db):
             self.db.execute('delete from proof_changes where doc_id=? and store=? and page=? and state in (\'proposed\', \'doubt\')', [doc_id, self.name, p.page])
             for c in got.values():
                 t.insert(dict(id=uuid.uuid4().hex[:12], doc_id=doc_id, store=self.name, page=p.page, version=p.version, at=c['at'], n=c['n'],
                               before=c['before'], after=c['after'], by=json.dumps(c['by']), state='proposed' if len(c['by']) >= agree else 'doubt', ts=time.time()))
                 n += 1
-    return dict(doc_id=doc_id, pages=[p.page for p in cur], changes=n, proposed=len(self.changes(doc_id, 'proposed')))
+    return dict(doc_id=doc_id, pages=[p.page for p in cur], changes=n, proposed=len(self.changes(doc_id, 'proposed')), blocked=blocked)
 
 @patch
 def changes(self:Vault, doc_id:str, state:str=None, page:int=None) -> L:

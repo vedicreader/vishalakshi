@@ -16,6 +16,7 @@ from pdflite import pdf_doc, pdf_pages
 from urai.record import resp_text
 from litesearch import write_txn
 from .core import Vault
+from .pii import LEVEL_LABELS, pii_report, top, type_policy
 
 # %% ../nbs/12_read.ipynb #f2657cca
 PRESETS = dict(
@@ -104,9 +105,18 @@ def backends():
     "Register rishi's model backends with urai, which knows none of its own: `claude/sonnet` resolves only after."
     import rishi
 
-def read_page(img:bytes, model:str=None, preset:str='generic', title:str='', script:str='', hint:str='', chat=None) -> AttrDict:
-    "One page image read by a vision model: its `blocks`, their markdown `text`, the `model` and its `cost`."
-    from vishalakshi.ask import CachedChat
+def read_page(img:bytes, model:str=None, preset:str='generic', title:str='', script:str='', hint:str='', chat=None,
+              pii:str='redact',   # off|local|redact|refuse; a page image cannot be masked, so a Personal page reaches a hosted model only with `allow`
+              level:str='open',   # the page's level, from its document; raised to Personal when `text` holds identifiers
+              text:str='',        # the page's text layer or OCR, to judge it by
+              allow:bool=False,   # allow once: a Personal page may go to a hosted model; a Local only one never does
+) -> AttrDict:
+    "One page image read by a vision model: its `blocks`, their markdown `text`, the `model` and its `cost`; `blocked` when it may not be sent."
+    from vishalakshi.ask import CachedChat, model_local, send_rule
+    lv = top(level, 'personal' if (text or '').strip() and pii_report(text, ner=True).has_pii else 'open')
+    if send_rule(lv, model_local(chat if chat is not None else model), pii, allow, image=True) == 'withheld':
+        return AttrDict(blocks=[], text='', model=getattr(chat, 'model', model), cost=None, blocked=AttrDict(
+            kind='local_only' if lv == 'local' else 'pii_blocked', level=lv, why=f'a {LEVEL_LABELS[lv]} page is not sent to a hosted model'))
     if chat is None: backends()
     c = chat or CachedChat(model, sp=reading_prompt(preset, title, script, hint), max_output_tokens=16000)
     try: r = c([img, 'Transcribe the text on this page.'])
@@ -121,7 +131,13 @@ def as_list(x, f=str):
     "`x` as a list of `f`: a comma-separated string, as a command line gives it, split; None stays None."
     return None if x is None else [f(v) for v in (x.split(',') if isinstance(x, str) else x) if str(v).strip()]
 def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title:str='', script:str='', hint:str='',
-             pages=None, dpi:int=200, out=None, workers:int=4, chat=None) -> L:
+             pages=None, dpi:int=200, out=None, workers:int=4, chat=None,
+             pii:str='redact',      # what `read_page` applies to each page; `off` sends Personal pages too, never Local only ones
+             level:str=None,        # the document's level; None -> open, raised to Local only when its text reads as a sensitive type
+             allow:bool=False,      # allow once, for Personal pages
+             local_model:str=None,  # reads the pages a hosted `model` may not; None -> those pages keep their text layer
+             local_chat=None,       # a built local reader instead of `local_model`
+) -> L:
     """Each page of a PDF or image as `{page, text, route, flags}`, with `blocks`, `model` and `cost` where the model read it. `parse`: `auto` keeps a sound text layer and sends scanned or flagged pages to
     `model`; `text` the text layer only; `ocr` OCR every page; `llm` the model on every page."""
     assert parse in PARSE, f'parse is one of {PARSE}'
@@ -133,9 +149,14 @@ def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title
     want = pages if pages is None else set(pages)
     def needs(r): return parse == 'llm' or (parse == 'auto' and (r.route == 'scanned' or bool(r.flags)))
     todo = [r for r in rows if (want is None or r.page in want) and needs(r)]
+    # a passport or a payslip reads as one from its text layer before any page image goes anywhere
+    if todo and pii != 'off': level = top(level, type_policy(text='\n\n'.join(r.text for r in rows)[:6000]).level)
     def go(r):
         img = p.read_bytes() if p.suffix.lower() in IMG_EXTS else render(p, r.page, dpi)
-        got = read_page(img, model, preset, title, script, hint, chat=chat)
+        kw = dict(pii=pii, level=level or 'open', text=r.text, allow=allow)
+        got = read_page(img, model, preset, title, script, hint, chat=chat, **kw)
+        if got.get('blocked') and (local_model or local_chat): got = read_page(img, local_model, preset, title, script, hint, chat=local_chat, **kw)
+        if got.get('blocked'): r.blocked = got.blocked; return r
         if got.text.strip(): r.update(text=got.text, route='model', model=got.model, cost=got.cost, flags=flags(got.text), blocks=got.blocks)
         return r
     if todo:
@@ -168,40 +189,66 @@ def pages(self:Vault, doc_id:str, history:bool=False) -> L:
 
 @patch
 def _file_pages(self:Vault, doc_id, rows, preset):
-    t, now, have = self._pages_t(), time.time(), {r.page: r for r in self.pages(doc_id)}
+    t, now, have, new = self._pages_t(), time.time(), {r.page: r for r in self.pages(doc_id)}, []
     with write_txn(self.db):
         for r in rows:
             if (o := have.get(r.page)) and o.text == r.text and o.route == r.route and not r.get('blocks'): continue
+            new.append(r.page)
             t.insert(dict(doc_id=doc_id, store=self.name, page=r.page, version=(o.version if o else 0) + 1, route=r.route, text=r.text,
                           flags=json.dumps(r.flags), model=r.get('model'), preset=preset if r.route == 'model' else None, at=now,
                           blocks=json.dumps(r['blocks'], ensure_ascii=False) if r.get('blocks') else None))
+    # a model's reading is scanned like any other text, and its findings filed against the new version
+    if new: self.scan_pii(doc_id, pages=new)
+
+@patch
+def _read_sent(self:Vault, doc_id, rows, model, chat, pii):
+    from vishalakshi.ask import model_local
+    sent = [AttrDict(doc_id=doc_id, page=r.page) for r in rows if r.route == 'model' and r.get('model') == getattr(chat, 'model', model)]
+    self._sent(AttrDict(local=model_local(chat if chat is not None else model), send=sent, model=model or getattr(chat, 'model', None),
+                        runtime=getattr(chat, 'runtime', None), policy=pii, kinds={}))
 
 @patch
 def read_doc(self:Vault, src, title:str=None, kind:str=None, parse:str='auto', model:str=None, preset:str='generic', script:str='', hint:str='',
-         pages=None, dpi:int=200, workers:int=4, chat=None, **kw):
+         pages=None, dpi:int=200, workers:int=4, chat=None,
+         pii:str='redact',      # off|local|redact|refuse, per page; the document's level and the shelf's floor apply
+         allow:bool=False,      # allow once, for Personal pages
+         local_model:str=None,  # reads the pages a hosted `model` may not
+         local_chat=None,       # a built local reader instead of `local_model`
+         **kw):
     """Read a PDF, a page image, or every one under a folder into the vault, page by page: a sound text layer kept, scanned or flagged pages read
-    by `model`. Each page's text, route and flags are kept as versions (`pages`). Returns the ingest result, with `routes` and `flagged`."""
+    by `model`. Each page's text, route and flags are kept as versions (`pages`). Returns the ingest result, with `routes`, `flagged` and the `blocked` pages."""
     p = Path(src)
-    if p.is_dir(): return doc_files(p).map(lambda f: self.read_doc(f, None, kind, parse, model, preset, script, hint, pages, dpi, workers, chat, **kw))
-    rows = read_doc(p, parse, model, preset, title or '', script, hint, pages, dpi, self.assets(p.stem), workers, chat)
+    if p.is_dir(): return doc_files(p).map(lambda f: self.read_doc(f, None, kind, parse, model, preset, script, hint, pages, dpi, workers, chat,
+                                                                    pii=pii, allow=allow, local_model=local_model, local_chat=local_chat, **kw))
+    lvl = self.level(str(p)).level if self.doc(str(p)) and self.doc(str(p))['source'] == str(p) else self.floor()
+    rows = read_doc(p, parse, model, preset, title or '', script, hint, pages, dpi, self.assets(p.stem), workers, chat,
+                    pii=pii, level=lvl, allow=allow, local_model=local_model, local_chat=local_chat)
     out = self.add([(r.page, r.text) for r in rows], title or p.stem, source=str(p), kind=kind or ('pdf' if p.suffix.lower() == '.pdf' else 'image'),
                    meta=dict(parse=parse, model=model, preset=preset, script=script, hint=hint), force=True, **kw)
     self._file_pages(out['doc_id'], rows, preset)
+    self._read_sent(out['doc_id'], rows, model, chat, pii)
+    blocked = [r.page for r in rows if r.get('blocked')]
     return dict(out, routes={k: len(v) for k, v in rows.groupby(lambda r: r.route).items()},
-                flagged=[r.page for r in rows if r.flags])
+                flagged=[r.page for r in rows if r.flags], blocked=blocked,
+                kind=first(r.blocked.kind for r in rows if r.get('blocked')))
 
 @patch
 def reparse(self:Vault, doc_id:str, pages=None, model:str=None, preset:str=None, script:str=None, hint:str=None, parse:str='llm',
-            dpi:int=200, workers:int=4, chat=None) -> dict:
+            dpi:int=200, workers:int=4, chat=None, pii:str='redact', allow:bool=False, local_model:str=None, local_chat=None) -> dict:
     "Read `pages` of a read document again (all when None), by `model` with `parse='llm'`; the new texts become new versions and the document is re-indexed."
     d, pages = first(self.t.docs(where='id=?', where_args=[doc_id])), as_list(pages, int)
     assert d, f'no document {doc_id}'
     m = json.loads(d['meta'] or '{}')
     preset, script, hint = ifnone(preset, m.get('preset', 'generic')), ifnone(script, m.get('script', '')), ifnone(hint, m.get('hint', ''))
     old = {r.page: r for r in self.pages(doc_id)}
-    got = read_doc(d['source'], parse, model, preset, d['title'], script, hint, pages, dpi, self.assets(Path(d['source']).stem), workers, chat)
+    got = read_doc(d['source'], parse, model, preset, d['title'], script, hint, pages, dpi, self.assets(Path(d['source']).stem), workers, chat,
+                   pii=pii, level=self.level(doc_id).level, allow=allow, local_model=local_model, local_chat=local_chat)
     keep = got if pages is None else got.filter(lambda r: r.page in set(pages))
+    blocked = keep.filter(lambda r: r.get('blocked'))
+    keep = keep.filter(lambda r: not r.get('blocked'))
     self._file_pages(doc_id, keep, preset)
+    self._read_sent(doc_id, keep, model, chat, pii)
     new = {r.page: r for r in self.pages(doc_id)}
     out = self.add([(k, new[k].text) for k in sorted(new)], d['title'], source=d['source'], kind=d['kind'], meta=dict(m, reparsed=time.time()), force=True)
-    return dict(out, pages=sorted(r.page for r in keep), changed=[k for k in new if old.get(k) is None or old[k].text != new[k].text])
+    return dict(out, pages=sorted(r.page for r in keep), changed=[k for k in new if old.get(k) is None or old[k].text != new[k].text],
+                blocked=[r.page for r in blocked], kind=first(r.blocked.kind for r in blocked))

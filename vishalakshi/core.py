@@ -137,9 +137,11 @@ def add(self:Vault,
 
 @patch
 def _settled(self:Vault, out:dict, src:str) -> dict:
-    'After an ingest: one document per source, a stale mark lifted, and `changed` saying whether anything was written.'
+    'After an ingest: one document per source, a stale mark lifted, its identifiers filed, and `changed` saying whether anything was written.'
     if not out.get('skipped'):
         self._replace_source(src, out['doc_id'])
+        # `vishalakshi.pii` patches it on, and importing the package imports that
+        if scan := getattr(self, 'scan_pii', None): scan(out['doc_id'])
         if first(self._marks()(where='doc_id=? AND store=? AND stale=1', where_args=[out['doc_id'], self.name])):
             self.mark_stale(out['doc_id'], stale=False)
     return dict(out, changed=not out.get('skipped'))
@@ -773,6 +775,7 @@ def mark_noisy(self:Vault, ref, noisy:bool=True, reason:str='') -> dict:
 def forget(self:Vault, doc_id:str):
     'Remove a document, its sections and its chunks, and rebuild the ANN index.'
     self.db.delete_doc(doc_id, store=self.name)
+    if self.db.t.pii_findings.exists(): self.db.execute('delete from pii_findings where doc_id=? and store=?', [doc_id, self.name])
 
 @patch
 def stats(self:Vault) -> dict:

@@ -86,6 +86,8 @@ Retrieval defaults are litesearch's. Reach for:
 v.mark_noisy(doc_id, reason='site furniture')
 v.mark_pii(doc_id, reason='address book'); v.mark_not_pii(doc_id, reason='my own invoice')
 v.pii(doc_id, ner=True)          # read `scanned_ner`, not the count alone
+v.level(doc_id)                  # Open, Personal or Local only; an agent may raise one, never lower it
+v.send_check(refs, model=m)      # what a model would get: whole, masked or withheld, and `why`
 v.suggest_noisy(k=20); v.accept_noisy(k=10)
 v.learn()                        # log every ask as feedback
 ```
@@ -127,7 +129,7 @@ from .cli import vault
 # Everything a sandboxed agent may call: read the vault, and add to it
 READ = ('search sections context related read toc doc document sources stats shelves elsewhere map '
         'doctypes of_type ner categorize extract extract_all ask ask_doc explain doc_context topic_tree show_topics '
-        'code_search symbol where_to_add grep federate watches apis assets images').split()
+        'code_search symbol where_to_add grep federate watches apis assets images level findings send_check').split()
 WRITE = ('add add_file add_files add_dir add_tree add_records add_code note grab url web crawl arxiv '
          'pdf youtube github gh_file connect index_code harvest watch poll run_watch '
          'categorize_all set_meta reshelf shelf route '

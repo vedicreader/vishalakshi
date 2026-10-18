@@ -24,7 +24,7 @@ TOOLS = ('stats search sections context ask read related toc map topic_tree sour
          'web arxiv youtube github gh_file add_file add_dir add_tree note connect forget apis harvest watch watches '
          'poll schedule jobs retry_job unwatch index_code code_search symbol where_to_add grep federate categorize '
          'categorize_all doctypes of_type ner reshelf extract extract_all ask_doc '
-         'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks '
+         'pii mark_pii mark_not_pii mark_noisy mark_noisy_many marks level findings send_check '
          'add_image add_images images tag_image label_images '
          'suggest_noisy accept_noisy learn fit_noise use_noise').split()
 
@@ -50,10 +50,13 @@ mcp = MCPServer('vishalakshi', instructions=(
     'the detector.'))
 
 def as_tool(name:str):
-    'Register one `Vault` method as an MCP tool, forcing its result through JSON.'
+    'Register one `Vault` method as an MCP tool, forcing its result through JSON. A client is an agent: `by` is pinned to it.'
     f = cmd(name)
-    g = wraps(f)(lambda **kw: json.loads(json.dumps(f(**kw), default=jsonable)))
-    g.__signature__, g.__delwrap__, g.__annotations__ = f.__signature__, f.__delwrap__, f.__annotations__
+    ps = f.__signature__.parameters
+    by = dict(by='agent') if 'by' in ps else {}
+    g = wraps(f)(lambda **kw: json.loads(json.dumps(f(**kw, **by), default=jsonable)))
+    g.__signature__, g.__delwrap__ = f.__signature__.replace(parameters=[v for k, v in ps.items() if k != 'by']), f.__delwrap__
+    g.__annotations__ = {k: v for k, v in f.__annotations__.items() if k != 'by'}
     return mcp.tool(name=name)(g)
 
 for _t in TOOLS: as_tool(_t)
