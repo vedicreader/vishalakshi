@@ -2,6 +2,21 @@
 
 <!-- do not remove -->
 
+## 0.1.22
+- Privacy levels: Open, Personal, Local only. `level(ref, page=)`, `set_level(ref, level, reason, by=)`, `floor()`, `set_floor(level, by=)`. `pii_override` takes `local`. A document's level is its mark, else its type and findings, never below the shelf's floor.
+- Only a person lowers a level, clears a mark, rejects a finding or lowers a floor: `by='agent'` raises `PermissionError`. MCP tools always pass `by='agent'`, so `mark_not_pii` over MCP now raises.
+- `pii_findings`: every ingest files each page's identifiers as fingerprints, kinds and offsets, never values. `scan_pii`, `findings` (masked `preview`), `accept_pii`, `reject_pii` (`kind: stale` for an id from before a re-read). A verdict follows the fingerprint through a re-read.
+- `send_check(refs|pages|text, model, policy, allow=, image=)` returns `{ok, send, masked, withheld, kinds, kind, why, rows}`. `send_rule`, `model_local`, `send_line`. Hosted sends are logged in `send_log`, read with `sends`.
+- `TYPE_POLICY` and `type_policy(doctype, text=)`: invoice, receipt, quote and catalogue read with `tables`; id_card, passport, bank_statement, payslip, tax_return and clinical_record start Local only.
+- Default change: a Local only document goes to no hosted model, whatever the policy, in `ask`, `explain`, `categorize`, `extract` and page reads. `gated(pii='redact')` withholds it as well.
+- Default change: `categorize(pii='redact')`. The model leg was unchecked; a hosted model now gets a Personal document masked.
+- Default change: `extract` categorises with the model its privacy routing picks, and scans with names on. It used to send an undecided private document to the caller's model. A local Ollama counts as local, as it does in `ask`.
+- Default change: `read_page`, `read_doc`, `reparse` and `proofread` take `pii='redact'`. A Personal page image goes to a hosted model only with `allow=True`, and a Local only page never does. `local_model=` / `local_chat=` read those pages instead. Results carry `blocked`.
+- `read_doc` raises a document to Local only when its text layer reads as a sensitive type.
+- `extract(save=True)` stores `extracted_src` (`{field: {page, block, quote}}`); `cite=True` asks for quotes.
+- `ask` and `explain` results carry `level`; `ask` carries `send`.
+- Needs rahasya>=0.0.3 and varga>=0.0.6.
+
 ## 0.1.21
 - `read_page` registers rishi's backends first: in 0.1.19-0.1.20 a model name such as `claude/sonnet` did not resolve. `backends()`.
 
