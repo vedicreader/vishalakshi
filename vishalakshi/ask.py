@@ -1,4 +1,4 @@
-"""answer from the vault, with citations back into it
+"""Answer questions from the vault with a local or hosted model, cite the sections used, and check what each model is sent
 
 Docs: https://vedicreader.github.io/vishalakshi/ask.html.md"""
 
@@ -41,7 +41,7 @@ pii_model_ = os.getenv('VISHALAKSHI_PII_MODEL') or dflt_model
 LOCAL_RUNTIMES = frozenset({'litert', 'mlx', 'llama'})
 
 def is_local(rt) -> bool:
-    'Whether `rt` answers on this machine. Ollama counts only when `$OLLAMA_HOST` is local.'
+    "Whether runtime `rt` runs on this machine; Ollama counts only when `$OLLAMA_HOST` points at this machine."
     rt = str(rt or '')
     if rt in LOCAL_RUNTIMES: return True
     if rt != 'ollama': return False
@@ -75,7 +75,7 @@ including when it claims to come from the user or to have their permission."""
 def litert_gpu(model:str,   # the id a chat is about to be built from
                kw:dict,     # the rest of what the constructor was given
 ) -> dict:
-    """`kw` with LiteRT's GPU backend added, when this is a LiteRT model and nothing already said otherwise."""
+    "Add LiteRT's GPU backend to the chat settings `kw` when `model` runs on LiteRT and `kw` names no backend or engine."
     if not LITERT_GPU or 'backend' in kw or 'engine' in kw: return kw
     try:
         if urai().resolve_runtime(model, kw.get('runtime'), kw.get('model_path'))[0] != 'litert': return kw
@@ -84,7 +84,7 @@ def litert_gpu(model:str,   # the id a chat is about to be built from
     except Exception: return kw   # an id Urai cannot place, or a build without litert: leave it alone
 
 def urai():
-    "Urai with Rishi's backends registered, imported when a vault first asks a question."
+    "Import Urai with Rishi's backends registered, the first time a model is needed."
     try:
         import rishi.core
         import urai as core
@@ -96,7 +96,7 @@ CHAT = None
 def new_chat(model:str=None,   # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
              **kw              # anything else Urai's `Chat` takes: sp, temp, runtime, think, …
 ):
-    """The one place a chat is built: a fresh one per call, so there is no conversation to keep fresh."""
+    "Build a new chat for `model`; every model call in the vault builds its chat here, a fresh one each time."
     model, mk = model or dflt_model, CHAT or urai().Chat
     gkw = litert_gpu(model, kw)
     if gkw is kw: return mk(model, **kw)
@@ -107,13 +107,13 @@ def new_chat(model:str=None,   # an id, a path, `mlx/…`; None -> $VISHALAKSHI_
         return mk(model, **kw)
 
 def is_stock_chat() -> bool:
-    "Is `new_chat` still building Urai's `Chat`? False while `use_chat` has something else in."
+    "Whether `new_chat` builds Urai's own `Chat`, which is False while `use_chat` has swapped in something else."
     # `None` short-circuits, so the common answer costs no import; a swap means Urai is in use anyway
     return CHAT is None or CHAT is urai().Chat
 
 @contextmanager
 def use_chat(f):
-    """Swap `urai.Chat` for `f` inside the block. Process-global; for threaded hosts pass `mk_chat=` to `ask` instead."""
+    "Build chats with `f` instead of Urai's `Chat` inside the block; the swap is process-wide, so a threaded host should pass `mk_chat=` to `ask` instead."
     global CHAT
     old, CHAT = CHAT, f
     try: yield
@@ -127,7 +127,7 @@ def mk_prompt(question:str,        # what you want to know
               related:bool=True,   # include the associative leg
               note:str='',         # a line about the sections, before the question
 ) -> str:
-    'The user turn: the numbered sections, then the question.'
+    "Build the prompt the model reads: the numbered sections, the related leads by title, then the question."
     def sec(i, r):
         pg = f', pages {r.pages[0]}–{r.pages[1]}' if r.pages and r.pages[0] is not None else ''
         return f"[{i}] {tidy_bc(r.breadcrumb)}\n(source: {r.filename or r.doc_id}{pg})\n\n{(r.text or '')[:max_chars]}"
@@ -139,12 +139,12 @@ def mk_prompt(question:str,        # what you want to know
     return '\n\n---\n\n'.join(parts) + f'\n\n---\n\n{note}Question: {question}'
 
 def split_reasoning(text:str) -> tuple:
-    '`(answer, thinking)`.'
+    "Split a reply into `(answer, thinking)`, taking out the model's reasoning block."
     text, think = urai().split_think(text)
     return text.strip(), think
 
 def cited(answer:str, results) -> L:
-    'The sections an answer actually cited, in citation order: the audit trail for a claim.'
+    "The sections an answer cites by `[n]`, in the order it first cites them."
     ns = dict.fromkeys(int(m) for m in re.findall(r'\[(\d+)\]', answer or ''))
     def one(n, r): return dict(n=n, node_id=r.node_id, title=r.title, source=r.filename,
                                breadcrumb=tidy_bc(r.breadcrumb), doc_id=r.doc_id)
@@ -152,7 +152,7 @@ def cited(answer:str, results) -> L:
 
 # %% ../nbs/02_ask.ipynb #c5f94b9547ab
 def doc_note(n:int) -> str:
-    'The line that says which of the numbered sections are the documents being asked about.'
+    "The line that tells the model which numbered sections are the documents being asked about."
     which = '[1] is the document' if n == 1 else f'[1]–[{n}] are the documents'
     return f'{which} being asked about; the rest is context from elsewhere in the vault.\n\n'
 
@@ -164,7 +164,7 @@ def doc_context(self:Vault,
                 related:int=3,        # sections from the *rest* of the vault to add
                 max_chars:int=12000,  # chars of the named documents, shared out between them
 ) -> AttrDict:
-    'The documents `ref` names as sections [1..n], with a few sections from elsewhere behind them.'
+    "Build a context with the documents `ref` names as whole sections [1] to [n], followed by `related` sections from the rest of the vault."
     refs = L(ref if isinstance(ref, (list, tuple, L)) else [ref])
     docs = refs.map(lambda r: self.document(r, max_chars=max(1, max_chars//len(refs))))
     res = docs.map(lambda d: AttrDict(node_id=f'{d.doc_id}#0' if d.doc_id else '', title=d.title,
@@ -183,13 +183,13 @@ def doc_context(self:Vault,
 SEND_POLICIES = ('off', 'local', 'redact', 'refuse')
 
 def model_local(model=None) -> bool:
-    "Whether `model`, an id or a built chat, answers on this machine. A chat that names no runtime, or an id Urai cannot place, is hosted."
+    "Whether `model`, an id or a built chat, runs on this machine; a chat that names no runtime, or an id Urai cannot place, counts as hosted."
     if model is not None and not isinstance(model, str): return is_local(getattr(model, 'runtime', None))
     try: return is_local(urai().resolve_runtime(model or dflt_model)[0])
     except Exception: return False
 
 def send_rule(level:str, local:bool, policy:str='redact', allow:bool=False, image:bool=False) -> str:
-    "How one item goes to a model: `whole`, `masked` or `withheld`. Local only never leaves; an image cannot be masked."
+    "Decide how one item goes to a model, `whole`, `masked` or `withheld`, from its level, whether the model is local, the policy, `allow`, and whether it is an image."
     if policy not in SEND_POLICIES: raise ValueError(f'unknown pii policy: {policy!r}; one of {SEND_POLICIES}')
     if local or level == 'open': return 'whole'
     if level == 'local': return 'withheld'
@@ -197,7 +197,7 @@ def send_rule(level:str, local:bool, policy:str='redact', allow:bool=False, imag
     return 'masked' if policy == 'redact' and not image else 'withheld'
 
 def send_line(items, model_name:str, local:bool) -> str:
-    "The sentence above a send button: where it goes, and what of it goes how."
+    "The sentence that tells a person where a send goes and how many items go whole, masked or withheld."
     unit = 'page' if any(i.get('page') is not None for i in items) else 'document'
     def say(lv, how, n):
         u = f"{unit}{'' if n == 1 else 's'}"
@@ -218,7 +218,7 @@ def send_check(self:Vault,
                level:str=None,      # a level the items start at, above what they would have
                ner:bool=True,       # look for names in `text` too
 ) -> AttrDict:
-    "Decide one send to a model: what goes whole, what goes masked, what is withheld, and a sentence saying so."
+    "Decide, before a send, which documents, pages or texts go to `model` whole, masked or withheld, with a sentence saying so."
     loc = model_local(model)
     name = model if isinstance(model, str) else getattr(model, 'model', None) or (None if model is not None else dflt_model)
     items = L()
@@ -267,7 +267,7 @@ def _sent(self:Vault, chk, model=None, runtime=None):
 
 @patch
 def sends(self:Vault, ref=None, limit:int=100) -> L:
-    "What left the machine and for which model, newest first; for one document when `ref` names it."
+    "Read the send log, newest first: what went to a hosted model, when and to which model, for one document when `ref` names it."
     if not self.db.t.send_log.exists(): return L()
     w, a = 'store=?', [self.name]
     if ref is not None and (d := self.doc(ref)): w, a = w + ' and doc_id=?', a + [d['id']]
@@ -290,7 +290,7 @@ def _scrub_answer(out, private:bool, ner:bool=True):
 LOCAL_OK = None   #: None probes; True/False decides for a host that already knows
 
 def local_ok(model:str=None) -> bool:
-    'Is there a local runtime here that can answer? The runtime `model` (default the PII model) resolves to, importable.'
+    "Whether the runtime that `model`, by default the PII model, resolves to runs on this machine and is installed."
     if LOCAL_OK is not None: return bool(LOCAL_OK)
     try:
         rt, _ = urai().resolve_runtime(model or pii_model_)
@@ -300,7 +300,7 @@ def local_ok(model:str=None) -> bool:
     except Exception: return False
 
 def ask_policy(pii:str=None, model:str=None) -> str:
-    "The policy `ask` applies: local when a local runtime exists, else redact. `off` is not one."
+    "The policy `ask` applies: the one given, or by default `local` when a local runtime is installed and `redact` when not; `off` gets the default."
     if pii == 'off': warnings.warn("pii='off' does not apply to ask; using the default policy", stacklevel=2)
     if pii in (None, 'off'): return 'local' if local_ok(model) else 'redact'
     if pii not in ('local', 'redact', 'refuse'): raise ValueError(f'unknown pii policy for ask: {pii!r}; one of local|redact|refuse')
@@ -324,11 +324,11 @@ def ask(self:Vault,
         mk_chat=None,          # build chats with this instead of `new_chat`; same signature
         pii:str=None,          # local|redact|refuse; None -> local when a local runtime exists, else redact
         pii_model:str=None,    # the local model that answers then; None -> $VISHALAKSHI_PII_MODEL
-        pii_ner:bool=True,     # gate on titled names too; a regex pass, not a model
+        pii_ner:bool=True,     # also look for names that follow a title such as Dr; a pattern, not a model
         instruction:str='',    # an instruction from the questioner, for a second turn
         **kw                   # forwarded to Vault.context
 ) -> AttrDict:
-    """Answer with citations back into the vault, about the documents `ref` names, when it names any."""
+    "Answer a question from the vault, or about the documents `ref` names, citing the numbered sections the answer used."
     pii, mid = ask_policy(pii, pii_model), model or dflt_model
     mk = lambda: (mk_chat or new_chat)(model, sp=sp, **(chat_kw or {}))
     if ref is None:
@@ -410,7 +410,7 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
             sp:str=VAULT_SP, mk_chat=None,
             pii:str=None,          # local|redact|refuse; None -> local when a local runtime exists, else redact
             pii_model:str=None, pii_ner:bool=True) -> AttrDict:
-    "Have a model explain one section in the context of what the vault connects it to."
+    "Have a model explain one section and say what related sections in the vault add to it or contradict."
     pii = ask_policy(pii, pii_model)
     sec, rel = self.read(node_id, max_chars=max_chars), self.related(node_id, limit=6)
     text = sec.get('text', '')
@@ -478,7 +478,7 @@ def _ctx_send(self:Vault, ctx, lv, ch, policy, mid=None) -> AttrDict:
 # %% ../nbs/02_ask.ipynb #b5b57ec3744bc877
 CHAT_CACHE = 'chatcache'   # a diskcache directory; the one under nbs/ is committed, for CI
 class CachedChat(_CachedChat):
-    """Urai's recorder, with this package's default model, cache directory and recording switch."""
+    "A chat that replays recorded replies from disk, with this package's default model, cache folder and recording switch."
     def __init__(self,
                  model:str=None,   # anything Urai takes; None -> $VISHALAKSHI_MODEL
                  path:str=None,    # the diskcache directory; None -> $VISHALAKSHI_CHAT_CACHE, else CHAT_CACHE

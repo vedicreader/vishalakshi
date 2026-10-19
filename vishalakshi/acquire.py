@@ -1,4 +1,4 @@
-"""pull the web, papers, video, files, code and JSON APIs into the vault, once or on a schedule
+"""Fetch web pages, papers, videos, files, code and JSON APIs into the vault, once or on a schedule
 
 Docs: https://vedicreader.github.io/vishalakshi/acquire.html.md"""
 
@@ -23,7 +23,7 @@ _all_ = ['secs']   # pobblebonk's, which also understands 'M' and 'y'
 
 # %% ../nbs/01_acquire.ipynb #c4c6b708b341
 def clip(s:str, n:int=120) -> str:
-    'Collapse whitespace and clip a scraped title to something a breadcrumb can carry.'
+    "Collapse the whitespace in a scraped title and cut it to `n` characters."
     return re.sub(r'\s+', ' ', (s or '').strip())[:n] or 'untitled'
 
 #: A `fossick.read` kind, and what the vault files it as. A GitHub file is web: the URL is
@@ -93,17 +93,14 @@ def web(self:Vault,
 # %% ../nbs/01_acquire.ipynb #20617c45413f
 @patch
 def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False, **kw) -> dict:
-    'Read an arXiv paper (metadata + full text) into the vault as `kind="arxiv"`.'
+    "Read an arXiv paper, its metadata and full text, into the vault as kind `arxiv`, on the `papers` shelf."
     if (v := self.route('arxiv')) is not self: return v.arxiv(id_or_url, save_dir=save_dir, force=force, **kw)
     return self._file(read(id_or_url, save_dir=save_dir or str(self.assets('pdfs')),
                            force=force, **kw), force=force)
 
 @patch
 def pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False, **kw) -> dict:
-    '''Read a PDF (local path or URL) into the vault, one tree node per heading.
-
-    The page split is litesearch's `pdf_parse`, not `fossick.read(pages=True)`: the tree and its
-    chunk sizes are measured against this extractor.'''
+    "Read a PDF, from a local path or a URL, into the vault, one section per heading."
     from fossick import get_pdf
     if (p:=Path(path_or_url)).exists(): return self.add_file(p, title=title, kind='pdf', force=force)
     if (doc := get_pdf(path_or_url, **kw)) is None: return dict(source=path_or_url, skipped='not a PDF or could not be fetched')
@@ -119,14 +116,14 @@ def youtube(self:Vault, url:str, force:bool=False, **kw) -> dict:
 
 @patch
 def github(self:Vault, url:str, **kw) -> AttrDict:
-    'File a whole GitHub repo: prose to the vault, source to kosha, through `add_tree`.'
+    "Clone a GitHub repository and file it with `add_tree`: prose in the vault, source code in kosha."
     return self.add_tree(read(url).meta['path'], **kw)
 
 _GH_BLOB = re.compile(r'https?://github\.com/([^/]+)/([^/]+)/blob/[^/]+/(.+)')
 
 @patch
 def gh_file(self:Vault, url:str, title:str=None, **kw) -> dict:
-    'File one file from GitHub: prose to the vault, source to kosha. The URL decides, before any fetch.'
+    "File one file from GitHub: a prose file as a document, a source file by indexing its repository with kosha."
     if not (m := _GH_BLOB.match(url)): return dict(source=url, skipped='not a GitHub file URL')
     owner, repo, path = m.groups()
     if Path(path).suffix.lower() in code_exts.split(','):
@@ -145,10 +142,7 @@ def grab(self:Vault,
          max_pages:int=10,  # pages to visit when crawling
          **kw               # forwarded to whichever method the target names
 ):
-    '''File anything, by looking at what it is: the one call a CLI or an agent needs.
-
-    `fossick.what_is` names the target. The kinds handled here are the ones that are not one
-    document: a tree, a repo, a PDF the tree wants page by page, and a source file for kosha.'''
+    "Look at what `target` is and file it with the method that reads that kind of thing."
     kind = 'sanskrit' if is_sanskrit_file(target) else what_is(target)
     v = self.shelf(shelf) if shelf else self.route(kind)
     if crawl:                        return v.crawl(target, max_pages=max_pages, sel=sel, **kw)
@@ -176,7 +170,7 @@ def add_tree(self:Vault,
              batch:int=50,           # files per job when queueing
              **kw                    # forwarded to add_file
 ) -> AttrDict:
-    '''Ingest a whole tree, each half to the index that can actually answer questions about it.'''
+    "Add a directory, its documents to the vault and its source code to kosha, or queue the work with `queue=True`."
     p = Path(dir)
     if not p.is_dir(): raise ValueError(f'not a directory: {dir}')
     if queue: return self.enqueue_tree(p, types=types, code=code, kind=kind, batch=batch,
@@ -210,7 +204,7 @@ def enqueue_files(self:Vault,
                   priority:int=0,
                   **kw              # forwarded to add_files
 ) -> L:
-    'Enqueue an ingest as one job per `batch` files, so a crash resumes at the last batch.'
+    "Queue an ingest of `files` as one job per `batch` files, so a crash resumes at the batch it was on."
     fs = L(files).map(Path)
     if not fs: return L()
     if route and self.name == 'store':
@@ -229,7 +223,7 @@ def enqueue_files(self:Vault,
 @patch
 def enqueue_tree(self:Vault, dir, types:str=DOC_EXTS, code:bool=True, kind:str=None,
                  batch:int=50, connect:bool=False, **kw) -> AttrDict:
-    'Enqueue a whole tree: one job per batch of documents, one more for the code half.'
+    "Queue a whole directory: one job per batch of documents, one for the source code, and one for `connect` when asked."
     p, out = Path(dir), L()
     docs = dir2files(p, types=types)
     out += self.enqueue_files(docs, kind=kind, batch=batch, **kw)
@@ -265,7 +259,7 @@ def _job_connect(self:Vault, payload:dict) -> dict:
 
 # %% ../nbs/01_acquire.ipynb #65225e9d6c6ca206
 def records_md(recs, title_keys=('name', 'title', 'displayName', 'productName', 'label', 'sku', 'id')) -> str:
-    'Records as markdown, one `##` section per record, so each becomes its own retrievable node.'
+    "Write records as markdown, one `##` section per record, so that each can be found on its own."
     def ttl(r): return clip(next((r[k] for k in title_keys if isinstance(r.get(k), str) and r[k].strip()),
                                  json.dumps(r, default=str)), 80)
     return '\n\n'.join(f'## {ttl(r)}\n\n```json\n{json.dumps(r, indent=1, default=str)}\n```'
@@ -300,7 +294,7 @@ def harvest(self:Vault,
             force:bool=False,
             **kw
 ) -> dict:
-    "Sniff a page's JSON API, pull the records, and file them in the vault as `kind='data'`."
+    "Capture the JSON API a page calls, pull its records, following pagination when asked, and file them as kind `data`."
     from fossick import replay_xhr, paginate_api
     caps = getattr(self, '_caps', None)
     if capture is None or not caps:
@@ -343,7 +337,7 @@ def q(self:Vault) -> Queue:
 
 @patch(as_prop=True)
 def pob(self:Vault) -> Pob:
-    "The vault's clock: pobblebonk's schedules, in the vault's own file. One schedule per watch."
+    "The vault's clock: pobblebonk's schedules, one per watch, kept in the vault file."
     if (p := getattr(self.db, '_vp', None)) is None:
         # honker reads `PRAGMA data_version` off a file, so a `:memory:` vault gets a scratch one
         f = str(self.path)
@@ -442,7 +436,7 @@ def pause(self:Vault, watch_id:str, enabled:bool=False):
 
 @patch
 def folder_changes(self:Vault, w:dict) -> dict:
-    'What moved under a folder watch since its last look; advances the snapshot.'
+    "List the files added, changed or removed under a folder watch since its last look, and take a new snapshot."
     old, new = w['params'].get('snap') or {}, _snap(w['target'], w['pattern'])
     added, removed = sorted(set(new) - set(old)), sorted(set(old) - set(new))
     changed = sorted(p for p in set(new) & set(old) if new[p] != old[p])
@@ -493,7 +487,7 @@ def run_watch(self:Vault, w:dict) -> dict:
 
 @patch
 def schedule(self:Vault, at:float=None) -> L:
-    'Enqueue a job for every watch that has come due. pobblebonk owns the clock and the catch-up.'
+    "Queue a job for every watch that has come due, and count the runs a gap skipped as `missed`."
     t = self.pob.tick(at=at, run=True)
     for wid, n in (t.missed or {}).items():
         if (w := self._watch_row(wid)): self._w().update(dict(id=wid, missed=(w['missed'] or 0) + n))
@@ -503,7 +497,7 @@ def schedule(self:Vault, at:float=None) -> L:
 def poll(self:Vault, at:float=None, limit:int=None, connect:bool=True, worker:str='poll',
          housekeep:bool=None,   # run housekeeping; None -> when HOUSEKEEP_EVERY has passed on this connection
 ) -> dict:
-    'Reclaim, schedule, drain, and now and then housekeep. This is the tick a scheduler, a cron or a frontend calls.'
+    "The periodic tick: return expired jobs to the queue, queue due watches, run the queue, and every ten minutes run `housekeep`."
     back = self.q.reclaim()
     self.schedule(at=at)
     ran = self.q.drain(worker, limit=limit or 1000)
@@ -517,7 +511,7 @@ def poll(self:Vault, at:float=None, limit:int=None, connect:bool=True, worker:st
 
 @patch
 def jobs(self:Vault, state:str=None, kind:str=None, limit:int=50) -> L:
-    'Jobs in the vault queue; `state="dead"` is the ones that used up their attempts.'
+    "List jobs in the vault's queue; `state='dead'` lists those that used up their attempts."
     return self.q.jobs(state=state, kind=kind, limit=limit)
 
 @patch
@@ -538,7 +532,7 @@ def _file_state(src:str, added:float) -> str|None:
 
 @patch
 def housekeep(self:Vault, now:float=None, prune:bool=True) -> dict:
-    'Mark documents whose source moved on, expired unwatched, or was superseded; prune only stale ∧ superseded.'
+    "Mark documents stale whose source changed or vanished or that expired unwatched, mark superseded copies, and delete those both stale and superseded."
     now, reasons = now or time.time(), {}
     ws = L(self._w()(where='enabled=1'))
     targets = set(ws.attrgot('target'))

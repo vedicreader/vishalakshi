@@ -1,4 +1,4 @@
-"""what a document is, the fields inside it, and an answer over the whole of it
+"""Work out what kind of document each one is, pull structured fields out of it, and answer questions about one whole document
 
 Docs: https://vedicreader.github.io/vishalakshi/extract.html.md"""
 
@@ -37,7 +37,7 @@ _all_ = ['DOCTYPES', 'EXTRACT_SP', 'FIELD_TYPES', 'KIND_BONUS', 'KIND_HINT', 'MI
 REVIEW_SCORE = 0.2
 
 def model_cached(mid:str) -> bool:
-    'Is this model already in the Hugging Face cache? A cache scan, never a download.'
+    "Whether model `mid` is already in the Hugging Face cache, found by scanning the cache and never by downloading."
     try:
         from huggingface_hub import scan_cache_dir
         return any(r.repo_id == mid for r in scan_cache_dir().repos)
@@ -56,7 +56,7 @@ def categorize(self:Vault,
                review:float=REVIEW_SCORE,  # an undecided verdict at or above this is proposed, not written
                pii:str='redact',   # off|local|redact|refuse: what a hosted model gets of a private document, via `send_check`
 ) -> AttrDict:
-    'What kind of document this is: invoice, catalogue, contract, paper, transcript, code…'
+    "Decide a document's doctype (invoice, contract, paper and so on) from varga's cues, asking a model only when the cues cannot decide."
     d = (ref if isinstance(ref, dict) and 'text' in ref
          else self.document(ref, max_chars=max(max_chars, 4000)))
     txt = (d.text or '')[:max_chars]
@@ -107,7 +107,7 @@ def categorize_all(self:Vault,
                    limit:int=None,    # stop after this many
                    **kw               # forwarded to categorize (model=, chat_kw=, llm=, ner=, max_chars=)
 ) -> AttrDict:
-    'Type every document in the vault that is not typed yet, and report the shape of the corpus.'
+    "Categorise every document on this shelf that has no doctype yet, and count the results by doctype."
     docs = self.sources(kind)
     untyped = lambda m: not (m.get('doctype') or m.get('doctype_proposed'))
     if not force: docs = docs.filter(lambda r: untyped(r['meta'] or {}))
@@ -124,13 +124,13 @@ def categorize_all(self:Vault,
 
 @patch
 def proposed_types(self:Vault, kind:str=None) -> L:
-    'Documents whose doctype is a guess waiting on a human, least sure last.'
+    "Documents whose doctype is only proposed and waits for a person, surest first."
     p = lambda r: (r['meta'] or {}).get('doctype_proposed')
     return self.sources(kind).filter(p).sorted(key=lambda r: -((r['meta'] or {}).get('doctype_score') or 0))
 
 @patch
 def accept_type(self:Vault, ref, doctype:str=None) -> dict:
-    "Write a proposal into the document's doctype, or `doctype` instead of it."
+    "Confirm a document's proposed doctype, or give it `doctype` instead."
     d = self.doc(ref)
     if d is None: raise ValueError(f'no document in the vault matching {ref!r}')
     dt = doctype or (d['meta'] or {}).get('doctype_proposed')
@@ -141,7 +141,7 @@ def accept_type(self:Vault, ref, doctype:str=None) -> dict:
 
 @patch
 def reject_type(self:Vault, ref) -> dict:
-    'Drop a proposal without typing the document.'
+    "Drop a document's proposed doctype and leave it untyped."
     d = self.doc(ref)
     if d is None: raise ValueError(f'no document in the vault matching {ref!r}')
     self.set_meta(d['id'], doctype_proposed=None)
@@ -149,12 +149,12 @@ def reject_type(self:Vault, ref) -> dict:
 
 @patch
 def accept_types(self:Vault, k:int=None, kind:str=None) -> L:
-    'Accept the waiting proposals, surest first. The accept step after `proposed_types`.'
+    "Confirm the `k` surest waiting proposals, or all of them when `k` is None."
     return self.proposed_types(kind)[:k].map(lambda r: self.accept_type(r['id']))
 
 @patch
 def doctypes(self:Vault, kind:str=None) -> dict:
-    'How many documents of each type the vault holds. `untyped` counts the ones never categorised.'
+    "Count this shelf's documents by doctype, with `untyped` for those that have none."
     c = Counter((r['meta'] or {}).get('doctype') or 'untyped' for r in self.sources(kind))
     return dict(c.most_common())
 
@@ -174,7 +174,7 @@ def reshelf(self:Vault,
             max_chars:int=2_000_000,  # cap on the text carried over
             **kw                      # forwarded to categorize (model=, chat_kw=, ner=)
 ) -> AttrDict:
-    'Move a document to the shelf its *type* says it belongs on: the route that had to wait.'
+    "Move a document to `shelf`, or to the shelf its doctype belongs on: papers to `papers`, code to `code`, catalogues to `data`."
     d = self.document(ref, max_chars=max_chars)
     c = self.categorize(d, save=False, llm=llm, **kw) if shelf is None else None
     nm = shelf or (DOCTYPE_SHELF.get(c.doctype) if c.confident else None)
@@ -193,7 +193,7 @@ def ner(self:Vault,
         limit:int=40,         # entities returned
         max_chars:int=20000,
 ) -> AttrDict:
-    'What one document names: organisations, people, places, products, and the terms around them.'
+    "List the entities one document names, such as organisations, people, places and products, with their counts."
     d = self.document(ref, max_chars=max_chars)
     sig = signals(d.text, limit=limit)
     return AttrDict(doc_id=d.doc_id, title=d.title, method=sig.method, counts=sig.counts,
@@ -211,12 +211,12 @@ def extract(self:Vault,
             sp:str=EXTRACT_SP,     # system prompt for the extraction
             save:bool=False,       # write the fields into the document's meta
             llm:str='auto',        # the LLM leg of the categorisation, when picking the schema
-            pii:str='local',       # local|redact|refuse|off; same contract as `ask`
+            pii:str='local',       # local|redact|refuse|off, as in `ask`; a Local only document reaches no hosted model even under `off`
             pii_model:str=None,    # local model when private; None -> $VISHALAKSHI_PII_MODEL
             check:bool=True,       # read the values back through `check_fields` and report what did not
             cite:bool=False,       # ask for the quote each value was read from; `src` carries it
 ) -> AttrDict:
-    "Pull structured fields out of one document: an invoice's totals, a catalogue's products."
+    "Pull structured fields out of one document, such as an invoice's number, vendor and totals, in the shape of a schema."
     d = self.document(ref, max_chars=max_chars)
     if not (d.text or '').strip():
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
@@ -273,7 +273,7 @@ def extract_all(self:Vault,
                 limit:int=None,     # stop after this many
                 **kw                # forwarded to extract (model=, chat_kw=, max_chars=, save=, sp=)
 ) -> AttrDict:
-    'Extract from many documents at once: a folder of invoices as one table.'
+    "Run `extract` over many documents, such as every invoice, and return one row per document and a list of errors."
     docs = self.of_type(doctype, kind) if doctype else self.sources(kind)
     rows, errs = L(), L()
     for r in docs[:limit]:

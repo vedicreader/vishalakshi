@@ -1,4 +1,4 @@
-"""other readers' word-level changes to a read document, with who proposed each, reviewed and applied by its owner
+"""Have other models read a document's pages again, and review the word changes they propose before any of them is applied
 
 Docs: https://vedicreader.github.io/vishalakshi/proof.html.md"""
 
@@ -22,19 +22,19 @@ _TOK = re.compile(r'\S+|\s+')
 def _words(t): return [w for w in _TOK.findall(t or '') if not w.isspace()]
 
 def word_changes(a:str, b:str) -> list:
-    "The word runs `b` changes in `a`, as `{at, n, before, after}`."
+    "Compare `a` and `b` word by word and return each run of words `b` changes, as `{at, n, before, after}`."
     wa, wb = _words(a), _words(b)
     return [dict(at=i1, n=i2 - i1, before=' '.join(wa[i1:i2]), after=' '.join(wb[j1:j2]))
             for op, i1, i2, j1, j2 in SequenceMatcher(None, wa, wb, autojunk=False).get_opcodes() if op != 'equal']
 
 def change_box(blocks, text:str, at:int):
-    "The `box` of the block word `at` of `text` falls in, the last past the end, when `blocks` read as `text`; else None."
+    "The `box` of the block that word `at` of `text` falls in, the last block for a position past the end, or None when the blocks do not read as `text`."
     ns = list(accumulate(len(_words(_md([b]))) for b in blocks or []))
     if not ns or ns[-1] != len(_words(text)): return None
     return first(b for b, e in zip(blocks, ns) if at < e or e == ns[-1]).get('box')
 
 def apply_changes(t:str, changes) -> str:
-    "`t` with `changes` made: each replaces `n` words from word `at` by `after`; the text's own spacing kept elsewhere."
+    "Make `changes` in `t`, each replacing `n` words from word `at` with `after`, and keep the text's own spacing elsewhere."
     toks = _TOK.findall(t or '')
     lead, out = (toks[0] if toks and toks[0].isspace() else ''), []
     for x in toks:
@@ -52,8 +52,7 @@ def apply_changes(t:str, changes) -> str:
     return lead + ''.join(w + s for w, s in out)
 
 def block_changes(blocks, text:str, changes) -> list|None:
-    """`blocks` with `changes` to `text` made in the blocks their words fall in, a run that crosses a block's end split there; None when the
-    blocks do not read as `text`. A table's cells and a heading's `##` stay as read."""
+    "Make `changes` to `text` in the blocks their words fall in, splitting a change at a block's end, or return None when the blocks do not read as `text`."
     ns = [len(_words(_md([b]))) for b in blocks or []]
     if not ns or sum(ns) != len(_words(text)): return None
     st, out = [0, *accumulate(ns)][:-1], [dict(b) for b in blocks]
@@ -88,7 +87,7 @@ def proofread(self:Vault, doc_id:str, readers, pages=None, agree:int=2, preset:s
               allow:bool=False,    # allow once, for Personal pages
               progress=None,       # `progress(done, total, page, route, cost)` after each page; False stops the rest
 ) -> dict:
-    "Each of `readers` reads `pages` (all when None) again; their word changes to the current text are filed, `proposed` where `agree` agree."
+    "Have each of `readers` read the pages again and file their word changes to the current text, `proposed` where at least `agree` readers make the same one."
     d, readers, pages = first(self.t.docs(where='id=?', where_args=[doc_id])), list(dict.fromkeys(as_list(readers))), as_list(pages, int)   # a reader named twice is one reader
     assert d, f'no document {doc_id}'
     m, src, t = json.loads(d['meta'] or '{}'), Path(d['source']), self._proof_t()
@@ -127,7 +126,7 @@ def proofread(self:Vault, doc_id:str, readers, pages=None, agree:int=2, preset:s
 
 @patch
 def changes(self:Vault, doc_id:str, state:str=None, page:int=None) -> L:
-    "A document's filed changes, by page and position: `proposed`, `doubt`, `accepted` or `rejected`."
+    "List a document's filed changes in page and word order, or only those in one `state`: `proposed`, `doubt`, `accepted` or `rejected`."
     w, a = 'doc_id=? and store=?', [doc_id, self.name]
     if state: w, a = w + ' and state=?', a + [state]
     if page is not None: w, a = w + ' and page=?', a + [page]
@@ -135,7 +134,7 @@ def changes(self:Vault, doc_id:str, state:str=None, page:int=None) -> L:
 
 @patch
 def reject(self:Vault, doc_id:str, ids) -> int:
-    "Set changes aside; they stay in the record as not taken, with the state they had."
+    "Set changes aside as not taken, remembering the state each had so that `undo_decision` can restore it."
     ids = as_list(ids); self._proof_t()
     with write_txn(self.db):
         for i in ids: self.db.execute("update proof_changes set was=case when state in ('proposed', 'doubt') then state else was end, state='rejected' where id=?", [i])
@@ -143,7 +142,7 @@ def reject(self:Vault, doc_id:str, ids) -> int:
 
 @patch
 def accept(self:Vault, doc_id:str, ids=None) -> dict:
-    "Apply changes, the `proposed` ones when `ids` is None, as a new version of each page they touch, its blocks changed with it, and re-index the document."
+    "Apply changes, all the `proposed` ones when `ids` is None, as a new version of each page they touch, with its blocks changed to match, and re-index the document."
     ids = as_list(ids)
     cs = self.changes(doc_id).filter(lambda c: c.id in set(ids) if ids is not None else c.state == 'proposed')
     pg = {p.page: p for p in self.pages(doc_id)}
@@ -169,7 +168,7 @@ def _no(kind, error, **kw): return dict(ok=False, kind=kind, error=error, **kw)
 
 @patch
 def edit_change(self:Vault, doc_id:str, id:str, after:str, by:str='person') -> dict:
-    "Replace an open change's proposed text before it is accepted. Only a person may."
+    "Rewrite the proposed text of a change that is still open; only a person may."
     _person(by, 'edit a change')
     c = first(self.changes(doc_id).filter(lambda c: c.id == id))
     if c is None: return _no('not_found', f'no change {id} on this document', ids=[id])
@@ -188,7 +187,7 @@ def _refile(self:Vault, doc_id, page, version):
 
 @patch
 def revert_page(self:Vault, doc_id:str, page:int, version:int, by:str='person') -> dict:
-    "File an old `version` of `page`'s text as its newest version (route `revert`) and re-index the document. Only a person may."
+    "File an old `version` of a page as its newest version, route `revert`, and re-index the document; only a person may."
     _person(by, 'revert a page')
     page, version = int(page), int(version)
     if not self._refile(doc_id, page, version): return _no('not_found', f'page {page + 1} has no version {version}', page=page, version=version)
@@ -197,7 +196,7 @@ def revert_page(self:Vault, doc_id:str, page:int, version:int, by:str='person') 
 
 @patch
 def undo_decision(self:Vault, doc_id:str, ids, by:str='person') -> dict:
-    "Take decisions back: a rejected change to what it was, an accepted one's page to its text before, its changes `proposed`. Only a person may."
+    "Take decisions back: a rejected change returns to its old state, and an accepted change's page returns to its text before the accept, with that accept's changes `proposed` again; only a person may."
     _person(by, 'undo a decision')
     ids, cs = as_list(ids) or [], {c.id: c for c in self.changes(doc_id)}
     if bad := [i for i in ids if i not in cs]: return _no('not_found', 'no such change on this document', ids=bad)
@@ -219,7 +218,7 @@ def undo_decision(self:Vault, doc_id:str, ids, by:str='person') -> dict:
 
 @patch
 def proof_md(self:Vault, doc_id:str) -> str:
-    "The record of a document's proofreading: what changed and what was not taken, by page."
+    "The record of a document's proofreading as markdown, by page: what changed, what is proposed or in doubt, and what was not taken."
     d = first(self.t.docs(where='id=?', where_args=[doc_id]))
     line = lambda c: f"- p. {c.page + 1}: {c.before or '∅'} → {c.after or '∅'} ({', '.join(c.by)})"
     out = [f"# Proofread: {d['title'] if d else doc_id}"]

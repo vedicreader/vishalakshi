@@ -1,4 +1,4 @@
-"""feedback, a noise score, and a ranker fitted from both
+"""Find junk documents with a noise score, record which sections were useful, and optionally fit a ranker from that record
 
 Docs: https://vedicreader.github.io/vishalakshi/quality.html.md"""
 
@@ -36,7 +36,7 @@ def rate(self:Vault,
          score:float=None,    # the retrieval score it was shown with
          ask_id:str=None,     # groups the rows from one question together
 ) -> dict:
-    'Record one section judgement.'
+    "Record one judgement about one section for one question."
     if signal not in SIGNALS: raise ValueError(f'not a signal: {signal!r}; expected {sorted(SIGNALS)}')
     label, weight = SIGNALS[signal]
     row = dict(id=uuid.uuid4().hex[:16], at=time.time(), store=self.name, q=q or '',
@@ -48,7 +48,7 @@ def rate(self:Vault,
 
 @patch
 def ratings(self:Vault, doc_id:str=None, limit:int=None) -> L:
-    'Feedback for this shelf, newest first.'
+    "The feedback log for this shelf, newest first."
     w = f'store={self.name!r}' + (f' AND doc_id={doc_id!r}' if doc_id else '')
     return L(self._fb()(where=w, order_by='at desc', limit=limit))
 
@@ -61,7 +61,7 @@ def log_ask(self:Vault,
             down:list=None,  # section numbers you thought were bad
             weak:bool=True,  # log the uncited sections as weak negatives
 ) -> int:
-    """Write feedback rows for one answered question. Prefer `learn()` when you have `ask`'s `out`."""
+    "Write feedback rows for one answered question from what `ask` returned; `learn()` does this for every `ask`."
     up, down = set(up or ()), set(down or ())
     res = L((out.get('context') or {}).get('results') or ())
     cited = {c['n'] for c in (out.get('cited') or L())}
@@ -91,7 +91,7 @@ def _observe(self:Vault, out):
 # %% ../nbs/10_quality.ipynb #82baf5e1
 @patch
 def doc_stats(self:Vault, exclude_ask=None) -> dict:
-    """doc_id -> (weighted wins, weighted losses) over the feedback log for this shelf."""
+    "Each document's weighted wins and losses in this shelf's feedback log, as `{doc_id: (wins, losses)}`."
     ex = set(exclude_ask or ())
     out = defaultdict(lambda: [0.0, 0.0])
     for r in self._fb()(where=f'store={self.name!r}'):
@@ -108,7 +108,7 @@ def doc_prior(self:Vault,
               seed:int=None,
               exclude_ask=None,   # ignore these questions' rows; for an out-of-fold prior
 ) -> dict:
-    "doc_id -> a multiplier on its retrieval score, from the Beta posterior over its feedback."
+    "Each document's multiplier on its retrieval score, from a Beta distribution over its feedback, as `{doc_id: multiplier}`."
     rng, out = np.random.default_rng(seed), {}
     for did, (wins, losses) in self.doc_stats(exclude_ask=exclude_ask).items():
         a, b = 1.0 + wins, 1.0 + losses
@@ -129,12 +129,12 @@ def _seen(self:Vault) -> dict:
 
 @patch
 def noise_features(self:Vault, **kw) -> AttrDict:
-    "litesearch's features over this shelf, with the vault's own retrieval log behind `promiscuity`."
+    "litesearch's noise features for this shelf's documents, with `promiscuity` taken from the vault's feedback log."
     return noise_features(self.db, store=self.name, seen=self._seen(), dtype=DTYPE, **kw)
 
 @patch
 def noise_scores(self:Vault, weights:dict=None, ranker=None, **kw) -> L:
-    'Every document, most suspicious first, with the features that put it there.'
+    "Score every document for noise, most suspicious first, with the features behind each score."
     return noise_scores(self.db, store=self.name, weights=weights, ranker=ranker,
                         seen=self._seen(), dtype=DTYPE, **kw)
 
@@ -146,7 +146,7 @@ def chunk_matrix(self:Vault, limit:int=None, seed:int=0) -> tuple:
 # %% ../nbs/10_quality.ipynb #c5a7d1e0f213
 @patch
 def suggest_noisy(self:Vault, k:int=20, min_score:float=1.0, **kw) -> L:
-    "The `k` documents most worth looking at, excluding ones already judged for noise."
+    "The `k` documents most likely to be noise, leaving out those a person has already judged."
     # only `noisy` judgments count: a `mark_not_pii` row must not hide a footer from review
     judged = {r['doc_id'] for r in self._marks()(where=f'store={self.name!r} AND noisy IS NOT NULL')}
     return self.noise_scores(ranker=self._noise_rk(), **kw).filter(
@@ -154,12 +154,12 @@ def suggest_noisy(self:Vault, k:int=20, min_score:float=1.0, **kw) -> L:
 
 @patch
 def mark_noisy_many(self:Vault, refs, noisy:bool=True, reason:str='') -> L:
-    "Mark many documents at once: the accept step after `suggest_noisy`."
+    "Mark many documents as noise at once, for example a reviewed `suggest_noisy` list."
     return L(refs).map(lambda r: self.mark_noisy(getattr(r, 'doc_id', r), noisy=noisy, reason=reason))
 
 @patch
 def accept_noisy(self:Vault, k:int=20, reason:str='suggested', **kw) -> L:
-    "Mark the current top noise suggestions. Suggestions stay suggestions until this (or `mark_noisy`)."
+    "Mark the current top `k` noise suggestions as noise."
     return self.mark_noisy_many(self.suggest_noisy(k=k, **kw), reason=reason)
 
 # %% ../nbs/10_quality.ipynb #c2b09e6b
@@ -214,7 +214,7 @@ def pair_X(self:Vault, q:str, hits, prior:dict=None) -> np.ndarray:
 # %% ../nbs/10_quality.ipynb #730dcee0
 @patch
 def learn(self:Vault, on:bool=True) -> dict:
-    "Log every `ask` as feedback from now on. Off by default: nothing is recorded until you say so."
+    "Start (or with `on=False` stop) logging every `ask` as feedback; nothing is logged until this is called."
     t = self._rankers()
     row = dict(first(t(where=f'store={self.name!r}')) or dict(store=self.name, model='', at=time.time(),
                                                               enabled=0, note=''))
@@ -224,7 +224,7 @@ def learn(self:Vault, on:bool=True) -> dict:
 
 @patch
 def training_data(self:Vault, min_group:int=2) -> AttrDict:
-    """Feedback as `(X, groups, y, weights)`. Drops all-positive groups (pairwise LTR learns nothing)."""
+    "Turn the feedback log into `(X, groups, y, weights)` for the ranker, dropping questions whose rows are all one label."
     by = defaultdict(list)
     for r in self._fb()(where=f'store={self.name!r}', order_by='at'): by[r['ask_id']].append(r)
     Xs, gs, ys, ws = [], [], [], []
@@ -249,7 +249,7 @@ def training_data(self:Vault, min_group:int=2) -> AttrDict:
 
 @patch
 def fit_ranker(self:Vault, l2:float=1.0, save:bool=False, **kw) -> Ranker:
-    "Fit a `Ranker` on everything logged so far. `save=True` stores it; it is still not switched on."
+    "Fit a ranker on the feedback logged so far; `save=True` stores it without switching it on."
     d = self.training_data()
     r = Ranker(d.names).fit(d.X, d.groups, d.y, weights=d.weights, l2=l2, **kw)
     if save and r.w is not None:
@@ -262,7 +262,7 @@ def fit_ranker(self:Vault, l2:float=1.0, save:bool=False, **kw) -> Ranker:
 
 @patch
 def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, save:bool=False, **kw) -> Ranker:
-    """Fit noise weights from marked docs. Does not enable scoring; call `use_noise(True)`."""
+    "Fit the noise weights to the documents a person marked; `save=True` stores them, and `use_noise(True)` switches them on."
     labels = labels or {r['doc_id']: bool(r['noisy']) for r in self._marks()(where=f'store={self.name!r}')
                         if r['noisy'] is not None}
     if not labels: raise ValueError('nothing marked: mark_noisy a few documents first')
@@ -284,7 +284,7 @@ def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, save:bool=False, **kw)
 
 @patch
 def use_noise(self:Vault, on:bool=True) -> dict:
-    "Put a stored noise blend behind `suggest_noisy`. Separate from fitting it."
+    "Switch the stored noise weights on (or off) for `suggest_noisy`."
     t = self._rankers()
     row = first(t(where=f'store={self.name!r}'))
     if not row or not row.get('noise'): raise ValueError('no noise blend stored; fit_noise(save=True) first')
@@ -304,7 +304,7 @@ def _noise_rk(self:Vault):
 
 @patch
 def use_ranker(self:Vault, on:bool=True) -> dict:
-    "Put the stored ranker in the path of `context`, and so of `ask`. Separate from fitting it."
+    "Switch the stored ranker on (or off) in `context`, and so in `ask`."
     t = self._rankers()
     row = first(t(where=f'store={self.name!r}'))
     if not row or not row['model']: raise ValueError('no ranker stored; fit_ranker(save=True) first')

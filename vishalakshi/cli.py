@@ -1,4 +1,4 @@
-"""drive the vault from a terminal
+"""Use the vault from a terminal: one `vishalakshi` command per vault method
 
 Docs: https://vedicreader.github.io/vishalakshi/cli.html.md"""
 
@@ -31,7 +31,7 @@ CMDS = ('stats search sections context ask explain read related toc map topic_tr
 
 @cache
 def vault(path:str=None) -> Vault:
-    'The vault every command shares: `$VISHALAKSHI_VAULT`, else the default path.'
+    "The one vault every command uses: the file `$VISHALAKSHI_VAULT` names, else the default path."
     return Vault(path or os.getenv('VISHALAKSHI_VAULT') or None,
                  offline=bool(os.getenv('VISHALAKSHI_OFFLINE')))
 
@@ -41,7 +41,7 @@ def _spellable(p) -> bool:
             and not (p.default is not Parameter.empty and callable(p.default)))
 
 def cmd(name:str, vault_fn=vault):
-    'A `Vault` method as a plain function: `self`, `**kw` and callable arguments dropped, docments kept.'
+    "Turn a `Vault` method into a plain function of the arguments a command line can give, keeping their descriptions."
     f = getattr(Vault, name)
     g = wraps(f)(lambda **kw: getattr(vault_fn(), name)(**kw))
     ps = L(signature(f).parameters.values()).filter(_spellable)
@@ -52,7 +52,7 @@ def cmd(name:str, vault_fn=vault):
 
 # %% ../nbs/04_cli.ipynb #f0a650d6
 def jsonable(o):
-    "`json.dumps` fallback: `L` and friends become lists, numpy scalars numbers, the rest strings."
+    "Make a value JSON-friendly for `json.dumps`: sequences become lists, numpy scalars numbers, and anything else a string."
     if hasattr(o, '__iter__') and not isinstance(o, (str, bytes, dict)): return list(o)
     return o.item() if hasattr(o, 'item') else str(o)
 
@@ -66,7 +66,7 @@ def show(r):
     else: print(json.dumps(r, indent=2, default=jsonable))
 
 def main():
-    'Entry point for the `vishalakshi` command. `vishalakshi <cmd> --help` documents any command.'
+    "Run the `vishalakshi` command; `vishalakshi <cmd> --help` describes any subcommand."
     name = sys.argv[1].replace('-', '_') if len(sys.argv) > 1 else None
     if name not in CMDS:
         print(f"Usage: vishalakshi <cmd> [args]\n\n  {'  '.join(CMDS)}\n", file=sys.stderr)

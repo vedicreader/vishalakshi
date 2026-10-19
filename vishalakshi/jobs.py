@@ -1,4 +1,4 @@
-"""a durable queue in the vault file: retries with backoff, leases that survive a crash, and a dead letter
+"""A job queue kept in the vault file: work survives a crash, failures are retried with a growing delay, and jobs that keep failing are set aside for a person
 
 Docs: https://vedicreader.github.io/vishalakshi/jobs.html.md"""
 
@@ -16,20 +16,20 @@ STATES = ('ready', 'running', 'done', 'dead')
 
 # %% ../nbs/11_jobs.ipynb #83ac5d12
 class Retry(Exception):
-    'Raise from a handler to retry work that did not raise on its own: a bot wall, a 429, an empty read.'
+    "Raise from a handler to have the job run again when nothing failed but the work should be retried, such as a bot wall, an HTTP 429 or an empty read."
     def __init__(self, msg:str='', after:float=None):
         super().__init__(msg)
         self.after = after   # seconds until the retry; None uses the backoff schedule
 
 class Terminal(Exception):
-    'Raise from a handler to dead-letter now: a 401, a model name that does not exist, a file that is gone.'
+    "Raise from a handler to mark the job dead at once, for a failure that retrying cannot fix, such as a 401 or a missing file."
 
 def backoff(attempt:int,       # failures so far; 1 on the first
             base:float=30,     # first delay, seconds
             cap:float=21600,   # longest delay, 6h
             jitter:float=0.25  # +/- fraction, so jobs that failed together do not retry together
 ) -> float:
-    'Exponential delay before the next attempt.'
+    "The delay before the next attempt: `base` seconds doubled for each failure so far, at most `cap`, with some random jitter."
     return max(1., min(cap, base * 2**(attempt-1)) * (1 + random.uniform(-jitter, jitter)))
 
 # %% ../nbs/11_jobs.ipynb #bd2c8f19
@@ -41,7 +41,7 @@ def _row(r) -> AttrDict:
     return AttrDict(d)
 
 class Queue:
-    "An at-least-once job queue inside an open litesearch database."
+    "A job queue stored in an open litesearch database, which runs every job at least once."
     def __init__(self,
                  db,                     # open litesearch/fastlite Database; the queue lives in its file
                  lease:float=600,        # seconds a claim is held before another worker may take the job
@@ -86,7 +86,7 @@ def enqueue(self:Queue,
             key:str=None,         # idempotency key: an identical key still ready or running wins
             max_attempts:int=None
 ) -> AttrDict:
-    'Add one job, or return the pending one that `key` already names.'
+    "Add one job, or return the waiting or running job that already has this `key`."
     now = time.time()
     row = dict(id=uuid.uuid4().hex[:12], kind=kind, payload=json.dumps(payload or {}), key=key,
                state='ready', priority=priority, run_at=run_at if run_at is not None else now,
@@ -111,7 +111,7 @@ def claim(self:Queue,
           n:int=1,              # how many jobs to take
           now:float=None
 ) -> L:
-    'Take up to `n` due jobs, atomically. 0 double-claims over 400 jobs and 8 processes, `evals/jobs.py`.'
+    "Claim up to `n` due jobs in one statement; no job was claimed twice over 400 jobs and 8 processes (`evals/jobs.py`)."
     now = time.time() if now is None else now
     with write_txn(self.db):
         rows = self.db.q(
@@ -130,7 +130,7 @@ def _held(self:Queue, job) -> dict|None:
 
 @patch
 def ack(self:Queue, job) -> AttrDict:
-    "Mark a claimed job finished. A worker whose lease was reclaimed cannot: it comes back `lost`."
+    "Mark a claimed job done, or return it as `lost` when this worker's lease was reclaimed."
     with write_txn(self.db):
         if self._held(job) is None: return _row(dict(job, state='lost'))
         self.db.q('UPDATE jobs SET state=?, error=NULL, worker=NULL, lease_until=0, updated_at=? WHERE id=?',
@@ -144,7 +144,7 @@ def fail(self:Queue,
          after:float=None,   # seconds until the retry; None uses `backoff`
          dead:bool=False     # dead-letter now, whatever the attempts left: retrying a 401 never turns into success
 ) -> AttrDict:
-    'Back off and retry, or dead-letter once the attempts are spent.'
+    "Record a failure and schedule a retry after the backoff delay, or mark the job dead once its attempts are spent."
     now, err = time.time(), str(error)[:500]
     with write_txn(self.db):
         if (cur := self._held(job)) is None: return _row(dict(job, state='lost'))
@@ -157,7 +157,7 @@ def fail(self:Queue,
 
 @patch
 def reclaim(self:Queue, now:float=None) -> L:
-    'Return jobs whose lease expired to the queue: a worker killed mid-job loses its claim, not its job.'
+    "Put jobs whose lease expired back on the queue, so a worker that died loses its claim but not the job."
     now = time.time() if now is None else now
     exp = self.db.q('SELECT * FROM jobs WHERE state=? AND lease_until>0 AND lease_until<=?', ['running', now])
     # two pollers can read the same expired row; the fence in `fail` means only one of them counts it
@@ -218,7 +218,7 @@ def drain(self:Queue,
           batch:int=1,          # jobs claimed per round trip
           now:float=None
 ) -> L:
-    'Claim and run until the queue is empty or `limit` jobs have run. This is the tick a cron calls.'
+    "Claim and run jobs until the queue is empty or `limit` jobs have run."
     out = L()
     while len(out) < limit:
         got = self.claim(worker, n=min(batch, limit-len(out)), now=now)
@@ -243,7 +243,7 @@ def dead(self:Queue, limit:int=100) -> L:
 
 @patch
 def pending(self:Queue, kind:str=None) -> int:
-    'How many jobs are ready or running: what is left to do, counted rather than listed.'
+    "Count the jobs still waiting or running, optionally of one kind."
     w, a = ('AND kind=? ', [kind]) if kind else ('', [])
     return first(self.db.q(f"SELECT count(*) n FROM jobs WHERE state IN ('ready','running') {w}", a))['n']
 

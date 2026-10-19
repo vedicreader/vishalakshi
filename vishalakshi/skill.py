@@ -4,15 +4,16 @@ file, searchable together and answerable by a local or hosted model
 ## Getting started
 
 ```python
+from pathlib import Path
 from vishalakshi.skill import vault
 v = vault()                      # $VISHALAKSHI_VAULT, else ~/.vishalakshi/vault.db
-v.add('~/notes')                 # directory, file, or text
-v.grab('1706.03762')             # arXiv id, YouTube url, GitHub repo, PDF url, path
+v.add(Path('~/notes').expanduser())   # a directory, a file, or text; `~` is not expanded for you
+v.grab('1706.03762')             # an arXiv id, YouTube link, GitHub repo, PDF link or path
 v.note('what I concluded', tags=['retrieval'])
 v.note('what I concluded', title='late chunking', key='late-chunking')   # same key: one document, replaced
 ```
 
-Re-adding a source re-ingests only when its content changed; results carry `changed`.
+Adding a source again re-reads it only when its content changed, and the result's `changed` says whether it did.
 
 ## Reading it back
 
@@ -24,9 +25,8 @@ v.sections(q, limit=5)           # ranked sections
 v.read(node_id)                  # section behind a citation
 ```
 
-`kind` filters without a second pass: `v.search(q, kind='pdf')` or `'note,web'`.
-Every row carries `age` (seconds since filed) and `stale`; stale rows sort last. `v.mark_stale(ref, reason=)` sets it, a re-ingest clears it.
-Kinds: `web`, `pdf`, `arxiv`, `youtube`, `file`, `code`, `data`, `note`.
+`kind=` filters by how a document arrived: `v.search(q, kind='pdf')`, or several as `'note,web'`. The kinds are `web`, `pdf`, `arxiv`, `youtube`, `file`, `code`, `data`, `note` and `image`.
+Every row carries `age` (seconds since it was filed) and `stale`, and stale rows sort last. `v.mark_stale(ref, reason=)` sets the mark, and adding the document again with new content clears it.
 
 ## Named documents
 
@@ -35,18 +35,18 @@ v.ask_doc(['a.py', 'b.py'], 'what does a do that b does not?')
 v.ask_doc(path, 'what is owed and by when?', schema='amount:float, due:str')
 ```
 
-A path on disk is read even if not yet in the vault. `doc_chars` is the shared budget for named docs.
+A path on disk is read even when it is not in the vault yet. The named documents share one character budget, `doc_chars`.
 
 ## Paperwork
 
 ```python
-v.categorize(ref, llm='never')   # cues first; model only on ties
+v.categorize(ref, llm='never')   # cue table first; a model only when the cues cannot decide
 v.extract(ref)                   # doctype picks the schema
 v.extract(ref, schema='vendor:str, total:float, due_date:str')
 v.extract_all(doctype='invoice')
 ```
 
-`decisive=True` means cues decided without a model.
+`decisive=True` means the cues decided without a model.
 
 ## Pictures
 
@@ -58,8 +58,8 @@ v.tag_image(ref, labels=[...], caption='...')    # write a later model run onto 
 v.images(); v.search(q, kind='image')
 ```
 
-`kind='image'`. What is searchable is the filename, folder, dimensions, camera, capture date, GPS,
-plus any labels or caption. `label_images` needs [anya](https://github.com/vedicreader/anya).
+Pictures have `kind='image'`. The searchable text is the filename, folder, dimensions, camera, capture date and GPS position,
+with any labels or caption. `label_images` needs [anya](https://github.com/vedicreader/anya).
 
 ## Code
 
@@ -69,15 +69,15 @@ v.code_search(q); v.symbol(name); v.where_to_add(desc); v.grep(pat, dir)
 v.federate(q, dir=dir)           # vault + kosha + ripgrep, fused by rank
 ```
 
-Once `.kosha/code.db` exists, `context` appends code sections on its own.
+Once `.kosha/code.db` exists, `context` and `ask` add code sections on their own.
 
 ## Knobs
 
 Retrieval defaults are litesearch's. Reach for:
 
 - `rerank=True` on `search` / `sections` / `context` when precision matters more than latency (needs `vishalakshi[rerank]`)
-- `v.shelf(name)` to keep two corpora from diluting each other
-- `llm=` for how hard `categorize` / `extract` try
+- `v.shelf(name)` to keep two collections apart, so a large one does not crowd a small one out of the rankings
+- `llm=` (`auto`, `always` or `never`) for when `categorize` and `extract` may ask a model
 - `ask(q, pii=)`: default `local` when `local_ok()` (the local runtime is importable), else `redact`; never off. The result's `policy` says which ran; a host sets `vishalakshi.ask.LOCAL_OK = False` to force `redact`
 
 ## Marks and feedback
@@ -92,9 +92,9 @@ v.suggest_noisy(k=20); v.accept_noisy(k=10)
 v.learn()                        # log every ask as feedback
 ```
 
-Marks live in `doc_marks` (survive re-ingest). `suggest_noisy` is 0.988 AUC. Leave `fit_ranker` / `use_ranker` off unless your corpus says otherwise (`evals/RESULTS.md`).
+Marks live in `doc_marks` and survive the document being added again. `suggest_noisy` is 0.988 AUC. Leave `fit_ranker` / `use_ranker` off unless your corpus says otherwise (`evals/RESULTS.md`).
 
-`connect()` builds the typed entity graph (LLM `refers_to`/`defines` edges) and the topic nodes; `graph_search` walks it, `map` / `topic_tree` read topics. Run `connect()` after a batch of ingests.
+`connect()`, which needs a model, builds the typed entity graph (LLM `refers_to`/`defines` edges) and the topic nodes; `graph_search` walks it, `map` / `topic_tree` read topics. Run `connect()` after a batch of ingests.
 
 ## Watches
 

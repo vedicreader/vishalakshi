@@ -1,4 +1,4 @@
-"""whether a document is somebody's business, decided by arithmetic rather than by a model
+"""Find personal information in the vault, give each document a privacy level, and control what retrieval hands back
 
 Docs: https://vedicreader.github.io/vishalakshi/pii.html.md"""
 
@@ -30,9 +30,9 @@ from .core import Vault, gate
 def pii(self:Vault,
         ref,                 # a doc_id, source, title or path: whatever `document` takes
         max_chars:int=MAX_SCAN,
-        ner:bool=False,      # also look for names, except on code, where identifiers are not names
+        ner:bool=False,      # also look for names that follow a title such as Dr; never on code
 ) -> AttrDict:
-    "Whether one whole document is somebody's business, and what in it says so."
+    "Report whether one document holds personal information, which kinds, and any mark that overrides the detector."
     d = self.document(ref, max_chars=max_chars)
     prose = (d.get('kind') or '') != 'code'
     # `scanned_ner` then reports False, which is the honest answer: nothing looked for a name here
@@ -46,20 +46,20 @@ def pii(self:Vault,
 
 @patch
 def mark_not_pii(self:Vault, ref, clear:bool=True, reason:str='', by:str='person') -> dict:
-    "Clear a false-positive PII decision (`pii_override='clear'`), or restore automatic detection. Only a person may."
+    "Mark a document as not personal, or with `clear=False` hand the decision back to the detector; only a person may do either."
     _person(by, 'clear a mark')
     return self.mark(ref, pii_override='clear' if clear else None,
                      pii_reason=(reason or None) if clear else None)
 
 @patch
 def mark_pii(self:Vault, ref, force:bool=True, reason:str='', by:str='person') -> dict:
-    "Force a document private even when arithmetic finds nothing (names, addresses, whole PDFs)."
+    "Mark a document as personal when the detector finds nothing, or remove that mark with `force=False`, which only a person may do."
     if not force: _person(by, 'clear a mark')
     return self.mark(ref, pii_override='force' if force else None,
                      pii_reason=(reason or None) if force else None)
 
 def pii_ctx(ctx, ner:bool=False) -> AttrDict:
-    "The report for an assembled context, which is what a policy has to gate on."
+    "Run the detector over the text of every section in an assembled context."
     parts = [str(getattr(r, 'text', None) or (r.get('text') if isinstance(r, dict) else '') or '')
              for r in (list(ctx.get('results') or []) + list(ctx.get('related') or []))]
     return pii_report('\n\n'.join(parts), ner=ner)
@@ -118,7 +118,7 @@ def _section_private(r, cleared, forced, store:str, ner:bool=False) -> bool:
     return bool(_row_kinds(r, cleared, forced, store, ner))
 
 def held(kinds) -> str:
-    "What stands in for text a `refuse` policy, or a local-only document, will not hand back."
+    "The placeholder that replaces withheld text: it names the kinds found, or says the document is local only."
     if 'local' in kinds: return '[withheld: local only]'
     return f"[withheld: personal information ({', '.join(sorted(kinds))})]"
 
@@ -148,10 +148,10 @@ def _gate_row(r, act, cleared, forced, store, ner, local=frozenset(), floor='ope
 def gated(o,                  # whatever a retrieval primitive returned
           pii:str='off',      # off | redact | refuse
           vault=None,         # the shelf whose marks apply; None -> no marks
-          ner:bool=False,     # gate on titled names too
+          ner:bool=False,     # also mask names that follow a title such as Dr
           store:str=None,     # the shelf the rows came from; None -> the vault's own
 ):
-    "Apply a retrieval policy to rows, an assembled context, or one section."
+    "Apply a retrieval policy, `off`, `redact` or `refuse`, to search rows, an assembled context, one section or a string."
     if pii == 'off' or o is None: return o
     if pii not in GATES: raise ValueError(f'unknown pii policy for retrieval: {pii!r}; one of {GATES}')
     cleared, forced, local, fl = _level_sets(vault) if vault is not None else (set(), set(), set(), 'open')
@@ -177,7 +177,7 @@ def toc(self:Vault,
         doc=None,            # narrow to one document, as `Index.toc` takes it
         **kw                 # forwarded to `Index.toc`
 ) -> list:
-    "The heading tree. Node titles are the openings of their sections, and a policy covers them too."
+    "The heading tree of the shelf or of one document, with `pii=` applied to the node titles as well as the text."
     from litesearch import Index
     return self._annotate(Index.toc(self, doc, **kw))
 
@@ -191,7 +191,7 @@ TYPE_POLICY = {**{t: dict(preset='tables') for t in ('invoice', 'receipt', 'quot
                **{t: dict(preset='generic', level='local', vision='local') for t in sorted(SENSITIVE)}}
 
 def top(*ls) -> str:
-    "The highest of some levels; `open` when none is given."
+    "The highest of the given privacy levels, or `open` when none is given."
     return max((l for l in ls if l), key=LEVELS.index, default='open')
 
 def _lvl(level):
@@ -202,7 +202,7 @@ def _person(by, what):
     if by != 'person': raise PermissionError(f'only a person can {what}; {by} cannot')
 
 def type_policy(doctype:str=None, text:str=None, kind:str=None) -> AttrDict:
-    "What a type asks of a read: its preset, the level it starts at, and which vision models may read it."
+    "For a document type, or for text whose type is guessed, give the reading preset, the starting privacy level and which vision models may read it."
     g = guess_type(text, kind=kind) if doctype is None and text else AttrDict(doctype=doctype)
     p = TYPE_POLICY.get(g.doctype) or {}
     # a guess raises the level when it is sure, or when a sensitive type scores well whatever the runner-up
@@ -219,13 +219,13 @@ def _privacy_t(self:Vault):
 
 @patch
 def floor(self:Vault) -> str:
-    "The level no document on this shelf goes below: `open`, `personal` or `local`."
+    "This shelf's floor, the lowest privacy level any of its documents can have: `open`, `personal` or `local`."
     t = self.db.t.vault_privacy
     return ((first(t.rows_where('store=?', [self.name])) or {}).get('level') if t.exists() else None) or 'open'
 
 @patch
 def set_floor(self:Vault, level:str='open', by:str='person') -> dict:
-    "Set this shelf's floor. Only a person may lower it."
+    "Set this shelf's floor; anyone may raise it, and only a person may lower it."
     if LEVELS.index(_lvl(level)) < LEVELS.index(self.floor()): _person(by, 'lower a floor')
     t = self._privacy_t()
     with write_txn(self.db): t.insert(dict(store=self.name, level=level, at=time.time()), replace=True)
@@ -256,7 +256,7 @@ def _spans(text, kind): return pii_spans(text, ner=kind != 'code')
 
 @patch
 def scan_pii(self:Vault, ref, pages=None) -> dict:
-    "File each page's identifiers as findings: fingerprint, kind, offsets and page, never the value."
+    "Scan a document page by page and file each identifier found as a finding (kind, page, offsets and fingerprint) without its value."
     d = self.doc(ref)
     if d is None: raise ValueError(f'no document in the vault matching {ref!r}')
     did, t, now, n = d['id'], self._findings_t(), time.time(), 0
@@ -286,7 +286,7 @@ def _found(self:Vault, d, page=None) -> L:
 
 @patch
 def level(self:Vault, ref, page:int=None) -> AttrDict:
-    "A document's privacy level: its mark, else what its type and findings say; never below the shelf's floor."
+    "A document's or one page's privacy level: its mark if it has one, else the higher of its type's level and its findings', never below the shelf's floor."
     d = self.doc(ref)
     if d is None: raise ValueError(f'no document in the vault matching {ref!r}')
     did, m = d['id'], d['meta']
@@ -304,7 +304,7 @@ def level(self:Vault, ref, page:int=None) -> AttrDict:
 
 @patch
 def set_level(self:Vault, ref, level:str=None, reason:str='', by:str='person') -> dict:
-    "Set a document's level by hand, or `None` to let detection decide again. Only a person may lower one or clear a mark."
+    "Set a document's privacy level by hand, or pass `None` to remove the mark and let detection decide; only a person may lower a level or remove a mark."
     cur = self.level(ref)
     if level is None:
         if cur.override: _person(by, 'clear a mark')
@@ -315,7 +315,7 @@ def set_level(self:Vault, ref, level:str=None, reason:str='', by:str='person') -
 
 @patch
 def findings(self:Vault, ref=None, state:str=None, page:int=None) -> L:
-    "Filed identifiers, each with a masked `preview` read off the current page text; never the value."
+    "List filed findings, each with a masked `preview` such as `a••@e••••••.com` built from the current page text."
     w, a = ['store=?'], [self.name]
     if ref is not None:
         d = self.doc(ref)
@@ -345,18 +345,18 @@ def _judge(self:Vault, ref, ids, state):
 
 @patch
 def accept_pii(self:Vault, ref, ids, by:str='person') -> dict:
-    "Say findings are personal. Every occurrence of the same value in the document follows."
+    "Confirm findings as personal; the verdict covers every occurrence of the same value in the document."
     return self._judge(ref, ids, 'accepted')
 
 @patch
 def reject_pii(self:Vault, ref, ids, by:str='person') -> dict:
-    "Say findings are not personal. Only a person may; the verdict survives a re-read, by fingerprint."
+    "Reject findings as not personal, for every occurrence of the same value in the document; only a person may, and the verdict survives a re-read."
     _person(by, 'clear a finding')
     return self._judge(ref, ids, 'rejected')
 
 @patch
 def reset_pii(self:Vault, ref, ids, by:str='person') -> dict:
-    "Take a verdict on findings back: every occurrence of the value is `found` again, for detection to judge. Only a person may."
+    "Remove the verdict on findings so that detection judges every occurrence of the value again; only a person may."
     _person(by, 'clear a finding')
     return self._judge(ref, ids, 'found')
 

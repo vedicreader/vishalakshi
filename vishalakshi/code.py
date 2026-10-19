@@ -1,4 +1,4 @@
-"""fill kosha from a repo, grep the working tree, and federate all of it with the prose
+"""Index a repository's source code with kosha, search the files on disk with ripgrep, and combine both with the vault's prose in one ranking
 
 Docs: https://vedicreader.github.io/vishalakshi/code.html.md"""
 
@@ -19,7 +19,7 @@ def kosha(self:Vault,
           share_encoder:bool=False,  # embed code with the vault's encoder instead of kosha's
           **kw                       # forwarded to Kosha()
 ):
-    'The `Kosha` for `dir`, cached on the vault so `index_code` and `code_search` hit one store.'
+    "The kosha index for the repository `dir`, kept on the vault so every code method uses the same one."
     from kosha import Kosha
     k, root = getattr(self, '_k', None), Path(dir).resolve() if dir else None
     if k is None or (root and k.root != root):
@@ -37,7 +37,7 @@ def index_code(self:Vault,
                verbose:bool=False,
                **kw               # forwarded to kosha's `sync`
 ) -> dict:
-    "Point the vault at a repo and fill kosha's stores from it."
+    "Build or update kosha's index of a repository, and return its status."
     k = self.kosha(dir)
     k.sync(dir=dir, repo=True, env=env, graph=graph, force=force, verbose=verbose, **kw)
     return k.status()
@@ -45,18 +45,18 @@ def index_code(self:Vault,
 # %% ../nbs/03_code.ipynb #798d0458
 @patch
 def code_search(self:Vault, q:str, limit:int=10, dir:str=None, **kw) -> L:
-    "Search code through kosha: FTS + ANN, fused and rank-boosted. Takes kosha's `key:value` filters."
+    "Search the indexed code by keywords and meaning, ranked with PageRank's help; the query may use kosha's `key:value` filters."
     return self.kosha(dir).context(q, limit=limit, **kw)
 
 @patch
 def symbol(self:Vault, name:str, depth:int=1, dir:str=None) -> AttrDict:
-    'A symbol in the call graph: its file, PageRank and degree, plus its callers and callees.'
+    "Look up a function or class in the call graph: its file, PageRank and number of links, with its callers and callees."
     k = self.kosha(dir)
     return AttrDict(node=name, info=dict(k.ni(name) or {}), neighbors=L(k.neighbors(name, depth)))
 
 @patch
 def where_to_add(self:Vault, description:str, limit:int=5, dir:str=None) -> L:
-    'Where in the indexed repo a described change belongs: kosha ranking over the call graph.'
+    "Rank the places in the indexed repository where a described change belongs."
     return self.kosha(dir).where_to_add(description, limit=limit)
 
 @patch
@@ -66,7 +66,7 @@ def grep(self:Vault,
          limit:int=20,      # matching lines returned
          **kw               # forwarded to rgapi.rg (glob=, ext=, context=, hidden=, ...)
 ) -> L:
-    'Exact matches in the files on disk, through ripgrep. `.gitignore` applies.'
+    "Find exact matches in the files on disk with ripgrep, respecting `.gitignore`."
     from rgapi import rg
     return _rg(rg(pattern, root=dir, max_results=limit, smart_case=True, **kw))
 
@@ -99,7 +99,7 @@ def federate(self:Vault,
              dir:str=None,      # repo for the code and grep legs
              per_leg:int=None,  # hits pulled from each leg before fusion
 ) -> AttrDict:
-    'One ranked answer across prose, indexed code and the files on disk, fused by RRF.'
+    "Search prose, other shelves, indexed code and the files on disk at once, and merge the results by rank."
     n, legs = per_leg or max(limit, 10), {}
     def leg(nm, f):
         try: legs[nm] = f()
@@ -128,7 +128,7 @@ def federate(self:Vault,
 
 # %% ../nbs/03_code.ipynb #9e4d1a76
 def kosha_indexed(dir:str=None) -> bool:
-    'Has kosha already indexed this repo? A file check, so asking costs nothing.'
+    "Whether kosha has already indexed this repository, checked by looking for its file."
     from litesearch import repo_root
     d = Path(dir) if dir else repo_root()
     return bool(d) and (Path(d)/'.kosha'/'code.db').exists()
@@ -139,7 +139,7 @@ def code_sections(v,                 # the Vault
                   dir:str=None,      # repo for the kosha and ripgrep legs
                   **kw               # forwarded to federate
 ) -> L:
-    'Federated code hits, shaped like vault sections so the rest of `ask` cannot tell the difference.'
+    "Code hits from `federate`, shaped like vault sections so that `ask` can number and cite them like any other."
     if not getattr(v, 'federate', None): return L()
     f = v.federate(q, limit=n, prose=False, dir=dir, **kw)
     return L(f.hits).map(lambda h: AttrDict(

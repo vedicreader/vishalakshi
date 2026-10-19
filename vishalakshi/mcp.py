@@ -1,4 +1,4 @@
-"""the vault as MCP tools any client can drive
+"""The vault as a set of MCP tools that an AI client such as Claude Desktop can call
 
 Docs: https://vedicreader.github.io/vishalakshi/mcp.html.md"""
 
@@ -50,7 +50,7 @@ mcp = MCPServer('vishalakshi', instructions=(
     'the detector.'))
 
 def as_tool(name:str):
-    'Register one `Vault` method as an MCP tool, forcing its result through JSON. A client is an agent: `by` is pinned to it.'
+    "Register one `Vault` method as an MCP tool that returns JSON, with `by` fixed to `'agent'` and hidden from the client."
     f = cmd(name)
     ps = f.__signature__.parameters
     by = dict(by='agent') if 'by' in ps else {}
@@ -62,5 +62,5 @@ def as_tool(name:str):
 for _t in TOOLS: as_tool(_t)
 
 def main():
-    'Entry point for `vishalakshi-mcp`. stdio by default; `--http` for Streamable HTTP.'
+    "Run the `vishalakshi-mcp` server, over standard input and output, or Streamable HTTP with `--http`."
     mcp.run(transport='streamable-http' if '--http' in sys.argv[1:] else 'stdio')

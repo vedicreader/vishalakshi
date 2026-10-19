@@ -1,4 +1,4 @@
-"""the vault: one SQLite file holding everything you have read, and the retrieval over it
+"""The vault: one SQLite file that holds everything you have collected, and the search over it
 
 Docs: https://vedicreader.github.io/vishalakshi/core.html.md"""
 
@@ -25,7 +25,7 @@ KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'imag
 _window, DFLT_ENC = re.compile(r'^Pages \d+(?:–\d+)?:'), 'minishlab/potion-multilingual-128M'
 
 def tidy_bc(bc:str) -> str:
-    "Drop `build_tree`'s `Pages n–m:` window placeholders from a breadcrumb: real nodes, noise in a citation."
+    "Clean a breadcrumb: drop the `Pages n–m:` placeholder sections litesearch inserts, and any repeated part."
     return ' › '.join(dict.fromkeys(p for p in map(str.strip, (bc or '').split('›')) if p and not _window.match(p)))
 
 def kinds(kind) -> L:
@@ -41,7 +41,7 @@ ENCODERS = {'multilingual': DFLT_ENC,                                    # 100+ 
 
 # %% ../nbs/00_core.ipynb #6c733f86
 class HashEmbed:
-    "litesearch's `hash_embed` behind an `.encode`, so an offline vault is an encoder like any other."
+    "litesearch's `hash_embed` wrapped as an encoder with `.encode`, for a vault that must not download a model."
     def __init__(self, dims:int=256, dtype=DTYPE):
         store_attr()
         self.ls_id = f'hash-{dims}'   # litesearch stamps it on the store, so a reopen cannot mix spaces
@@ -58,7 +58,7 @@ def mk_encoder(model=None,          # an `ENCODERS` alias, any model2vec id, or 
                offline:bool=False,  # skip the download attempt entirely
                dtype=DTYPE,         # stored width; litesearch's default everywhere
 ) -> AttrDict:
-    'The best encoder available as `AttrDict(model, dims, method, name, note)`.'
+    "Load the encoder `model` names, or the default, falling back to hashing when it cannot load, as `AttrDict(model, dims, method, name, note)`."
     if offline:
         return AttrDict(model=HashEmbed(dims, dtype), dims=dims, method='hash', name='hash',
         note=f'char-n-gram hashing ({dims}d): lexical only; pass encoder= or restore network access for real semantics')
@@ -79,7 +79,7 @@ def mk_encoder(model=None,          # an `ENCODERS` alias, any model2vec id, or 
 
 # %% ../nbs/00_core.ipynb #c648b521
 class Vault(Index):
-    '''Everything you have read, in one SQLite file, searchable as one corpus.'''
+    "Everything you have collected, in one SQLite file, searchable as one collection."
     _any_noisy = None
     def __init__(self,
                  path:str=None,       # vault file; None -> ~/.vishalakshi/vault.db
@@ -121,7 +121,7 @@ def add(self:Vault,
         refresh:bool=True,    # re-ingest text whose content hash differs from what is filed; files refresh via `force` or `housekeep`
         **kw                  # forwarded to litesearch add_doc (chunker, summarize, with_heading)
 ) -> dict:
-    '''Ingest anything into the vault: tree, chunks, embeddings, ANN index.'''
+    "Add text, pages, a file or a directory to the vault, adding a source again only when its content changed."
     # a document's text is not a path, and asking the filesystem about a 40kB "filename" raises
     p = Path(src) if isinstance(src, (str, Path)) and len(str(src)) < 255 and '\n' not in str(src) else None
     if p is not None and p.is_dir():  return self.add_dir(str(p), kind=kind, **kw)
@@ -158,12 +158,12 @@ def _first_line(src, n:int=80) -> str:
 
 @patch
 def assets(self:Vault, name:str=None) -> Path:
-    'Where extracted assets (PDF images, downloaded papers) go: beside the vault file. litesearch picks it.'
+    "The folder beside the vault file where extracted assets, such as PDF images and downloaded papers, are kept."
     return self.db.assets(name)
 
 @patch
 def add_file(self:Vault, path:str, title:str=None, kind:str=None, **kw) -> dict:
-    'Ingest one local file into the vault: tree, chunks, embeddings, ANN index.'
+    "Add one local file to the vault."
     return self._settled(self.db.add_file(path, title=title, kind=kind, store=self.name, emb_fn=self.emb, **kw), str(Path(path)))
 
 @patch
@@ -174,7 +174,7 @@ def add_files(self:Vault,
               embed_batch:int=2000, # chunks embedded and written per flush; 0 writes per document
               **kw                  # forwarded to add_file
 ) -> L:
-    '''Ingest a list of files onto this shelf, batched the way litesearch batches a whole tree.'''
+    "Add a list of files to this shelf, embedding and writing their chunks in batches."
     files = L(files).map(Path)
     # an empty list would still reach `rebuild_index`, which is a real cost for no documents
     if not files: return L()
@@ -186,7 +186,7 @@ def add_files(self:Vault,
 def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,
             route:bool=True,      # send Sanskrit sources to the Sanskrit shelf, file by file
             **kw) -> L:
-    """Ingest every document under a directory. `dir2files` skips dotfiles, tests, build and dist."""
+    "Add every document under a directory, skipping dotfiles, tests and build output, and send Sanskrit files to the Sanskrit shelf."
     fs = dir2files(dir, types=types)
     if not route or self.name != 'store': return self.add_files(fs, kind=kind, **kw)
     sa, rest = L(), L()
@@ -220,7 +220,7 @@ def note(self:Vault,
          key:str='',          # upsert key; defaults to `slug(title)` when a title is given. Same key, same document
          meta:dict=None,      # merged into the doc's meta beside `tags` and `key`
 ) -> dict:
-    'Write or replace a note. Notes are searched alongside the corpus; `key` or an explicit title names the one to replace.'
+    "Write a note, or replace the note with the same `key` or title; notes are searched with everything else."
     ttl = title or (text.strip().splitlines() or ['note'])[0].lstrip('# ')[:80]
     k = key or (slug(title) if title else '')
     src = f'note:{k}' if k else f'note:{uuid.uuid4().hex[:12]}'
@@ -237,7 +237,7 @@ _PII_PARAMS = [Parameter('pii', Parameter.KEYWORD_ONLY, default='off', annotatio
                Parameter('pii_ner', Parameter.KEYWORD_ONLY, default=False, annotation=bool)]
 
 def gate(f):
-    'Apply the `pii=` policy to what a retrieval method returns, and put its two params on the signature.'
+    "Make a retrieval method take `pii=` and `pii_ner=` and apply that policy to what it returns."
     @wraps(f)
     def _f(self, *a, pii:str='off', pii_ner:bool=False, **kw):
         o = f(self, *a, **kw)
@@ -266,7 +266,7 @@ def search(self:Vault,
            where:str=None,     # extra chunk-store `WHERE`, ANDed with the kind and noisy filter
            **kw                # forwarded to litesearch doc_search
 ) -> L:
-    """Chunk-level hybrid search; hits carry breadcrumb and `node_id`. Honours kind and noisy marks."""
+    "Search this shelf's chunks by keywords and meaning together; each hit carries a `snippet`, its breadcrumb and `node_id`, and noisy documents are left out."
     _rerank_ok(rerank)
     hits = Index.search(self, q, limit=limit, rerank=rerank,
                         where=self._where(kind, include_noisy, where), **kw)
@@ -278,7 +278,7 @@ def search(self:Vault,
 @gate
 def sections(self:Vault, q:str, limit:int=5, kind:str=None, per:int=3, rerank:bool=False,
              include_noisy:bool=False, where:str=None, **kw) -> list:
-    'Ranked *sections* rather than chunks. Noisy documents are excluded unless requested.'
+    "Search like `search` but return whole sections, best first, leaving noisy documents out unless asked."
     _rerank_ok(rerank)
     secs = Index.sections(self, q, limit=limit, per=per,
                           where=self._where(kind, include_noisy, where), rerank=rerank, **kw)
@@ -301,7 +301,7 @@ def context(self:Vault,
             where:str=None,     # extra chunk-store `WHERE`, e.g. `doc_id='…'` for one document
             **kw                # forwarded to litesearch context
 ) -> AttrDict:
-    'The retrieval an LLM should be handed: whole sections plus what they connect to. sections carry `text, breadcrumb, pages, filename` and their tree neighbourhood;'
+    "The retrieval to hand a language model: whole sections with breadcrumbs and `node_id`s, related leads, and sections from other shelves and from code."
     _rerank_ok(rerank)
     # litesearch already fans out sections*3; don't multiply again
     ctx = Index.context(self, q, related=related, max_read=max_read, sections=sections,
@@ -326,7 +326,7 @@ def context(self:Vault,
 
 @patch
 def related(self:Vault, node_id:str, limit:int=8, clip=300) -> L:
-    'Sections nearest an existing one .Reuses the vectors usearch already holds, so nothing is re-embedded.'
+    "The sections nearest an existing one in vector space, found from its stored vectors without embedding anything again."
     out = {}
     for r in self.store(where=f'node_id={node_id!r}', select='rowid as rowid'):
         for n in self.store.ann_neighbors(r['rowid'], limit=limit*3, dtype=DTYPE, columns=['content', 'node_id', 'doc_id']):
@@ -342,7 +342,7 @@ def related(self:Vault, node_id:str, limit:int=8, clip=300) -> L:
 def read(self:Vault, node_id:str, max_chars:int=6000,
          store:str=None,      # the shelf the section is on; None -> this one
          ) -> dict:
-    'Assemble a whole section back out of its chunks.`store` opens a section on another shelf, so a `node_id` from `elsewhere()` can be read without opening that shelf.'
+    "Rebuild one whole section from its chunks; `store` names the shelf when the `node_id` came from another one."
     return Index.read(self, node_id, store=store or self.name, max_chars=max_chars)
 
 # %% ../nbs/00_core.ipynb #d1788576de66
@@ -358,7 +358,7 @@ def _epoch(v) -> float|None:
 
 @patch
 def doc(self:Vault, ref:str) -> dict:
-    'One document row, by `doc_id`, exact `source`, or a title substring; `meta` already decoded.'
+    "Find one document's row by `doc_id`, exact `source` or part of its title, with `meta` decoded."
     # empty ref must not become title LIKE '%%' (would mark the newest doc)
     if not str(ref or '').strip(): return None
     q = str(ref or '').replace("'", "''")
@@ -374,7 +374,7 @@ def document(self:Vault,
              headings:bool=True,    # put the node titles back as markdown headings
              disk:bool=True,        # fall back to a path on disk the vault has never seen
 ) -> AttrDict:
-    'One whole document, reassembled in document order: the unit a model reads to extract from.'
+    "Rebuild one whole document in reading order with its headings, or read a file the vault has never seen from disk."
     d = self.doc(ref)
     if d is None:
         p = Path(ref or '')
@@ -508,7 +508,7 @@ def drop_shelf(self:Vault, name:str, force:bool=False) -> dict:
 
 @patch
 def shelves(self:Vault) -> L:
-    'Shelves with encoder and document count.'
+    "List the shelves in this vault file with each one's encoder, vector width and document count."
     def n(s):
         p = '' if s == 'store' else f'{s}_'
         try: return self.db.t[f'{p}docs'].count
@@ -546,7 +546,7 @@ def _noisy_sql(self:Vault) -> str|None:
 
 @patch
 def mark(self:Vault, ref, **kv) -> dict:
-    "Record a judgement about one document; unknown keys raise."
+    "Record a judgement about one document in `doc_marks`; a key that is not a mark raises an error."
     if bad := set(kv) - set(MARK_COLS): raise ValueError(f'not a mark: {sorted(bad)}; expected {MARK_COLS}')
     d = self.doc(ref)
     if not d: raise ValueError(f'no document in the vault matching {ref!r}')
@@ -654,7 +654,7 @@ def elsewhere(self:Vault,
               shelves=True,       # True -> every other shelf; a list picks some
               max_read:int=2000,  # chars kept per section
 ) -> L:
-    "Sections from the vault's *other* shelves, shaped like this one's."
+    "Search the vault's other shelves and return their best sections in the same shape as this shelf's."
     out, want = L(), (None if shelves is True else set(L(shelves)))
     for s in self.shelves():
         nm = s['store']
@@ -689,7 +689,7 @@ def _map_from_graph(db, store, store_table, members:int=24) -> AttrDict|None:
 
 @patch
 def map(self:Vault, min_count:int=2, force:bool=False, **kw) -> AttrDict:
-    'Cluster the corpus into labelled topics: the shape of what you have collected. Fast after `connect()` has run: reads the persisted topic nodes rather than re-clustering.'
+    "Group the shelf's chunks into labelled topics, reading the topics `connect` saved, when there are any, instead of clustering again."
     if not force:
         cached = _map_from_graph(self.db, self.name, self.store)
         if cached is not None: return cached
@@ -701,7 +701,7 @@ def topic_tree(self:Vault,
                docs:int=8,        # documents listed under each topic
                min_chunks:int=2,  # skip a topic carried by fewer chunks than this
 ) -> L:
-    '''Topics, and which documents each one runs through. The shape of the corpus, two levels deep.'''
+    "List the topics `connect` found, largest first, with the documents each one runs through."
     try: g = self.db.get_graph(self.name)
     except Exception: return L()
     try: ents = L(g.entities(where="kind='topic'", order_by='freq desc'))
@@ -737,7 +737,7 @@ def topic_tree(self:Vault,
     return out
 
 def fmt_topics(tree, width:int=44) -> str:
-    "A `topic_tree` as an indented listing. Plain ASCII, so it survives a terminal, a notebook and a prompt."
+    "Format a `topic_tree` as an indented listing in plain ASCII."
     if not tree: return 'no topics: run connect() first'
     lines = []
     for t in tree:
@@ -755,7 +755,7 @@ def show_topics(self:Vault, limit:int=20, docs:int=8, **kw):
 
 @patch
 def sources(self:Vault, kind:str=None, include_noisy:bool=True) -> L:
-    'Documents with provenance, newest first; management sees noisy rows unless asked not to.'
+    "List this shelf's documents, newest first, with their meta, age and noisy and stale marks; noisy ones are included unless `include_noisy=False`."
     wh = ' AND '.join(x for x in (_kw(kind) if kinds(kind) else '',
                                   f'id NOT IN (SELECT doc_id FROM doc_marks WHERE store={self.name!r} AND noisy=1)'
                                   if not include_noisy else '') if x) or None
@@ -768,12 +768,12 @@ def sources(self:Vault, kind:str=None, include_noisy:bool=True) -> L:
 
 @patch
 def mark_noisy(self:Vault, ref, noisy:bool=True, reason:str='') -> dict:
-    """Mark a document as retrieval noise: search, sections, context and ask exclude it by default."""
+    "Mark a document as noise, which search, sections, context and `ask` then leave out."
     return self.mark(ref, noisy=int(bool(noisy)), noisy_reason=(reason or None) if noisy else None)
 
 @patch
 def forget(self:Vault, doc_id:str):
-    'Remove a document, its sections and its chunks, and rebuild the ANN index.'
+    "Remove a document, its sections, chunks and findings, and rebuild the vector index."
     self.db.delete_doc(doc_id, store=self.name)
     if self.db.t.pii_findings.exists(): self.db.execute('delete from pii_findings where doc_id=? and store=?', [doc_id, self.name])
 
@@ -789,7 +789,7 @@ def stats(self:Vault) -> dict:
 # %% ../nbs/00_core.ipynb #typedgraph02
 @patch
 def build_graph(self:Vault, chat=None, seed:bool=False, **kw) -> dict:
-    'Extract the typed entity graph over new chunks with vruksha, using the vault model. Incremental.'
+    "Have a model extract the entities and relations in chunks not yet processed, with vruksha, into the shelf's entity graph."
     from vruksha import build_graph as _bg, cites, norm_cite
     if seed: kw = dict(kw, seed_fn=cites, canon=norm_cite)
     if chat is None:
@@ -804,7 +804,7 @@ def connect(self:Vault,
             chat=None,         # a urai Chat; None builds one with `new_chat()`
             seed:bool=False    # regex-seed structured citations (a legal corpus booster)
             ) -> dict:
-    'Build the typed entity graph and the topic nodes so `graph_search`, `map` and `topic_tree` have them.'
+    "Build the entity graph, which needs a model, and the topic nodes that `graph_search`, `map` and `topic_tree` read."
     if not self.store.count: return dict(entities=0, mentions=0, edges=0, topics=0)
     res = self.build_graph(chat=chat, seed=seed) if graph else dict(entities=0, mentions=0, edges=0, new=0)
     g = self.db.get_graph(self.name)
@@ -818,6 +818,6 @@ def connect(self:Vault,
 
 @patch
 def graph_search(self:Vault, q:str, limit:int=10, graph_w:float=1.0, **kw) -> list:
-    'Typed-graph retrieval: hybrid plus chunks reached by walking the graph. For queries that share no words with the answer.'
+    "Search that adds chunks reached by walking the entity graph to the usual hits, for questions that share no words with their answer."
     import vruksha  # applies Database.graph_search
     return self.db.graph_search(q, self.qemb(q), store=self.name, limit=limit, graph_w=graph_w, **kw)

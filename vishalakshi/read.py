@@ -1,4 +1,4 @@
-"""PDFs, scans and page images read page by page: a sound text layer kept, scanned or garbled pages read by a vision model, every page's route and versions kept
+"""Read PDFs, scans and page images page by page, with a vision model where the text layer cannot be trusted, and keep every reading of every page
 
 Docs: https://vedicreader.github.io/vishalakshi/read.html.md"""
 
@@ -49,7 +49,7 @@ PRESETS = dict(
             "return {{\"items\": []}}."))
 
 def reading_prompt(name='generic', title='', script='', hint='') -> str:
-    "The reading prompt `name`, or `name` itself as a whole prompt: `{of}`, `{title}`, `{script}` and `{hint}` filled; a prompt that is no template as it is."
+    "Fill in the reading prompt `name` with the title, script and hint, or use `name` itself as the prompt when it is not a preset."
     s = PRESETS.get(name, name)
     try: return s.format(of=f': {title}' if title else '', title=title, script=script or 'Devanagari', hint=hint)
     except (KeyError, IndexError, ValueError): return s
@@ -70,18 +70,18 @@ def _image(img):
 def _as_png(im): b = io.BytesIO(); im.save(b, 'PNG'); return b.getvalue()
 
 def fit(img:bytes, max_px:int=3000, max_bytes:int=3_000_000) -> bytes:
-    "`img` as it is within `max_bytes`, else as JPEG with its long side within `max_px`, as `render` does a page."
+    "Return `img` unchanged when it is within `max_bytes`, else as a JPEG whose long side fits `max_px`."
     if len(img) <= max_bytes: return img
     im = _image(img).convert('RGB'); im.thumbnail((max_px, max_px))
     b = io.BytesIO(); im.save(b, 'JPEG', quality=90); return b.getvalue()
 
 def halves(img:bytes) -> list:
-    "A landscape page image, a two-page spread, as its left and right halves; any other as itself."
+    "Split a landscape page image, taken to be a two-page spread, into its left and right halves, and return any other image as it is."
     im = _image(img); w, h = im.size
     return [_as_png(im.crop((0, 0, w//2, h))), _as_png(im.crop((w//2, 0, w, h)))] if w > h else [img]
 
 def page_strips(img:bytes, k:int, over:float=.06) -> list:
-    "`img` as `k` horizontal strips top to bottom, each overlapping the next by `over` of the page, so a model reads small type larger."
+    "Cut `img` into `k` horizontal strips, top to bottom, each overlapping the next by `over` of the page height."
     im = _image(img); w, h = im.size; step = h / k
     return [_as_png(im.crop((0, max(0, int(i*step - over*h)), w, min(h, int((i+1)*step + over*h))))) for i in range(k)]
 
@@ -91,7 +91,7 @@ AKSHARA = re.compile('्[ा-ौॢॣ]|[ा-ॄॆ-ौ][ा-ॄॆ-ौ]|(?<!�
 FOREIGN = re.compile('[ऀ-ॿ][Ͱ-ϿЀ-ӿ]|[Ͱ-ϿЀ-ӿ][ऀ-ॿ]')
 LEGACY = re.compile('[¡-ÿ‘-„†-‰]')       # what a legacy Devanagari font's text layer reads as
 def flags(text:str, min_chars:int=20) -> list:
-    "What looks wrong with a page's text: `thin`, `replacement`, `legacy`, `split`, `akshara`, `foreign`."
+    "List what looks wrong with a page's text: `thin`, `replacement`, `legacy`, `split`, `akshara` or `foreign`."
     t = re.sub(r'!\[[^\]]*\]\([^)]*\)', '', text or '')
     letters = re.sub(r'[\W\d_]', '', t)
     out = []
@@ -105,7 +105,7 @@ def flags(text:str, min_chars:int=20) -> list:
 
 _LETTERS = re.compile(r'[\s\d०-९।॥|ऽ\u200c\u200d!-/:-@\[-`{-~–—‘’“”]')   # spaces, digits, daṇḍas, avagraha, joiners, punctuation; vowel signs stay
 def disagree(a:str, b:str) -> float|None:
-    "Letter edits between two readings over the longer's letters; None when neither has any."
+    "How far two readings differ: letter edits divided by the longer reading's letters, or None when neither has any."
     a, b = _LETTERS.sub('', a or ''), _LETTERS.sub('', b or '')
     if not (a or b): return None
     p = list(range(len(b) + 1))
@@ -140,7 +140,7 @@ def _boxed(items):
     return items
 
 def crop(img:bytes, box, pad:float=.02) -> bytes:
-    "The `box` of a page image, `pad` of the page around it, as PNG; the whole image without a sane box or PIL."
+    "Cut the region `box` out of a page image, with a margin of `pad` of the page, as PNG; return the whole image when the box is unusable or PIL is missing."
     try: from PIL import Image
     except ImportError: return img
     if not (b := sane_box(box)): return img
@@ -151,7 +151,7 @@ def crop(img:bytes, box, pad:float=.02) -> bytes:
     return out.getvalue()
 
 def backends():
-    "Register rishi's model backends with urai, which knows none of its own: `claude/sonnet` resolves only after."
+    "Register Rishi's model backends with Urai, so that ids such as `claude/sonnet` resolve."
     import rishi
 
 def _forget(c, msg):
@@ -159,14 +159,14 @@ def _forget(c, msg):
     if hasattr(c, 'rec') and hasattr(c, '_key'): c.rec.forget(c._key('call', msg, {}))
 
 def read_page(img:bytes, model:str=None, preset:str='generic', title:str='', script:str='', hint:str='', chat=None,
-              pii:str='redact',   # off|local|redact|refuse; a page image cannot be masked, so a Personal page reaches a hosted model only with `allow`
+              pii:str='redact',   # off|local|redact|refuse; an image cannot be masked, so a Personal page reaches a hosted model only with `allow` or `off`
               level:str='open',   # the page's level, from its document; raised to Personal when `text` holds identifiers
               text:str='',        # the page's text layer or OCR, to judge it by
               allow:bool=False,   # allow once: a Personal page may go to a hosted model; a Local only one never does
               strips:int=1,       # sent as this many overlapping strips (`page_strips`), the model told to read the page once
               fresh:bool=False,   # ask the model again, not its recorded reply
 ) -> AttrDict:
-    "One page image read by a vision model: its `blocks`, their markdown `text`, the `model` and its `cost`; `blocked` when it may not be sent."
+    "Read one page image with a vision model and return its `blocks`, their markdown `text`, the `model` and the `cost`, or `blocked` when the page may not be sent."
     from vishalakshi.ask import CachedChat, model_local, send_rule
     lv = top(level, 'personal' if (text or '').strip() and pii_report(text, ner=True).has_pii else 'open')
     if send_rule(lv, model_local(chat if chat is not None else model), pii, allow, image=True) == 'withheld':
@@ -190,7 +190,7 @@ def read_page(img:bytes, model:str=None, preset:str='generic', title:str='', scr
 PARSE = ('auto', 'text', 'ocr', 'llm')
 RETRY_WAIT = 10   # seconds before a failed page's second try; twice that before its third
 def as_list(x, f=str):
-    "`x` as a list of `f`: a comma-separated string, as a command line gives it, split; None stays None."
+    "Turn `x` into a list of `f`, splitting a comma-separated string as a command line gives it; None stays None."
     return None if x is None else [f(v) for v in (x.split(',') if isinstance(x, str) else x) if str(v).strip()]
 def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title:str='', script:str='', hint:str='',
              pages=None, dpi:int=200, out=None, workers:int=4, chat=None,
@@ -207,8 +207,7 @@ def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title
              clean=None,            # `clean(text)` -> text, made of every block's text before it is kept
              tries:int=None,        # a page that fails this many times is left out and listed in `failed`; None raises its error
 ) -> L:
-    """Each page of a PDF or image as `{page, text, route, flags}`, with `blocks`, `model` and `cost` where the model read it. `parse`: `auto` keeps a sound text layer and sends scanned or flagged pages to
-    `model`; `text` the text layer only; `ocr` OCR every page; `llm` the model on every page. The result's `failed` lists the pages `tries` gave up on."""
+    "Read each page of a PDF or page image, keeping a sound text layer and sending scanned or flagged pages to `model`, and return one row per page."
     assert parse in PARSE, f'parse is one of {PARSE}'
     pages = as_list(pages, int)
     p = Path(path)
@@ -307,7 +306,7 @@ def _pages_t(self:Vault):
 
 @patch
 def pages(self:Vault, doc_id:str, history:bool=False) -> L:
-    "A read document's pages, its latest version of each, or every version with `history`."
+    "A read document's pages: the latest version of each, or every version with `history`."
     rs = L(self._pages_t().rows_where('doc_id=? and store=?', [doc_id, self.name], order_by='page, version'))
     if history: return rs.map(AttrDict)
     last = {}
@@ -344,8 +343,7 @@ def read_doc(self:Vault, src, title:str=None, kind:str=None, parse:str='auto', m
          progress=None,         # `progress(done, total, page, route, cost)` per file; False stops the reading
          spread:bool=False, strips:int=1, cache=None, redo=None, clean=None, tries:int=None,   # as `read_doc`; a folder's files cache in `cache/<stem>`
          **kw):
-    """Read a PDF, a page image, or every one under a folder into the vault, page by page: a sound text layer kept, scanned or flagged pages read
-    by `model`. Each page's text, route and flags are kept as versions (`pages`). Returns the ingest result, with `routes`, `flagged`, the `blocked` pages, `cost`, `model_pages`, `cancelled`, `unread` and `failed`."""
+    "Read a PDF, a page image or every one under a folder into the vault page by page, keeping each page's readings as versions."
     p, rk = Path(src), dict(spread=spread, strips=strips, redo=redo, clean=clean, tries=tries)
     if p.is_dir(): return doc_files(p).map(lambda f: self.read_doc(f, None, kind, parse, model, preset, script, hint, pages, dpi, workers, chat,
                                                                     pii=pii, allow=allow, local_model=local_model, local_chat=local_chat, progress=progress,
@@ -367,7 +365,7 @@ def read_doc(self:Vault, src, title:str=None, kind:str=None, parse:str='auto', m
 def reparse(self:Vault, doc_id:str, pages=None, model:str=None, preset:str=None, script:str=None, hint:str=None, parse:str='llm',
             dpi:int=200, workers:int=4, chat=None, pii:str='redact', allow:bool=False, local_model:str=None, local_chat=None,
             progress=None) -> dict:
-    "Read `pages` of a read document again (all when None), by `model` with `parse='llm'`; the new texts become new versions and the document is re-indexed."
+    "Read pages of a document again, all of them when `pages` is None, file the new readings as new versions and re-index the document."
     d, pages = first(self.t.docs(where='id=?', where_args=[doc_id])), as_list(pages, int)
     assert d, f'no document {doc_id}'
     m = json.loads(d['meta'] or '{}')
