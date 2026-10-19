@@ -7,9 +7,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - run: python -m pip install -q --upgrade pip && pip install -q -e ".[dev]" nbdev
-      - name: parallel on a cold model cache, then warmed
+      - name: install exactly as nbdev3-ci does
         run: |
-          export PYTHONFAULTHANDLER=1
-          for i in 1 2 3 4; do export HF_HOME=/tmp/hfcold$i; nbdev-test --flags '' > /tmp/p.txt 2>&1; echo "== cold run $i rc=$?"; grep -E 'Fatal Python|Bus error|Segmentation|Aborted|BrokenProcess' /tmp/p.txt | head -5; grep -A14 'Fatal Python' /tmp/p.txt | grep 'File "' | head -14; done
-          for i in 1 2 3 4; do export HF_HOME=/tmp/hfwarm$i; python -c "from vishalakshi import Vault; Vault(':memory:'); Vault(':memory:', encoder='code')"; nbdev-test --flags '' > /tmp/p.txt 2>&1; echo "== warmed run $i rc=$?"; grep -E 'Fatal Python|BrokenProcess' /tmp/p.txt | head -3; done
+          python -m pip install -q --upgrade pip
+          pip install -Uq "nbdev>=3.3.21"
+          pip install -q -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+          pip freeze > /tmp/freeze.txt; grep -iE "numpy|torch|onnx|litert|usearch|model2vec|tokenizers|safetensors|scipy" /tmp/freeze.txt
+      - name: parallel as CI, six times
+        env: {OBJC_DISABLE_INITIALIZE_FORK_SAFETY: 'YES', PYTHONFAULTHANDLER: '1'}
+        run: |
+          for i in 1 2 3 4 5 6; do nbdev-test --flags '' > /tmp/p$i.txt 2>&1; echo "== run $i rc=$?"; grep -E 'Fatal Python|Bus error|Segmentation|Aborted|Illegal|BrokenProcess' /tmp/p$i.txt | head -5; grep -B2 -A25 'Fatal Python' /tmp/p$i.txt | grep -vE '^(W0000|I0000|INFO|WARNING)' | head -40; done
