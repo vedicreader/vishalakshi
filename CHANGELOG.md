@@ -2,6 +2,12 @@
 
 <!-- do not remove -->
 
+## 0.1.30
+- `add_tree`, `add_dir` and `add_files` take `stop` and `progress`. `stop()` is asked before each batch of `batch` files (50) and before kosha; `progress(done, total, batch)` is called after each batch, and an error in it is ignored. When `stop()` returns True, the batches already filed stay in the vault and the result has `cancelled` set and `unread` listing the files not reached. Nothing is raised.
+- `github` asks `stop` before the clone and passes both to `add_tree`. `url`, `arxiv` and `youtube` ask it before the fetch; `crawl` and `web` ask it between the pages they file. Given `stop`, their results carry `cancelled` and `unread` too. Without `stop` every result is as before.
+- `run_steps(items, f, size, stop, progress)` is the loop behind these, for a caller with its own list.
+- The CLI and the MCP server do not offer `stop` or `progress`.
+
 ## 0.1.29
 - `CachedChat` built directly registers Rishi's runtimes, as `new_chat` does, so `runtime` names the backend. Before, `CachedChat(path=...).runtime` raised "Can't tell which backend" for the default model unless something had already imported Rishi.
 

@@ -11,10 +11,10 @@ __all__ = ['KIND_OF', 'ACTIONS', 'STALE_TTL', 'HOUSEKEEP_EVERY', 'IMG_EXTS', 'cl
 # %% ../nbs/01_acquire.ipynb #a547a620d100
 import hashlib, json, re, time, uuid, warnings
 from urllib.parse import urlparse
-from fastcore.all import AttrDict, L, Path, chunked, first, patch
+from fastcore.all import AttrDict, L, Path, chunked, first, noop, patch
 from fossick import json_records, md_title, read, what_is
 from litesearch import code_exts, dir2files, pdf_parse, DOC_EXTS
-from .core import Vault, KINDS, is_sanskrit_file, _epoch
+from .core import Vault, KINDS, is_sanskrit_file, run_steps, _epoch
 from pobblebonk import Pob, secs
 from .jobs import Queue, Retry
 import honker
@@ -48,6 +48,13 @@ def _file(self:Vault,
                 url=r.source)
 
 @patch
+def _one(self:Vault, target, f, stop=None, progress=None) -> dict:
+    "File one `target` with `f` unless `stop()` says so first; given `stop`, the result carries `cancelled` and `unread`."
+    r = run_steps([target], lambda t: [f(t[0])], stop=stop, progress=progress)
+    out = r[0] if r else dict(source=target, skipped='cancelled')
+    return dict(out, cancelled=r.cancelled, unread=list(r.unread)) if stop is not None else out
+
+@patch
 def url(self:Vault,
         url:str,            # page to read
         title:str=None,     # defaults to the page's first heading, else its path
@@ -56,20 +63,28 @@ def url(self:Vault,
         auto:bool=True,     # escalate plain -> heavy -> stealthy -> logged-in Chrome past bot walls
         meta:dict=None,
         force:bool=False,
+        stop=None,          # asked before the fetch; True files nothing and reports the URL in `unread`
+        progress=None,      # told `progress(1, 1, [url])` once the page is filed
         **kw                # forwarded to fossick.fetch (verify=, headers=, heavy=…)
 ) -> dict:
     'Fetch one URL, convert it to markdown and file it in the vault.'
-    return self._file(read(url, sel=sel, auto=auto, **kw), kind=kind, title=title,
-                      meta=meta, force=force)
+    return self._one(url, lambda u: self._file(read(u, sel=sel, auto=auto, **kw), kind=kind, title=title,
+                                              meta=meta, force=force), stop, progress)
 
 @patch
-def crawl(self:Vault, start_url:str, max_pages:int=10, sel:str=None, **kw) -> L:
-    'Crawl a docs site or blog from a start URL and file every page in the vault.'
+def crawl(self:Vault, start_url:str, max_pages:int=10, sel:str=None,
+          stop=None,       # asked before the crawl and between pages filed; `unread` holds the URLs not filed
+          progress=None,   # told `progress(done, total, [url])` after each page filed
+          **kw) -> L:
+    'Crawl a docs site or blog from a start URL and file every page in the vault; the result carries `cancelled` and `unread`.'
     from fossick import crawl as _crawl, to_md
-    pgs = L((pg.url, to_md(pg, sel=sel)) for pg in _crawl(start_url, sel=sel, max_pages=max_pages, **kw))
-    return L(self.add(md, md_title(md, u), source=u, kind='web',
-                      meta=dict(url=u, via='crawl', root=start_url, fetched_at=time.time()))
-             for u, md in pgs if md.strip())
+    if stop is not None and stop(): return run_steps([start_url], noop, stop=lambda: True)
+    pgs = L((pg.url, to_md(pg, sel=sel)) for pg in _crawl(start_url, sel=sel, max_pages=max_pages, **kw)).filter(lambda x: x[1].strip())
+    add = lambda u, md: self.add(md, md_title(md, u), source=u, kind='web',
+                                 meta=dict(url=u, via='crawl', root=start_url, fetched_at=time.time()))
+    r = run_steps(pgs, lambda s: [add(*x) for x in s], stop=stop, progress=progress)
+    r.unread = r.unread.itemgot(0)
+    return r
 
 @patch
 def web(self:Vault,
@@ -77,26 +92,30 @@ def web(self:Vault,
         n:int=5,            # top results to read
         google:bool=False,  # real Google ranking via a stealth browser (slower)
         chars:int=60000,    # max markdown chars kept per source
+        stop=None,          # asked between sources filed; `unread` holds the URLs not filed
+        progress=None,      # told `progress(done, total, [source])` after each source filed
         **kw                # forwarded to fossick.research
 ) -> AttrDict:
     'Search the web, read the top `n` results, and file all of them in the vault.'
     from fossick import research
     res = research(query, n=n, engine='google' if google else 'search', chars=chars, **kw)
     srcs = L(res['sources']).filter(lambda s: s['md'].strip() and s['href'])
-    added = srcs.map(lambda s: dict(self.add(s['md'], clip(s['title']), source=s['href'], kind='web',
-                                             meta=dict(url=s['href'], query=query, fetched_at=time.time())),
-                                    url=s['href']))
+    add = lambda s: dict(self.add(s['md'], clip(s['title']), source=s['href'], kind='web',
+                                  meta=dict(url=s['href'], query=query, fetched_at=time.time())), url=s['href'])
+    added = run_steps(srcs, lambda st: st.map(add), stop=stop, progress=progress)
     # dropped pages: bot walls vs empty results; only the former is worth retrying
-    return AttrDict(query=query, n_found=len(res['sources']), added=added,
-                    dropped=L(res.get('dropped') or []))
+    out = AttrDict(query=query, n_found=len(res['sources']), added=added, dropped=L(res.get('dropped') or []))
+    return AttrDict(out, cancelled=added.cancelled, unread=added.unread.itemgot('href')) if stop is not None else out
 
 # %% ../nbs/01_acquire.ipynb #20617c45413f
 @patch
-def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False, **kw) -> dict:
+def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False,
+          stop=None, progress=None,   # as in `url`
+          **kw) -> dict:
     "Read an arXiv paper, its metadata and full text, into the vault as kind `arxiv`, on the `papers` shelf."
-    if (v := self.route('arxiv')) is not self: return v.arxiv(id_or_url, save_dir=save_dir, force=force, **kw)
-    return self._file(read(id_or_url, save_dir=save_dir or str(self.assets('pdfs')),
-                           force=force, **kw), force=force)
+    if (v := self.route('arxiv')) is not self: return v.arxiv(id_or_url, save_dir=save_dir, force=force, stop=stop, progress=progress, **kw)
+    return self._one(id_or_url, lambda t: self._file(read(t, save_dir=save_dir or str(self.assets('pdfs')),
+                                                          force=force, **kw), force=force), stop, progress)
 
 @patch
 def pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False, **kw) -> dict:
@@ -110,14 +129,20 @@ def pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False, **kw) -> 
                     meta=dict(url=path_or_url, fetched_at=time.time()))
 
 @patch
-def youtube(self:Vault, url:str, force:bool=False, **kw) -> dict:
+def youtube(self:Vault, url:str, force:bool=False,
+            stop=None, progress=None,   # as in `url`
+            **kw) -> dict:
     "Read a YouTube video's transcript and metadata into the vault."
-    return self._file(read(url, force=force, **kw), force=force)
+    return self._one(url, lambda u: self._file(read(u, force=force, **kw), force=force), stop, progress)
 
 @patch
-def github(self:Vault, url:str, **kw) -> AttrDict:
+def github(self:Vault, url:str,
+           stop=None,       # asked before the clone, then as in `add_tree`
+           progress=None,   # as in `add_tree`
+           **kw) -> AttrDict:
     "Clone a GitHub repository and file it with `add_tree`: prose in the vault, source code in kosha."
-    return self.add_tree(read(url).meta['path'], **kw)
+    if stop is not None and stop(): return AttrDict(source=url, docs=L(), n_docs=0, n_code=0, code=None, cancelled=True, unread=L([url]))
+    return self.add_tree(read(url).meta['path'], stop=stop, progress=progress, **kw)
 
 _GH_BLOB = re.compile(r'https?://github\.com/([^/]+)/([^/]+)/blob/[^/]+/(.+)')
 
@@ -167,7 +192,9 @@ def add_tree(self:Vault,
              connect:bool=False,     # rebuild the topic nodes at the end; see below
              verbose:bool=False,
              queue:bool=False,       # enqueue the work instead of doing it; `poll` or `drain` runs it
-             batch:int=50,           # files per job when queueing
+             batch:int=50,           # files per job when queueing, and per batch filed when `stop` or `progress` is given
+             stop=None,              # asked between batches and before kosha; True stops, and `unread` holds the files not reached
+             progress=None,          # told `progress(done, total, batch)` after each batch of documents
              **kw                    # forwarded to add_file
 ) -> AttrDict:
     "Add a directory, its documents to the vault and its source code to kosha, or queue the work with `queue=True`."
@@ -175,10 +202,12 @@ def add_tree(self:Vault,
     if not p.is_dir(): raise ValueError(f'not a directory: {dir}')
     if queue: return self.enqueue_tree(p, types=types, code=code, kind=kind, batch=batch,
                                        connect=connect, **kw)
-    docs = self.add_dir(p, types=types, kind=kind, **kw)
+    docs = self.add_dir(p, types=types, kind=kind, stop=stop, progress=progress, batch=batch, **kw)
     srcs = dir2files(p, types=code_exts) if code else L()
-    out = AttrDict(dir=str(p), docs=docs, n_docs=len(docs), n_code=len(srcs), code=None)
-    if srcs:
+    cut = stop is not None and bool(srcs) and (docs.cancelled or stop())
+    out = AttrDict(dir=str(p), docs=docs, n_docs=len(docs), n_code=0 if cut else len(srcs), code=None)
+    if stop is not None: out.cancelled, out.unread = docs.cancelled or cut, docs.unread + (srcs if cut else L())
+    if srcs and not cut:
         try: out.code = self.index_code(p, verbose=verbose)
         except Exception as e:
             # kosha owns code. Filing source as prose instead would put a second, worse copy of it
@@ -187,7 +216,7 @@ def add_tree(self:Vault,
                           f'({type(e).__name__}: {str(e)[:120]}); they are not searchable. '
                           f'Install kosha for symbol search.')
             out.code = dict(error=f'{type(e).__name__}: {str(e)[:200]}', indexed=0)
-    if connect and (out.n_docs or out.code): out.graph = self.connect()
+    if connect and not out.get('cancelled') and (out.n_docs or out.code): out.graph = self.connect()
     return out
 
 # %% ../nbs/01_acquire.ipynb #b1c90cd77b58aa2a

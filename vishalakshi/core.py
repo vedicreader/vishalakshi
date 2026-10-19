@@ -6,7 +6,7 @@ Docs: https://vedicreader.github.io/vishalakshi/core.html.md"""
 
 # %% auto #0
 __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SHELVES', 'MARK_COLS', 'KIND_SHELF', 'tidy_bc', 'kinds', 'HashEmbed', 'mk_encoder',
-           'Vault', 'content_hash', 'slug', 'gate', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
+           'Vault', 'content_hash', 'run_steps', 'slug', 'gate', 'is_sanskrit_file', 'sanskrit_facets', 'fmt_topics']
 
 # %% ../nbs/00_core.ipynb #66b23414ed2b
 import calendar, hashlib, json, os, re, time, unicodedata, uuid, warnings
@@ -166,34 +166,61 @@ def add_file(self:Vault, path:str, title:str=None, kind:str=None, **kw) -> dict:
     "Add one local file to the vault."
     return self._settled(self.db.add_file(path, title=title, kind=kind, store=self.name, emb_fn=self.emb, **kw), str(Path(path)))
 
+def run_steps(items,          # what to work through
+              f,              # does one step: takes a list of items, returns a list of results
+              size:int=1,     # items per step
+              stop=None,      # asked before each step; True stops, leaving the rest unread
+              progress=None,  # told `progress(done, total, step)` after each step; its errors are swallowed
+) -> L:
+    "Run `f` over `items` a step at a time; the results carry `cancelled` and `unread`, the items no step reached."
+    items, outs, at = L(items), L(), 0
+    while at < len(items) and not (stop is not None and stop()):
+        step = items[at:at+max(1, size)]
+        outs.extend(f(step)); at += len(step)
+        if progress is not None:
+            try: progress(at, len(items), step)
+            except Exception: pass
+    outs.cancelled, outs.unread = at < len(items), items[at:]
+    return outs
+
 @patch
 def add_files(self:Vault,
               files,                # paths to ingest, all onto *this* shelf
               kind:str=None,        # override the kind inferred from the extension
               n_workers:int=None,   # parse workers; 0 is serial, None picks by parse-heavy file count
               embed_batch:int=2000, # chunks embedded and written per flush; 0 writes per document
+              stop=None,            # asked between batches; True stops, and the result's `unread` holds the rest
+              progress=None,        # told `progress(done, total, batch)` after each batch
+              batch:int=50,         # files per batch when `stop` or `progress` is given
               **kw                  # forwarded to add_file
 ) -> L:
-    "Add a list of files to this shelf, embedding and writing their chunks in batches."
+    "Add a list of files to this shelf, embedding and writing their chunks in batches; the result carries `cancelled` and `unread`."
     files = L(files).map(Path)
-    # an empty list would still reach `rebuild_index`, which is a real cost for no documents
-    if not files: return L()
-    outs = self.db.add_dir(files=files, store=self.name, kind=kind, emb_fn=self.emb,
-                           n_workers=n_workers, embed_batch=embed_batch, **kw)
-    return L(self._settled(o, str(p)) for p, o in zip(files, outs))
+    def go(fs):
+        # an empty list would still reach `rebuild_index`, which is a real cost for no documents
+        if not fs: return L()
+        outs = self.db.add_dir(files=fs, store=self.name, kind=kind, emb_fn=self.emb,
+                               n_workers=n_workers, embed_batch=embed_batch, **kw)
+        return L(self._settled(o, str(p)) for p, o in zip(fs, outs))
+    # one call without callbacks: each batch rebuilds the vector index
+    return run_steps(files, go, size=batch if stop or progress else len(files), stop=stop, progress=progress)
 
 @patch
 def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,
             route:bool=True,      # send Sanskrit sources to the Sanskrit shelf, file by file
-            **kw) -> L:
-    "Add every document under a directory, skipping dotfiles, tests and build output, and send Sanskrit files to the Sanskrit shelf."
-    fs = dir2files(dir, types=types)
-    if not route or self.name != 'store': return self.add_files(fs, kind=kind, **kw)
+            stop=None, progress=None, **kw) -> L:
+    "Add every document under a directory, skipping dotfiles, tests and build output, and send Sanskrit files to the Sanskrit shelf; `stop` and `progress` as in `add_files`."
+    fs, cb = dir2files(dir, types=types), dict(stop=stop, progress=progress)
+    if not route or self.name != 'store': return self.add_files(fs, kind=kind, **cb, **kw)
     sa, rest = L(), L()
     for f in fs: (sa if is_sanskrit_file(f) else rest).append(f)
-    out = self.add_files(rest, kind=kind, **kw)
-    if sa: out += self.route('sanskrit').add_files(sa, kind=kind, **kw)
-    return out
+    out = self.add_files(rest, kind=kind, **cb, **kw)
+    if out.cancelled: out.unread = out.unread + sa
+    if out.cancelled or not sa: return out
+    more = self.route('sanskrit').add_files(sa, kind=kind, **cb, **kw)
+    res = out + more
+    res.cancelled, res.unread = more.cancelled, more.unread
+    return res
 
 def slug(s:str, n:int=60) -> str:
     'ASCII-folded, lower-cased, hyphenated, clipped: a stable key from a title.'

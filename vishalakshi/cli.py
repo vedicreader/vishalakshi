@@ -36,8 +36,8 @@ def vault(path:str=None) -> Vault:
                  offline=bool(os.getenv('VISHALAKSHI_OFFLINE')))
 
 def _spellable(p) -> bool:
-    'Can this parameter be written on a command line? `self`, `**kw`, a test stand-in chat and callable defaults cannot.'
-    return (p.name not in ('self', 'chat', 'chats', 'local_chat') and p.kind is not Parameter.VAR_KEYWORD
+    'Can this parameter be written on a command line? `self`, `**kw`, a test stand-in chat, the `stop` and `progress` callbacks and callable defaults cannot.'
+    return (p.name not in ('self', 'chat', 'chats', 'local_chat', 'stop', 'progress') and p.kind is not Parameter.VAR_KEYWORD
             and not (p.default is not Parameter.empty and callable(p.default)))
 
 def cmd(name:str, vault_fn=vault):
