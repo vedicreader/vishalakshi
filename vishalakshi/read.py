@@ -80,6 +80,13 @@ def halves(img:bytes) -> list:
     im = _image(img); w, h = im.size
     return [_as_png(im.crop((0, 0, w//2, h))), _as_png(im.crop((w//2, 0, w, h)))] if w > h else [img]
 
+def _wide(src, page:int) -> bool:
+    "Whether `halves` cuts page `page` of `src`: an image by its own size, a PDF page by its box, turned by its rotation, without rendering it."
+    p = Path(src)
+    if p.suffix.lower() in IMG_EXTS: w, h = _image(p.read_bytes()).size; return w > h
+    d = pdf_doc(p); x0, y0, x1, y1 = d.page_crop_box(page) or d.page_media_box(page)
+    return (x1 - x0 > y1 - y0) != (d.page_rotation(page) % 180 == 90)
+
 def page_strips(img:bytes, k:int, over:float=.06) -> list:
     "Cut `img` into `k` horizontal strips, top to bottom, each overlapping the next by `over` of the page height."
     im = _image(img); w, h = im.size; step = h / k
@@ -236,6 +243,9 @@ def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title
     def kept(r):
         "The page's cached readings, its whole page's or its halves', in order; None when it has none or is to be read again."
         if not at or r.page in redo: return None
+        if spread and _wide(p, r.page):   # a spread is kept only when both halves are: one alone is read again whole
+            fs = [Path(at(r.page, h)) for h in ('a', 'b')]
+            return [json.loads(f.read_text(encoding='utf-8')) for f in fs] if all(f.is_file() for f in fs) else None
         fs = [f for f in dict.fromkeys(Path(at(r.page, h)) for h in ('', 'a', 'b')) if f.is_file()]
         return [json.loads(f.read_text(encoding='utf-8')) for f in fs] or None
     def read(img, kw, fresh):
