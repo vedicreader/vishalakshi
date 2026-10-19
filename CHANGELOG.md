@@ -2,6 +2,20 @@
 
 <!-- do not remove -->
 
+## 0.1.25
+- `read_doc` and `Vault.read_doc` take `cache=`: a folder, or `cache(page, half)` returning a path. Each page's reading is kept there as JSON, `{page, items, cost, model}`, with `page` the file's stem. A cached page is not sent again; its row has `cached` set and `cost` None. An empty reading is kept too.
+- `redo=` reads pages again though they are cached. The old reading moves to the folder's `_prev` sibling once the new one is in, numbered `.1`, `.2` when one is there already.
+- `spread=True` reads a landscape page, a two-page spread, as its two halves in turn (`halves`), kept as `p0001a.json` and `p0001b.json`. `strips=k` sends each image as `k` overlapping strips (`page_strips`), and the model is told to read the page once. Both are cut from the page at full size; each piece is then held to the size limit.
+- `clean=` is a function made of every block's text before it is kept.
+- `tries=n` tries a failing page `n` times, waiting `RETRY_WAIT` seconds more each time. A page that still fails keeps its text layer, carries its `error` and is listed in `failed`. Without `tries` the error is raised, as before. `Vault.read_doc` results carry `failed`.
+- `read_page` takes `strips` and `fresh`. A reply that is not JSON raises and is dropped from the recorder, so asking again reaches the model. `fresh=True` drops the recorded reply before asking; `read_doc` asks fresh on a retry and on a `redo` page.
+- `fit(img)` holds a page image to the size `render` allows: within `max_bytes` as it is, else a JPEG within `max_px`. An image file given to `read_doc` is held to it.
+- `reading_prompt` fills `{title}` in a whole prompt as well as `{of}`, `{script}` and `{hint}`. A prompt that is no template, its JSON braces not doubled, is used as it is.
+- `Vault.accept` makes each change in the page's blocks too (`block_changes`), so what is assembled from the blocks after a proofread has it. A table's cells and a heading's `##` stay as read. Before, an accepted page lost its blocks.
+- `Vault.read_doc` files a page again only when its text, route or blocks changed. Before, every page with blocks was filed as a new version on every read.
+- `Vault.proofread` takes a reader named twice as one reader, so one model cannot agree with itself.
+- `CachedChat` keeps its recordings in `$VISHALAKSHI_CHAT_CACHE` when `path` is not given.
+
 ## 0.1.24
 - `Vault.edit_change(doc_id, id, after, by='person')` replaces an open change's proposed text. It returns `{ok, change}`, or `kind: not_found` or `stale` for a change that is not `proposed` or `doubt`.
 - `Vault.revert_page(doc_id, page, version, by='person')` files an old version of a page as its newest version, route `revert`, and re-indexes the document. It returns `{ok, doc_id, page, version}`, or `kind: not_found`.

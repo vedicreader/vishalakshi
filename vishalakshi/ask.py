@@ -481,9 +481,9 @@ class CachedChat(_CachedChat):
     """Urai's recorder, with this package's default model, cache directory and recording switch."""
     def __init__(self,
                  model:str=None,   # anything Urai takes; None -> $VISHALAKSHI_MODEL
-                 path:str=None,    # the diskcache directory; None -> CHAT_CACHE
+                 path:str=None,    # the diskcache directory; None -> $VISHALAKSHI_CHAT_CACHE, else CHAT_CACHE
                  record:bool=None, # allow a miss to reach a real model; None -> $VISHALAKSHI_RECORD_CHAT
                  **kw              # forwarded to `urai.Chat` on a miss
     ):
-        super().__init__(model or dflt_model, path=path or CHAT_CACHE, record=record,
+        super().__init__(model or dflt_model, path=path or os.getenv('VISHALAKSHI_CHAT_CACHE') or CHAT_CACHE, record=record,
                          env='VISHALAKSHI_RECORD_CHAT', **kw)
