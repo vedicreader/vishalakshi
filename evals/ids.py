@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from rahasya import gen_aadhaar
-from rahasya.core import (_luhn_ds, _NRIC_T, _NRIC_OFF, _DNI_L, _CF_ODD, _CF_EVEN, _B36, _NINO_BAD)
+from rahasya.core import (luhn_digits, NRIC_LETTERS, NRIC_OFFSET, DNI_LETTERS, CF_ODD, CF_EVEN, B36, NINO_BAD)
 
 def gen_tfn(r):
     while True:
@@ -39,8 +39,8 @@ def gen_medicare(r):
 def gen_nric(r):
     p = r.choice('STFG')
     ds = ''.join(str(r.randrange(10)) for _ in range(7))
-    tot = (sum(int(d)*w for d, w in zip(ds, (2,7,6,5,4,3,2))) + _NRIC_OFF[p]) % 11
-    return f'{p}{ds}{_NRIC_T[p][tot]}'
+    tot = (sum(int(d)*w for d, w in zip(ds, (2,7,6,5,4,3,2))) + NRIC_OFFSET[p]) % 11
+    return f'{p}{ds}{NRIC_LETTERS[p][tot]}'
 
 def gen_thai_id(r):
     ds = [r.randrange(1, 9)] + [r.randrange(10) for _ in range(11)]
@@ -59,17 +59,17 @@ def gen_nir(r):
 
 def gen_dni(r):
     n = r.randrange(10**7, 10**8)
-    return f'{n:08d}{_DNI_L[n % 23]}'
+    return f'{n:08d}{DNI_LETTERS[n % 23]}'
 
 def gen_nie(r):
     p, n = r.choice('XYZ'), r.randrange(10**6, 10**7)
-    return f'{p}{n:07d}' + _DNI_L[int(f'{"XYZ".index(p)}{n:07d}') % 23]
+    return f'{p}{n:07d}' + DNI_LETTERS[int(f'{"XYZ".index(p)}{n:07d}') % 23]
 
 def gen_cf(r):
     L = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     body = (''.join(r.choice(L) for _ in range(6)) + f'{r.randrange(0,99):02d}' + r.choice('ABCDEHLMPRST')
             + f'{r.randrange(1,28):02d}' + r.choice(L) + f'{r.randrange(100,999)}')
-    tot = sum((_CF_ODD if i % 2 == 0 else _CF_EVEN)[c] for i, c in enumerate(body))
+    tot = sum((CF_ODD if i % 2 == 0 else CF_EVEN)[c] for i, c in enumerate(body))
     return body + chr(65 + tot % 26)
 
 def gen_pesel(r):
@@ -82,7 +82,7 @@ def gen_personnummer(r):
     ds[2], ds[3] = divmod(r.randrange(1, 13), 10)[::-1] if False else divmod(r.randrange(1, 13), 10)
     ds[4], ds[5] = divmod(r.randrange(1, 29), 10)
     for last in range(10):
-        if _luhn_ds(ds + [last]):
+        if luhn_digits(ds + [last]):
             b = ''.join(map(str, ds + [last]))
             return f'{b[:6]}-{b[6:]}'
 
@@ -112,19 +112,19 @@ def gen_gstin(r):
     body = f'{r.randrange(1,38):02d}' + gen_pan(r) + str(r.randrange(1, 10)) + 'Z'
     tot = 0
     for i, c in enumerate(body):
-        v = _B36.index(c) * (2 if i % 2 else 1)
+        v = B36.index(c) * (2 if i % 2 else 1)
         tot += v // 36 + v % 36
-    return body + _B36[(36 - tot % 36) % 36]
+    return body + B36[(36 - tot % 36) % 36]
 
 def gen_nino(r):
     while True:
         p = r.choice('ABCEGHJKLMNOPRSTWXYZ') + r.choice('ABCEGHJKLMNPRSTWXYZ')
-        if p not in _NINO_BAD: return f'{p}{r.randrange(10**5,10**6):06d}{r.choice("ABCD")}'
+        if p not in NINO_BAD: return f'{p}{r.randrange(10**5,10**6):06d}{r.choice("ABCD")}'
 
 def gen_imei(r):
     ds = [r.randrange(10) for _ in range(14)]
     for last in range(10):
-        if _luhn_ds(ds + [last]): return ''.join(map(str, ds + [last]))
+        if luhn_digits(ds + [last]): return ''.join(map(str, ds + [last]))
 
 
 #: name -> (generator, the library validator it has to satisfy)

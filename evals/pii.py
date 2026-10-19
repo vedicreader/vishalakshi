@@ -361,10 +361,10 @@ def run(n=480, seed=0):
     print('       the guards were being fixed, so this precision is the optimistic one.\n')
     rows = []
     for label, v in (('with checksums', True), ('regex only', False)):
-        saved = dict(P._COMPILED)
-        if not v: P._COMPILED.update({k: (rx, None) for k, (rx, _) in saved.items()})
+        saved = dict(P.COMPILED)
+        if not v: P.COMPILED.update({k: (rx, None) for k, (rx, _) in saved.items()})
         try: sc = _score(rep, corpus(n, seed))
-        finally: P._COMPILED.clear(); P._COMPILED.update(saved)
+        finally: P.COMPILED.clear(); P.COMPILED.update(saved)
         rows.append(sc); _row(label, sc)
     _by_class(rows[0])
     print(f'\n  checksums move the false-positive rate from {rows[1]["fp"]}/{rows[1]["n_neg"]} '
@@ -381,13 +381,13 @@ def run(n=480, seed=0):
 
     print('\n=== 4. what each guard is worth, removed one at a time on the tuned corpus\n')
     for label, patch in _ablations(P):
-        saved_d, saved_u, saved_c = P.DESIGNATOR, P.URLISH, dict(P._COMPILED)
+        saved_d, saved_u, saved_c = P.DESIGNATOR, P.URLISH, dict(P.COMPILED)
         try:
             patch()
             _row(label, _score(rep, corpus(n, seed)))
         finally:
             P.DESIGNATOR, P.URLISH = saved_d, saved_u
-            P._COMPILED.clear(); P._COMPILED.update(saved_c)
+            P.COMPILED.clear(); P.COMPILED.update(saved_c)
 
     print('\n=== 5. names, which no pattern finds\n')
     neg = [t for t, w, _ in corpus(n, seed) if not w]
@@ -405,14 +405,14 @@ def _ablations(P):
     addr = P.PATTERNS['address'][0]
     loose_zip = addr.split(r'|\b[A-Z][a-z]+')[0] + r'|\b[A-Z]{2} \d{5}(?:-\d{4})?\b'
     no_city = addr.replace(r"\b[A-Z][a-z]+(?:[ ][A-Z][a-z]+){0,2},?[ ](?:", r"\b(?:")
-    def _set(kind, pat, ok): P._COMPILED[kind] = (_re.compile(pat, 0 if kind in P.CASED else _re.I), ok)
+    def _set(kind, pat, ok): P.COMPILED[kind] = (_re.compile(pat, 0 if kind in P.CASED else _re.I), ok)
     return [
         ('  as shipped', lambda: None),
         ('  without the US_STATES list', lambda: _set('address', loose_zip, None)),
         ('  without the city before a ZIP', lambda: _set('address', no_city, None)),
         ('  without the DESIGNATOR guard', lambda: setattr(P, 'DESIGNATOR', never)),
         ('  without the URL guard', lambda: setattr(P, 'URLISH', never)),
-        ('  nhs on any 10-digit run', lambda: _set('nhs', r'\b\d{3}[ -]?\d{3}[ -]?\d{4}\b', P._nhs_ok)),
+        ('  nhs on any 10-digit run', lambda: _set('nhs', r'\b\d{3}[ -]?\d{3}[ -]?\d{4}\b', P.nhs_ok)),
         ('  card on any 13-19 digit run', lambda: _set('card', r'\b(?:\d[ -]?){13,19}\b', P.luhn)),
     ]
 

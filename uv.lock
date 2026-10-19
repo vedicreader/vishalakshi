@@ -2040,7 +2040,7 @@ wheels = [
 
 [[package]]
 name = "litesearch"
-version = "0.1.43"
+version = "0.1.44"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "chonkie" },
@@ -2053,9 +2053,9 @@ dependencies = [
     { name = "tokenizers" },
     { name = "usearch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fa/53/862550629f0df684c65dcfb5446961f1bef2e8d9b9397b1c3bbd9f5940eb/litesearch-0.1.43.tar.gz", hash = "sha256:32efa20b1fd17598affcfb434a195080a65f26cd6dd728affef4bea267c69ec2", size = 80203, upload-time = "2026-10-19T05:39:21.161Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/48/05/cf162b0c30dec668e2592aebbdb6ecde2daa4b84f5739409009299f1798b/litesearch-0.1.44.tar.gz", hash = "sha256:ea8b9c106c13c91b0b8fba75e739b0e502db404e126b2a0b57052b7b7ce2e003", size = 80278, upload-time = "2026-10-19T06:54:28.344Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/09/33df1ae89d37c06c49335cbd46d1a09096721b5feec24031356e5cb1eeb5/litesearch-0.1.43-py3-none-any.whl", hash = "sha256:245d07de73a1ec046cb6e1f9590bdf9df4a61390a752d1c2faf06441821c09b1", size = 85905, upload-time = "2026-10-19T05:39:19.97Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/eb/bb64886d23455dd4ee2b6a9e809fead6d760fa43024a259524646e7e05ad/litesearch-0.1.44-py3-none-any.whl", hash = "sha256:be0f732e3da7621ecdb9325f6265d3f6902b40e81dd21c45340d3d7c0ce0f661", size = 85985, upload-time = "2026-10-19T06:54:27.06Z" },
 ]
 
 [[package]]
@@ -3700,14 +3700,14 @@ wheels = [
 
 [[package]]
 name = "rahasya"
-version = "0.0.4"
+version = "0.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastcore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/ae/cde799b31c98852894df9e88e50edc75e7fdad591072399ca8521aba59d3/rahasya-0.0.4.tar.gz", hash = "sha256:485979584a659a133db5ef6259fc19db0e2b1ecf088f0b972920e273741792c6", size = 20450, upload-time = "2026-10-19T05:56:23.449Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/55/9b/8a02439740f69fb0faef236d739c14f66c2606dcc0f2422c5b2fb47b17a2/rahasya-0.0.5.tar.gz", hash = "sha256:6505f22d96d0a29cacaa5465d9e21d7afaa271fb49b060a3f43ad3f4b8a49e38", size = 20835, upload-time = "2026-10-19T06:53:14.236Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1b/06/18ba39d9c2db0d05498a0347e1ecac1eff95ac9ea1ad8114463e1427fe1e/rahasya-0.0.4-py3-none-any.whl", hash = "sha256:e88b06fcdd6a396e3cbdb48c3ce0f339e3232a74523fce8e83107704efbb4c51", size = 20830, upload-time = "2026-10-19T05:56:22.42Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/8f/2beefcbde70bcb30af6047205c727d7993120d150fb03f6511ad07be96d5/rahasya-0.0.5-py3-none-any.whl", hash = "sha256:a70d463fef7edf159013cbfc385cf2b09a514e57a36c54edaab3bc632ad746e1", size = 21247, upload-time = "2026-10-19T06:53:13.109Z" },
 ]
 
 [[package]]
@@ -4641,13 +4641,13 @@ requires-dist = [
     { name = "fossick", specifier = ">=0.1.18" },
     { name = "ganapati", specifier = ">=0.0.1" },
     { name = "koshas", specifier = ">=0.1.11" },
-    { name = "litesearch", specifier = ">=0.1.43" },
+    { name = "litesearch", specifier = ">=0.1.44" },
     { name = "mcp" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pdflite", specifier = ">=0.0.4" },
     { name = "pobblebonk", specifier = ">=0.0.2" },
     { name = "pyskills", specifier = ">=0.0.27" },
-    { name = "rahasya", specifier = ">=0.0.4" },
+    { name = "rahasya", specifier = ">=0.0.5" },
     { name = "rgapi" },
     { name = "rishi", specifier = ">=0.1.44" },
     { name = "uraiyadal", specifier = ">=0.0.13" },

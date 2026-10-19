@@ -2,6 +2,11 @@
 
 <!-- do not remove -->
 
+## 0.1.28
+- `quality` imports `robust_z` and `TOKEN_RE` by their public names in litesearch 0.1.44. The evals read rahasya 0.0.5's public tables (`luhn_digits`, `NRIC_LETTERS`, `COMPILED`, `nhs_ok` and the rest), and `evals/pii.py` runs again.
+- Raises the floors to litesearch 0.1.44 and rahasya 0.0.5.
+- The tests that build the entity graph replay recorded replies through `CachedChat`, so CI loads no model.
+
 ## 0.1.27
 - The MCP server gates every result before the client sees it. Each string under a Local only document is withheld, title, heading and source included. Every other string goes through `redact`, so a Personal document's identifiers are masked. A document a person cleared comes back as stored. Before, `search`, `read`, `context`, `document`, `sources`, `ask` and the rest returned stored text, so a client model got a Personal document's email and a Local only document's title.
 - A tool that takes `pii` defaults to `redact` over MCP. A client may ask for `refuse`. `pii='off'` raises `PermissionError`, as lowering a level does. The CLI and Python defaults are unchanged.

@@ -35,12 +35,12 @@ def build(seed=0, encoder='retrieval', offline=False, **kw):
 
 
 def run(seed=0, **kw):
-    from vishalakshi.quality import NOISE_FEATURES, NOISE_W, _robust_z
+    from vishalakshi.quality import NOISE_FEATURES, NOISE_W, robust_z
     v, truth = build(seed=seed, **kw)
     f = v.noise_features()
     y = np.array([truth[d][0] for d in f.doc_ids])
     topic = np.array([truth[d][1] for d in f.doc_ids])
-    Z = _robust_z(f.X)
+    Z = robust_z(f.X)
 
     print(f'\n{len(f.doc_ids)} documents, {int(y.sum())} of them noise by construction\n')
     print(f'{"feature":<14}{"AUC":>7}   {"boiler":>8}{"survey":>8}{"content":>8}   weight')
@@ -72,7 +72,7 @@ def run(seed=0, **kw):
 
 def sweep(seeds=(0, 1, 2)):
     "The blended AUC over several corpora, since one draw of a synthetic corpus proves nothing."
-    from vishalakshi.quality import _robust_z
+    from vishalakshi.quality import robust_z
     out = []
     for s in seeds:
         v, truth = build(seed=s)
@@ -100,13 +100,13 @@ def fitted(seeds=(0, 1, 2, 3), n_mark=6, folds=3, seed=7):
     question is whether six is enough to beat a table of constants.
     """
     import numpy as np, random
-    from vishalakshi.quality import _robust_z, Ranker, NOISE_W
+    from vishalakshi.quality import robust_z, Ranker, NOISE_W
     rows = []
     for s in seeds:
         v, truth = build(seed=s)
         f = v.noise_features()
         y = np.array([float(truth[d][0]) for d in f.doc_ids])
-        Z = _robust_z(f.X)
+        Z = robust_z(f.X)
         w = np.array([NOISE_W.get(n, 0.0) for n in f.names])
         fixed = auc(Z @ w, y)
         best = max(auc(f.X[:, i], y) for i in range(len(f.names)))

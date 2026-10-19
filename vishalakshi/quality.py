@@ -13,7 +13,7 @@ import numpy as np
 from collections import Counter, defaultdict
 from fastcore.all import AttrDict, L, patch, first
 from litesearch.quality import (NOISE_FEATURES, NOISE_W, Ranker, chunk_idf, noise_features,
-                                noise_scores, _robust_z, _TOK)
+                                noise_scores, robust_z, TOKEN_RE)
 from .core import Vault, DTYPE, _epoch
 
 # %% ../nbs/10_quality.ipynb #63c65614
@@ -171,7 +171,7 @@ def _doc_side(self:Vault, refresh:bool=False) -> tuple:
     "Cached per-document features: the noise block, the Beta prior, kind and age."
     if refresh or getattr(self, '_ds', None) is None:
         f = self.noise_features()
-        nz = dict(zip(f.doc_ids, _robust_z(f.X))) if len(f.doc_ids) else {}
+        nz = dict(zip(f.doc_ids, robust_z(f.X))) if len(f.doc_ids) else {}
         meta = {r['id']: (r['kind'] or '', _epoch(r['added_at']) or time.time()) for r in self.t.docs(select='id, kind, added_at')}
         self._ds = (nz, meta)
     return self._ds
@@ -183,7 +183,7 @@ def pair_X(self:Vault, q:str, hits, prior:dict=None) -> np.ndarray:
     prior = self.doc_prior() if prior is None else prior
     idf = getattr(self, '_idf_cache', None)
     if idf is None: idf = self._idf_cache = chunk_idf(self.chunk_matrix(limit=20_000)[2])
-    qt = set(_TOK.findall((q or '').lower()))
+    qt = set(TOKEN_RE.findall((q or '').lower()))
     qw = sum(idf.get(w, 0.0) for w in qt) or 1.0
     qv = np.frombuffer(self.qemb(q), dtype=DTYPE).astype(np.float32) if q else None
     if qv is not None: qv /= np.linalg.norm(qv) + 1e-9
@@ -191,7 +191,7 @@ def pair_X(self:Vault, q:str, hits, prior:dict=None) -> np.ndarray:
     now, rows = time.time(), []
     for i, h in enumerate(hits, 1):
         txt = str(getattr(h, 'text', '') or '')
-        ht = set(_TOK.findall(txt.lower()))
+        ht = set(TOKEN_RE.findall(txt.lower()))
         sc = float(getattr(h, 'score', 0.0) or 0.0)
         did = getattr(h, 'doc_id', None)
         kind, added = meta.get(did, ('', now))
@@ -271,7 +271,7 @@ def fit_noise(self:Vault, labels:dict=None, l2:float=1.0, save:bool=False, **kw)
     y = np.array([float(labels.get(f.doc_ids[i], 0.0)) for i in range(len(f.doc_ids))])
     if len(set(y[keep].tolist())) < 2:
         keep = list(range(len(f.doc_ids)))   # only positives marked: the unmarked ones are the negatives
-    X = _robust_z(f.X)[keep]
+    X = robust_z(f.X)[keep]
     r = Ranker(f.names).fit(X, ['all']*len(keep), y[keep], l2=l2)
     if save and r.w is not None:
         t = self._rankers()
