@@ -344,5 +344,4 @@ d = { 'settings': { 'branch': 'main',
                                   'vishalakshi.read.read_page': ('read.html#read_page', 'vishalakshi/read.py'),
                                   'vishalakshi.read.reading_prompt': ('read.html#reading_prompt', 'vishalakshi/read.py'),
                                   'vishalakshi.read.render': ('read.html#render', 'vishalakshi/read.py'),
-                                  'vishalakshi.read.sane_box': ('read.html#sane_box', 'vishalakshi/read.py')},
-            'vishalakshi.skill': {}}}
+                                  'vishalakshi.read.sane_box': ('read.html#sane_box', 'vishalakshi/read.py')}}}
