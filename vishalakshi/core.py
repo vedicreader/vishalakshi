@@ -162,9 +162,13 @@ def assets(self:Vault, name:str=None) -> Path:
     return self.db.assets(name)
 
 @patch
-def add_file(self:Vault, path:str, title:str=None, kind:str=None, **kw) -> dict:
+def add_file(self:Vault, path:str, title:str=None, kind:str=None,
+             stop=None,       # asked before the read; True files nothing and reports the path in `unread`
+             progress=None,   # told `progress(1, 1, [path])` once the file is filed
+             **kw) -> dict:
     "Add one local file to the vault."
-    return self._settled(self.db.add_file(path, title=title, kind=kind, store=self.name, emb_fn=self.emb, **kw), str(Path(path)))
+    return self._one(path, lambda p: self._settled(self.db.add_file(p, title=title, kind=kind, store=self.name, emb_fn=self.emb, **kw),
+                                                   str(Path(p))), stop, progress)
 
 def run_steps(items,          # what to work through
               f,              # does one step: takes a list of items, returns a list of results
@@ -184,26 +188,39 @@ def run_steps(items,          # what to work through
     return outs
 
 @patch
+def _one(self:Vault, target, f, stop=None, progress=None) -> dict:
+    "File one `target` with `f` unless `stop()` says so first; given `stop`, the result carries `cancelled` and `unread`."
+    r = run_steps([target], lambda t: [f(t[0])], stop=stop, progress=progress)
+    out = r[0] if r else dict(source=target, skipped='cancelled')
+    return dict(out, cancelled=r.cancelled, unread=list(r.unread)) if stop is not None else out
+
+@patch
 def add_files(self:Vault,
               files,                # paths to ingest, all onto *this* shelf
               kind:str=None,        # override the kind inferred from the extension
               n_workers:int=None,   # parse workers; 0 is serial, None picks by parse-heavy file count
               embed_batch:int=2000, # chunks embedded and written per flush; 0 writes per document
-              stop=None,            # asked between batches; True stops, and the result's `unread` holds the rest
+              stop=None,            # asked before each batch and each file; True stops, and the result's `unread` holds the rest
               progress=None,        # told `progress(done, total, batch)` after each batch
               batch:int=50,         # files per batch when `stop` or `progress` is given
               **kw                  # forwarded to add_file
 ) -> L:
     "Add a list of files to this shelf, embedding and writing their chunks in batches; the result carries `cancelled` and `unread`."
-    files = L(files).map(Path)
+    files, cut = L(files).map(Path), L()
     def go(fs):
         # an empty list would still reach `rebuild_index`, which is a real cost for no documents
         if not fs: return L()
         outs = self.db.add_dir(files=fs, store=self.name, kind=kind, emb_fn=self.emb,
-                               n_workers=n_workers, embed_batch=embed_batch, **kw)
+                               n_workers=n_workers, embed_batch=embed_batch, stop=stop, **kw)
+        if getattr(outs, 'cancelled', False): cut.extend(outs.unread)
         return L(self._settled(o, str(p)) for p, o in zip(fs, outs))
+    # a batch cut short reports only what it filed, and nothing when that was none
+    pg = progress and (lambda d, t, s: (k := len(s)-len(cut)) and progress(d-len(cut), t, s[:k]))
     # one call without callbacks: each batch rebuilds the vector index
-    return run_steps(files, go, size=batch if stop or progress else len(files), stop=stop, progress=progress)
+    r = run_steps(files, go, size=batch if stop or progress else len(files),
+                  stop=stop and (lambda: bool(cut) or stop()), progress=pg)
+    if cut: r.cancelled, r.unread = True, cut + r.unread
+    return r
 
 @patch
 def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,

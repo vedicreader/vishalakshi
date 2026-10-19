@@ -2,6 +2,11 @@
 
 <!-- do not remove -->
 
+## 0.1.31
+- `grab` takes `stop` and `progress` for a local file, a PDF and a GitHub file URL. `add_file`, `pdf` and `gh_file` take both, as `url`, `arxiv` and `youtube` do: `stop()` is asked before the read or fetch, and `progress(1, 1, [target])` is called once the target is filed. When `stop()` returns True, nothing is filed and the result has `cancelled` set and `unread` holding the target. Before, `grab` passed `stop` to these methods, which did not accept it, and raised `TypeError`.
+- `add_files`, `add_dir` and `add_tree` pass `stop` to litesearch's `add_dir`, which asks it before each file in a batch. A stop inside a batch keeps the files before it, and `unread` lists that batch's remaining files and every later file. `progress` is called for that batch with only the files filed, or not called when none were. Before, a batch of `batch` files (50) always finished before `stop` was asked again.
+- Raises the floor to litesearch 0.1.46.
+
 ## 0.1.30
 - `add_tree`, `add_dir` and `add_files` take `stop` and `progress`. `stop()` is asked before each batch of `batch` files (50) and before kosha; `progress(done, total, batch)` is called after each batch, and an error in it is ignored. When `stop()` returns True, the batches already filed stay in the vault and the result has `cancelled` set and `unread` listing the files not reached. Nothing is raised.
 - `github` asks `stop` before the clone and passes both to `add_tree`. `url`, `arxiv` and `youtube` ask it before the fetch; `crawl` and `web` ask it between the pages they file. Given `stop`, their results carry `cancelled` and `unread` too. Without `stop` every result is as before.

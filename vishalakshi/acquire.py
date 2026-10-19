@@ -48,13 +48,6 @@ def _file(self:Vault,
                 url=r.source)
 
 @patch
-def _one(self:Vault, target, f, stop=None, progress=None) -> dict:
-    "File one `target` with `f` unless `stop()` says so first; given `stop`, the result carries `cancelled` and `unread`."
-    r = run_steps([target], lambda t: [f(t[0])], stop=stop, progress=progress)
-    out = r[0] if r else dict(source=target, skipped='cancelled')
-    return dict(out, cancelled=r.cancelled, unread=list(r.unread)) if stop is not None else out
-
-@patch
 def url(self:Vault,
         url:str,            # page to read
         title:str=None,     # defaults to the page's first heading, else its path
@@ -118,8 +111,14 @@ def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False,
                                                           force=force, **kw), force=force), stop, progress)
 
 @patch
-def pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False, **kw) -> dict:
+def pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False,
+        stop=None, progress=None,   # as in `url`
+        **kw) -> dict:
     "Read a PDF, from a local path or a URL, into the vault, one section per heading."
+    return self._one(path_or_url, lambda t: self._pdf(t, title=title, force=force, **kw), stop, progress)
+
+@patch
+def _pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False, **kw) -> dict:
     from fossick import get_pdf
     if (p:=Path(path_or_url)).exists(): return self.add_file(p, title=title, kind='pdf', force=force)
     if (doc := get_pdf(path_or_url, **kw)) is None: return dict(source=path_or_url, skipped='not a PDF or could not be fetched')
@@ -147,8 +146,14 @@ def github(self:Vault, url:str,
 _GH_BLOB = re.compile(r'https?://github\.com/([^/]+)/([^/]+)/blob/[^/]+/(.+)')
 
 @patch
-def gh_file(self:Vault, url:str, title:str=None, **kw) -> dict:
+def gh_file(self:Vault, url:str, title:str=None,
+            stop=None, progress=None,   # as in `url`
+            **kw) -> dict:
     "File one file from GitHub: a prose file as a document, a source file by indexing its repository with kosha."
+    return self._one(url, lambda u: self._gh_file(u, title=title, **kw), stop, progress)
+
+@patch
+def _gh_file(self:Vault, url:str, title:str=None, **kw) -> dict:
     if not (m := _GH_BLOB.match(url)): return dict(source=url, skipped='not a GitHub file URL')
     owner, repo, path = m.groups()
     if Path(path).suffix.lower() in code_exts.split(','):
