@@ -168,7 +168,8 @@ def read_page(img:bytes, model:str=None, preset:str='generic', title:str='', scr
 ) -> AttrDict:
     "Read one page image with a vision model and return its `blocks`, their markdown `text`, the `model` and the `cost`, or `blocked` when the page may not be sent."
     from vishalakshi.ask import CachedChat, model_local, send_rule
-    lv = top(level, 'personal' if (text or '').strip() and pii_report(text, ner=True).has_pii else 'open')
+    # the title rides in the reading prompt, so it is judged with the page
+    lv = top(level, 'personal' if (s := f"{title or ''}\n{text or ''}".strip()) and pii_report(s, ner=True).has_pii else 'open')
     if send_rule(lv, model_local(chat if chat is not None else model), pii, allow, image=True) == 'withheld':
         return AttrDict(blocks=[], text='', model=getattr(chat, 'model', model), cost=None, blocked=AttrDict(
             kind='local_only' if lv == 'local' else 'pii_blocked', level=lv, why=f'a {LEVEL_LABELS[lv]} page is not sent to a hosted model'))

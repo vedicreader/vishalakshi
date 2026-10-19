@@ -76,12 +76,13 @@ def categorize(self:Vault,
                 by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
                 ch = new_chat(mid, **(chat_kw or {}))
-                chk = self.send_check(refs=[d.doc_id] if d.doc_id else None, text=None if d.doc_id else txt, model=ch, policy=pii,
+                msg = f"{d.title}\n\n{txt}"
+                chk = self.send_check(refs=[d.doc_id] if d.doc_id else None, text=None if d.doc_id else msg, model=ch, policy=pii,
                                       level='local' if g.sensitive and g.score >= MIN_SCORE else None)
                 it = chk.rows[0]
                 if it.how == 'withheld': by = f'cues ({g.method}); the document is {LEVEL_LABELS[it.level]} and {mid} is hosted, so none was asked'
                 else:
-                    said = ch.classify(f"{d.title}\n\n{txt if it.how == 'whole' else it.get('text') or redact(txt, ner=True)}", list(lbls)+['other'], sp=TYPE_SP)
+                    said = ch.classify(msg if it.how == 'whole' else it.get('text') or redact(msg, ner=True), list(lbls)+['other'], sp=TYPE_SP)
                     self._sent(chk, mid, getattr(ch, 'runtime', None))
                     if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "Urai default"})'
                     else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
@@ -224,11 +225,10 @@ def extract(self:Vault,
     # marks win over arithmetic, so this is `self.pii` rather than a bare `pii_report`
     report = (self.pii(d.doc_id, max_chars=max_chars, ner=True) if d.doc_id else pii_report(d.text, ner=True)) if pii != 'off' else None
     lvl = self._doc_level(None, d.doc_id) if d.doc_id else top(self.floor(), 'personal' if report and report.has_pii else 'open')
-    private, text = pii != 'off' and (bool(report and report.has_pii) or lvl != 'open'), d.text
+    private = pii != 'off' and (bool(report and report.has_pii) or lvl != 'open')
     if private and pii == 'refuse':
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
                         fields={}, skipped='pii', refused=True, pii=report, level=lvl, kind='pii_blocked')
-    if private and pii == 'redact': text = redact(d.text, ner=True)
     dt, cat = None, None
     if schema is None:
         # the categorising leg goes where the extraction would, and through the same check
@@ -237,19 +237,21 @@ def extract(self:Vault,
         dt = cat.doctype
         sch = SCHEMAS.get(dt, Summary)
     else: sch = as_schema(schema)
-    prompt = (f'{d.title}\n(source: {d.source})\n\n{text}\n\n---\n\n'
-              f'Pull the fields of `{sch.__name__}` out of the document above.')
     mid, sys_sp = model, sp
     if private and pii == 'local':
         mid, sys_sp = pii_model or pii_model_, PII_SP
     ch = new_chat(mid, **(chat_kw or {}))
-    if (private and pii == 'local' and not is_local(getattr(ch, 'runtime', ''))) or (lvl == 'local' and not model_local(ch)):
+    # the title and source travel with the text, so the one decision covers all three
+    chk = self.send_check(refs=[d.doc_id] if d.doc_id else None, text=None if d.doc_id else f'{d.title}\n{d.source}\n\n{d.text}',
+                          model=ch, policy=pii, level=top(lvl, 'personal' if private else None))
+    if (how := chk.rows[0].how) == 'withheld':
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=dt, schema=None, fields={}, skipped='pii', refused=True,
-                        pii=report, runtime=ch.runtime, level=lvl, kind='local_only' if lvl == 'local' else 'pii_blocked')
+                        pii=report, runtime=ch.runtime, level=lvl, kind=chk.kind)
+    hd, src, text = (d.title, d.source, d.text) if how == 'whole' else (redact(x or '', ner=True) for x in (d.title, d.source, d.text))
+    prompt = (f'{hd}\n(source: {src})\n\n{text}\n\n---\n\n'
+              f'Pull the fields of `{sch.__name__}` out of the document above.')
     raw = structured(ch, prompt, sch, sp=sys_sp, cite=cite)
-    if d.doc_id and not model_local(ch):
-        self._sent(AttrDict(local=False, send=[AttrDict(doc_id=d.doc_id, page=None)], model=mid, runtime=ch.runtime, policy=pii,
-                            kinds=dict(report.identifying) if report else {}))
+    self._sent(chk, mid, ch.runtime)
     flds = {k: v['value'] for k, v in raw.items()} if cite else raw
     at = locate(raw, {k: t for k, (t, _) in self._page_texts(d.doc_id).items()}) if d.doc_id else {}
     src = {f: dict(page=at.get(f, {}).get('page'), block=at.get(f, {}).get('block'), quote=raw[f]['quote'] if cite else None)

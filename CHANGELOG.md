@@ -2,6 +2,17 @@
 
 <!-- do not remove -->
 
+## 0.1.26
+- `ask` masks each section's heading line, title and source under `redact`, as it masks the text. Before, the heading went as stored, so a note titled with an email address sent the address to a hosted model.
+- A Local only section reaches a hosted model as a bare `[n] [withheld: local only]` line, through `ref=` or retrieval. Before, its heading and source went with the placeholder.
+- `explain` goes through the same gate as `ask`: the section title and the related headings are masked or withheld, a Local only related section is dropped, and a hosted send is written to the send log.
+- `categorize` and `extract` send the title and source under the same `send_check` decision as the text: masked under `redact`, nothing when withheld. `extract` decides through `send_check` and logs every hosted send. A file read off disk is judged on its name too. Under `redact` a local model now reads the document whole, as `send_rule` says.
+- `gated` withholds a Local only row's title, breadcrumb and source with its text. `pii_ctx` and the row detector read titles, breadcrumbs and sources as well as text.
+- `level` counts an identifier in a document's title, on every page.
+- `read_page` judges the title with the page text, since the title goes into the reading prompt.
+- `build_graph` and `connect` refuse a hosted chat when the shelf holds a document above Open; nothing is sent and the result has `refused`, `kind` and `why`.
+- `new_chat`, `use_chat`, `is_stock_chat` and `local_ok` read `CHAT` and `LOCAL_OK` on the module at call time, so a copy run from a notebook obeys the same switch. Notebooks pass in one process as well as in parallel.
+
 ## 0.1.25
 - `read_doc` and `Vault.read_doc` take `cache=`: a folder, or `cache(page, half)` returning a path. Each page's reading is kept there as JSON, `{page, items, cost, model}`, with `page` the file's stem. A cached page is not sent again; its row has `cached` set and `cost` None. An empty reading is kept too.
 - `redo=` reads pages again though they are cached. The old reading moves to the folder's `_prev` sibling once the new one is in, numbered `.1`, `.2` when one is there already.

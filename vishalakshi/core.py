@@ -789,13 +789,26 @@ def stats(self:Vault) -> dict:
 # %% ../nbs/00_core.ipynb #typedgraph02
 @patch
 def build_graph(self:Vault, chat=None, seed:bool=False, **kw) -> dict:
-    "Have a model extract the entities and relations in chunks not yet processed, with vruksha, into the shelf's entity graph."
+    "Have a model extract the entities and relations in chunks not yet processed, with vruksha, into the shelf's entity graph; a hosted chat only when every document on the shelf is Open."
     from vruksha import build_graph as _bg, cites, norm_cite
     if seed: kw = dict(kw, seed_fn=cites, canon=norm_cite)
-    if chat is None:
-        from vishalakshi.ask import new_chat   # absolute: this cell's patch runs outside the package
-        chat = new_chat()
+    from vishalakshi.ask import model_local, new_chat   # absolute: this cell's patch runs outside the package
+    if chat is None: chat = new_chat()
+    # every chunk, its heading and the names already in the graph go to the chat, with nothing to mask them by
+    if not model_local(chat) and (lv := self._top_level()) != 'open':
+        return dict(entities=0, mentions=0, edges=0, new=0, refused=True, kind='local_only' if lv == 'local' else 'pii_blocked',
+                    why=f'the shelf holds a {lv} document and the chat is hosted, so nothing was sent')
     return _bg(self.db, chat, self.emb, store=self.name, **kw)
+
+@patch
+def _top_level(self:Vault) -> str:
+    "The highest privacy level of any document on this shelf, stopping at the first Local only one."
+    from vishalakshi.pii import top   # levels are pii's, which imports this module
+    lv = self.floor()
+    for r in self.t.docs(select='id'):
+        if lv == 'local': break
+        lv = top(lv, self.level(r['id']).level)
+    return lv
 
 @patch
 def connect(self:Vault,

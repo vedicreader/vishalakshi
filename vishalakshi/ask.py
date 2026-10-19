@@ -6,9 +6,9 @@ Docs: https://vedicreader.github.io/vishalakshi/ask.html.md"""
 
 # %% auto #0
 __all__ = ['VAULT_SP', 'DFLT_MODEL', 'dflt_model', 'pii_model_', 'LOCAL_RUNTIMES', 'LITERT_GPU', 'PII_SP', 'CHAT',
-           'SEND_POLICIES', 'LOCAL_OK', 'CHAT_CACHE', 'is_local', 'litert_gpu', 'urai', 'new_chat', 'is_stock_chat',
-           'use_chat', 'mk_prompt', 'split_reasoning', 'cited', 'doc_note', 'model_local', 'send_rule', 'send_line',
-           'local_ok', 'ask_policy', 'CachedChat']
+           'SEND_POLICIES', 'LOCAL_OK', 'ROW_SENT', 'CHAT_CACHE', 'is_local', 'litert_gpu', 'urai', 'new_chat',
+           'is_stock_chat', 'use_chat', 'mk_prompt', 'split_reasoning', 'cited', 'doc_note', 'model_local', 'send_rule',
+           'send_line', 'local_ok', 'ask_policy', 'CachedChat']
 
 # %% ../nbs/02_ask.ipynb #6a75ade4c079
 import json, os, re, time, uuid, warnings
@@ -18,7 +18,7 @@ from urai.record import CachedChat as _CachedChat
 from fastcore.all import AttrDict, L, first, patch
 from litesearch import write_txn
 from .core import Vault, gate, tidy_bc
-from .pii import (_pii_marks, _section_private, gated, held, pii_ctx, pii_report, redact, redact_obj, top)
+from .pii import (_mask, _pii_marks, _section_private, gated, held, pii_ctx, pii_report, redact, redact_obj, top)
 
 # %% ../nbs/02_ask.ipynb #5a8b980e5ee928aa
 VAULT_SP = """You answer questions from a personal research vault.
@@ -91,13 +91,18 @@ def urai():
     except ImportError as e: raise ImportError('asking needs rishi: pip install rishi') from e
     return core
 
+def _here():
+    "This module as imported; the switches are read and set on it, so a copy of these functions run elsewhere, such as in a notebook, shares them."
+    import vishalakshi.ask as m
+    return m
+
 #: What `new_chat` builds. `None` means Urai's `Chat`, resolved when a chat is first built.
 CHAT = None
 def new_chat(model:str=None,   # an id, a path, `mlx/…`; None -> $VISHALAKSHI_MODEL
              **kw              # anything else Urai's `Chat` takes: sp, temp, runtime, think, …
 ):
     "Build a new chat for `model`; every model call in the vault builds its chat here, a fresh one each time."
-    model, mk = model or dflt_model, CHAT or urai().Chat
+    model, mk = model or dflt_model, _here().CHAT or urai().Chat
     gkw = litert_gpu(model, kw)
     if gkw is kw: return mk(model, **kw)
     try: return mk(model, **gkw)
@@ -109,15 +114,16 @@ def new_chat(model:str=None,   # an id, a path, `mlx/…`; None -> $VISHALAKSHI_
 def is_stock_chat() -> bool:
     "Whether `new_chat` builds Urai's own `Chat`, which is False while `use_chat` has swapped in something else."
     # `None` short-circuits, so the common answer costs no import; a swap means Urai is in use anyway
-    return CHAT is None or CHAT is urai().Chat
+    c = _here().CHAT
+    return c is None or c is urai().Chat
 
 @contextmanager
 def use_chat(f):
     "Build chats with `f` instead of Urai's `Chat` inside the block; the swap is process-wide, so a threaded host should pass `mk_chat=` to `ask` instead."
-    global CHAT
-    old, CHAT = CHAT, f
+    m = _here()
+    old, m.CHAT = m.CHAT, f
     try: yield
-    finally: CHAT = old
+    finally: m.CHAT = old
 
 
 # %% ../nbs/02_ask.ipynb #b9d2ac88
@@ -129,6 +135,7 @@ def mk_prompt(question:str,        # what you want to know
 ) -> str:
     "Build the prompt the model reads: the numbered sections, the related leads by title, then the question."
     def sec(i, r):
+        if r.get('held'): return f'[{i}] {r.text}'
         pg = f', pages {r.pages[0]}–{r.pages[1]}' if r.pages and r.pages[0] is not None else ''
         return f"[{i}] {tidy_bc(r.breadcrumb)}\n(source: {r.filename or r.doc_id}{pg})\n\n{(r.text or '')[:max_chars]}"
     parts = L(sec(i, r) for i, r in enumerate(ctx.results, 1))
@@ -291,7 +298,7 @@ LOCAL_OK = None   #: None probes; True/False decides for a host that already kno
 
 def local_ok(model:str=None) -> bool:
     "Whether the runtime that `model`, by default the PII model, resolves to runs on this machine and is installed."
-    if LOCAL_OK is not None: return bool(LOCAL_OK)
+    if (ok := _here().LOCAL_OK) is not None: return bool(ok)
     try:
         rt, _ = urai().resolve_runtime(model or pii_model_)
         if not is_local(rt): return False
@@ -337,27 +344,9 @@ def ask(self:Vault,
     else:
         ctx = self.doc_context(ref, question, related=related, max_chars=doc_chars)
         note, mc = ctx.note, doc_chars
-    cleared, forced = _pii_marks(self)
-    _priv = lambda r: _section_private(r, cleared, forced, self.name, ner=pii_ner)
-    keep = int(ctx.get('n_docs') or 0)
-    ctx.related = L(r for r in ctx.related if not _priv(r))
-    if keep: ctx.results = L(ctx.results[:keep]) + L(r for r in ctx.results[keep:] if not _priv(r))
-    lv = self._ctx_levels(ctx)
-    _seen = lambda r: (getattr(r, 'store', None) or self.name, getattr(r, 'doc_id', None)) in cleared
-    report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not _seen(r)),
-                              related=L(r for r in ctx.related if not _seen(r))), ner=pii_ner)
-    # `mark_pii` gates a document arithmetic cannot see anything wrong with
-    if not report.has_pii and any(_priv(r) for r in (*ctx.results, *ctx.related)):
-        report.has_pii, report.identifying = True, {'marked': 1}
-    # a mark, a sensitive type or the shelf's floor makes a section private as well as what its text shows
-    if not report.has_pii and (hi := top(*lv.values())) != 'open': report.has_pii, report.identifying = True, {hi: 1}
+    report, lv = self._ctx_gate(ctx, pii, pii_ner, keep=int(ctx.get('n_docs') or 0))
     private = report.has_pii
-    if private:
-        note = (f"{note}These sections hold personal information ({', '.join(sorted(report.identifying))}). " if pii == 'local' else note)
-        # an exempted section is not masked either, or `mark_not_pii` means nothing here
-        if pii == 'redact':
-            ctx.results = L(r if _seen(r) else AttrDict(r, text=redact(r.text, ner=pii_ner))
-                            for r in ctx.results)
+    if private and pii == 'local': note = f"{note}These sections hold personal information ({', '.join(sorted(report.identifying))}). "
     if instruction: question = f'{question}\n\nInstruction from the questioner: {instruction}'
     if private and pii == 'local':
         mid = pii_model or pii_model_
@@ -413,32 +402,29 @@ def explain(self:Vault, node_id:str, model:str=None, chat_kw:dict=None, max_char
     "Have a model explain one section and say what related sections in the vault add to it or contradict."
     pii = ask_policy(pii, pii_model)
     sec, rel = self.read(node_id, max_chars=max_chars), self.related(node_id, limit=6)
-    text = sec.get('text', '')
-    report = pii_report(text, ner=pii_ner)
-    lvl = self._doc_level(sec.get('store'), node_id.split('#')[0]) or 'open'
-    private = report.has_pii or lvl != 'open'
-    mid = model or dflt_model
-    sys_sp = sp
-    if private and pii == 'local':
-        mid, sys_sp = pii_model or pii_model_, PII_SP
-    elif private and pii == 'redact':
-        text = redact(text, ner=pii_ner)
-    elif private and pii == 'refuse':
-        return AttrDict(answer=f"held back: section holds personal information ({', '.join(sorted(report.identifying))})",
-                        refused=True, pii=report, policy=pii, node_id=node_id)
+    row = AttrDict(node_id=node_id, doc_id=node_id.split('#')[0], store=sec.get('store'), title=sec.get('title', ''),
+                   breadcrumb=sec.get('title', ''), text=sec.get('text', ''))
+    ctx = AttrDict(results=L([row]), related=L(AttrDict(r) for r in rel))
+    report, lv = self._ctx_gate(ctx, pii, pii_ner)
+    private, mid, sys_sp = report.has_pii, model or dflt_model, sp
+    out = AttrDict(node_id=node_id, pii=report, policy=pii, level=lv.get(_rkey(row, self.name)) or 'open')
+    if private and pii == 'refuse':
+        return AttrDict(out, answer=f"held back: section holds personal information ({', '.join(sorted(report.identifying))})", refused=True)
+    if private and pii == 'local': mid, sys_sp = pii_model or pii_model_, PII_SP
     ch = (mk_chat or new_chat)(mid, sp=sys_sp, **(chat_kw or {}))
-    if lvl == 'local' and not model_local(ch):
-        return AttrDict(answer=held({'local': 1}), refused=True, pii=report, policy=pii, node_id=node_id, runtime=ch.runtime, level=lvl)
+    out.runtime = ch.runtime
     if private and pii == 'local' and not is_local(getattr(ch, 'runtime', '')):
-        return AttrDict(answer=f"held back: section holds personal information and {ch.runtime} is not local",
-                        refused=True, pii=report, policy=pii, node_id=node_id, runtime=ch.runtime)
-    prompt = (f"Section: {sec.get('title','')}\n\n{text}\n\nOther sections in the vault "
-              f"that read like it:\n" + '\n'.join(f"- {r['breadcrumb']}" for r in rel) +
-              "\n\nExplain this section, then say what the related sections add or contradict.")
+        return AttrDict(out, answer=f"held back: section holds personal information and {ch.runtime} is not local", refused=True)
+    out.send = chk = self._ctx_send(ctx, lv, ch, pii, mid)
+    s = ctx.results[0]
+    if s.get('held'): return AttrDict(out, answer=s.text, refused=True)
+    out.prompt = prompt = (f"Section: {s.title}\n\n{s.text}\n\nOther sections in the vault that read like it:\n" +
+                           '\n'.join(f"- {r['breadcrumb']}" for r in ctx.related) +
+                           "\n\nExplain this section, then say what the related sections add or contradict.")
     res = ch(prompt)
     answer, thinking = split_reasoning(urai().resp_text(res))
-    out = AttrDict(node_id=node_id, answer=answer.strip(), thinking=thinking or urai().thought(res),
-                   section=sec, related=rel, model=mid, runtime=ch.runtime, pii=report, policy=pii, level=lvl)
+    self._sent(chk, mid, ch.runtime)
+    out.update(answer=answer.strip(), thinking=thinking or urai().thought(res), section=sec, related=rel, model=mid)
     return _scrub_answer(out, private)
 
 
@@ -450,6 +436,38 @@ def _doc_level(self:Vault, store, doc_id) -> str|None:
     return v.level(doc_id).level if doc_id and first(v.t.docs(where='id=?', where_args=[doc_id], select='id')) else None
 
 def _rkey(r, store): return (getattr(r, 'store', None) or store, getattr(r, 'doc_id', None))
+
+ROW_SENT = ('text', 'title', 'breadcrumb', 'filename', 'source')
+
+def _masked(r, ner:bool=True):
+    "Row `r` with every field a prompt carries put through `redact`."
+    out = AttrDict(r)
+    for f in ROW_SENT: _mask(out, f, lambda s: redact(s, ner=ner))
+    return out
+
+def _held(r, kinds):
+    "Row `r` reduced to a placeholder: no text, heading, title or source, which `mk_prompt` writes as the bare `[n]` line."
+    h = held(kinds)
+    return AttrDict(r, text=h, title=h, breadcrumb=h, filename=None, source=None, pages=None, held=True)
+
+@patch
+def _ctx_gate(self:Vault, ctx, pii:str, ner:bool=True, keep:int=0):
+    "Judge an assembled context: drop private leads, decide whether it is private, and under `redact` mask every field sent; returns `(report, levels)`."
+    cleared, forced = _pii_marks(self)
+    priv = lambda r: _section_private(r, cleared, forced, self.name, ner=ner)
+    ctx.related = L(r for r in ctx.related if not priv(r))
+    if keep: ctx.results = L(ctx.results[:keep]) + L(r for r in ctx.results[keep:] if not priv(r))
+    lv, seen = self._ctx_levels(ctx), lambda r: _rkey(r, self.name) in cleared
+    report = pii_ctx(AttrDict(results=L(r for r in ctx.results if not seen(r)), related=L(r for r in ctx.related if not seen(r))), ner=ner)
+    # `mark_pii` gates a document arithmetic cannot see anything wrong with
+    if not report.has_pii and any(priv(r) for r in (*ctx.results, *ctx.related)): report.has_pii, report.identifying = True, {'marked': 1}
+    # a mark, a sensitive type or the shelf's floor makes a section private as well as what its text shows
+    if not report.has_pii and (hi := top(*lv.values())) != 'open': report.has_pii, report.identifying = True, {hi: 1}
+    # an exempted section is not masked either, or `mark_not_pii` means nothing here
+    if report.has_pii and pii == 'redact':
+        m = lambda rs: L(r if seen(r) else _masked(r, ner) for r in rs)
+        ctx.results, ctx.related = m(ctx.results), m(ctx.related)
+    return report, lv
 
 @patch
 def _ctx_levels(self:Vault, ctx) -> dict:
@@ -466,7 +484,7 @@ def _ctx_send(self:Vault, ctx, lv, ch, policy, mid=None) -> AttrDict:
     loc = model_local(ch)
     how = {k: send_rule(l, loc, policy) for k, l in lv.items()}
     gone = lambda r: how.get(_rkey(r, self.name)) == 'withheld'
-    ctx.results = L(AttrDict(r, text=held({lv[_rkey(r, self.name)]: 1})) if gone(r) else r for r in ctx.results)
+    ctx.results = L(_held(r, {lv[_rkey(r, self.name)]: 1}) if gone(r) else r for r in ctx.results)
     ctx.related = L(r for r in ctx.related if not gone(r))
     items = L(AttrDict(doc_id=k[1], store=k[0], page=None, level=l, how=how[k], kinds={}) for k, l in lv.items())
     wh = items.filter(lambda i: i.how == 'withheld')
