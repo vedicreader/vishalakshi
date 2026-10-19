@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.29
+- `CachedChat` built directly registers Rishi's runtimes, as `new_chat` does, so `runtime` names the backend. Before, `CachedChat(path=...).runtime` raised "Can't tell which backend" for the default model unless something had already imported Rishi.
+
 ## 0.1.28
 - `quality` imports `robust_z` and `TOKEN_RE` by their public names in litesearch 0.1.44. The evals read rahasya 0.0.5's public tables (`luhn_digits`, `NRIC_LETTERS`, `COMPILED`, `nhs_ok` and the rest), and `evals/pii.py` runs again.
 - Raises the floors to litesearch 0.1.44 and rahasya 0.0.5.

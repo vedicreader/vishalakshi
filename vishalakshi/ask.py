@@ -503,5 +503,6 @@ class CachedChat(_CachedChat):
                  record:bool=None, # allow a miss to reach a real model; None -> $VISHALAKSHI_RECORD_CHAT
                  **kw              # forwarded to `urai.Chat` on a miss
     ):
+        urai()   # registers Rishi's runtimes, which `runtime` resolves the id against
         super().__init__(model or dflt_model, path=path or os.getenv('VISHALAKSHI_CHAT_CACHE') or CHAT_CACHE, record=record,
                          env='VISHALAKSHI_RECORD_CHAT', **kw)
