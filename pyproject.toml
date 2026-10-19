@@ -25,21 +25,21 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "litesearch>=0.1.41",
-    "pdflite>=0.0.3",
-    "fossick>=0.1.15",
+    "litesearch>=0.1.43",
+    "pdflite>=0.0.4",
+    "fossick>=0.1.18",
     "fastcore>=2.2.15",
-    "rahasya>=0.0.3",
-    "varga>=0.0.6",
+    "rahasya>=0.0.4",
+    "varga>=0.0.7",
     "ganapati>=0.0.1",
     "pobblebonk>=0.0.2",
     "numpy>=1.26",
     "mcp",
-    "koshas>=0.0.36",
+    "koshas>=0.1.11",
     "rgapi",
-    "uraiyadal>=0.0.7",   # CachedChat with structured, runtime and the env it switches on
+    "uraiyadal>=0.0.13",   # CachedChat with structured, runtime and the env it switches on
     "vruksha>=0.1.1",
-    "rishi>=0.1.32",
+    "rishi>=0.1.44",
     "pyskills>=0.0.27",
 ]
 
@@ -80,6 +80,6 @@ dev = [
     "nbdev>=3.3.4",
     "notebook>=7.6.1",
     "onnxruntime",
-    "rishi[all]>=0.1.2",
+    "rishi[all]>=0.1.44",
     "tokenizers",
 ]

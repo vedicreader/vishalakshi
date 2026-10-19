@@ -2,6 +2,12 @@
 
 <!-- do not remove -->
 
+## 0.1.27
+- The MCP server gates every result before the client sees it. Each string under a Local only document is withheld, title, heading and source included. Every other string goes through `redact`, so a Personal document's identifiers are masked. A document a person cleared comes back as stored. Before, `search`, `read`, `context`, `document`, `sources`, `ask` and the rest returned stored text, so a client model got a Personal document's email and a Local only document's title.
+- A tool that takes `pii` defaults to `redact` over MCP. A client may ask for `refuse`. `pii='off'` raises `PermissionError`, as lowering a level does. The CLI and Python defaults are unchanged.
+- `ask` and `ask_doc` over MCP return no `prompt`. When a local model read a Local only section whole, the answer, thinking and fields are withheld.
+- Raises the floors to rahasya 0.0.4, varga 0.0.7, fossick 0.1.18, koshas 0.1.11, pdflite 0.0.4, litesearch 0.1.43, rishi 0.1.44 and uraiyadal 0.0.13.
+
 ## 0.1.26
 - `ask` masks each section's heading line, title and source under `redact`, as it masks the text. Before, the heading went as stored, so a note titled with an email address sent the address to a hosted model.
 - A Local only section reaches a hosted model as a bare `[n] [withheld: local only]` line, through `ref=` or retrieval. Before, its heading and source went with the placeholder.

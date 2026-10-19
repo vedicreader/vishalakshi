@@ -101,7 +101,7 @@ r.scanned_ner, r.detected, r.has_pii, any('footer' in h['breadcrumb'] for h in v
 | `redact` | each recognised identifier is masked, then the named model answers, hosted or not. The heading, title and source of each section are masked with its text. Names without a title are not masked |
 | `refuse` | no model is asked, and the result says what was held back |
 
-The default is `local` when a local runtime is installed and `redact` when not. `ask` cannot run with detection off: `pii='off'` warns and applies the default. The result’s `policy` says which was used, and any identifier the model repeats is masked in the answer. Under every policy a hosted model gets a Local only section only as a placeholder, with no heading, title or source. Search and reading take `pii=` too (`off`, `redact` or `refuse`), and there the default is `off`, which returns the stored text.
+The default is `local` when a local runtime is installed and `redact` when not. `ask` cannot run with detection off: `pii='off'` warns and applies the default. The result’s `policy` says which was used, and any identifier the model repeats is masked in the answer. Under every policy a hosted model gets a Local only section only as a placeholder, with no heading, title or source. Search and reading take `pii=` too (`off`, `redact` or `refuse`), and there the default is `off`, which returns the stored text. The MCP server defaults to `redact` for every tool and refuses `off`, since its client is a model the vault does not run.
 
 ``` python
 v.mark_not_pii(doc_id, reason='my own invoice')          # a person clears a false alarm
