@@ -1,0 +1,26 @@
+name: debug-ci
+on: [workflow_dispatch]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q --upgrade pip && pip install -q -e ".[dev]" nbdev
+      - name: each notebook alone, with faulthandler
+        run: |
+          free -m; nproc
+          cd nbs
+          for f in *.ipynb; do
+            /usr/bin/time -v python -X faulthandler -c "from nbdev.test import test_nb; import sys; ok,_=test_nb('$f'); sys.exit(0 if ok else 3)" > /tmp/out.txt 2>&1
+            rc=$?
+            echo "== $f rc=$rc maxrss=$(grep 'Maximum resident' /tmp/out.txt | awk '{print $6}') wall=$(grep 'Elapsed' /tmp/out.txt | awk '{print $8}')"
+            if [ $rc -ne 0 ]; then grep -v -E '^(W0000|I0000|INFO|WARNING)' /tmp/out.txt | tail -40; fi
+          done
+      - name: parallel like CI, with faulthandler
+        if: always()
+        run: |
+          export PYTHONFAULTHANDLER=1
+          for i in 1 2 3; do nbdev-test --flags '' > /tmp/p.txt 2>&1; echo "== parallel run $i rc=$?"; grep -E 'Fatal Python|Segmentation|Aborted|File "|BrokenProcess|Killed' /tmp/p.txt | grep -v site-packages/concurrent | head -30; done
+          dmesg 2>/dev/null | tail -20 || sudo dmesg | tail -20
