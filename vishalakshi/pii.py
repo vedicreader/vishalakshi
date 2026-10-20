@@ -69,7 +69,7 @@ def pii_ctx(ctx, ner:bool=False) -> AttrDict:
 GATES = ('off', 'redact', 'refuse')
 ROW_TEXT = ('text', 'snippet', 'snippets', 'content', 'summary')
 ROW_LABEL = ('title', 'breadcrumb')
-ROW_META = ('source', 'filename')
+ROW_META = ('source', 'sources', 'filename')   # `sources`: every path litesearch filed a document's text under
 ROW_KIDS = ('tree', 'children')
 CTX_ROWS = ('results', 'related', 'docs', 'hits')
 

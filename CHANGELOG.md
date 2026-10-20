@@ -2,6 +2,12 @@
 
 <!-- do not remove -->
 
+## 0.1.33
+- Follows litesearch 0.1.50, which stores one text once and replaces a source whose text changed. `add(refresh=False)` now returns `skipped='already filed'` for a source already in the vault, since litesearch no longer skips changed text on its own. A source whose text another source filed first counts as filed.
+- `doc(ref)` finds a document by any source it is filed under, including a copy recorded only in litesearch's `sources` table.
+- A Local only document's `sources` list is withheld with its `source`. Before, `toc` showed it.
+- Raises the floor to litesearch 0.1.50.
+
 ## 0.1.32
 cache check checks both halves of the ocr page.
 

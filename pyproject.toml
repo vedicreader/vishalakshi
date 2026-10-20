@@ -25,7 +25,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "litesearch>=0.1.46",
+    "litesearch>=0.1.50",
     "pdflite>=0.0.4",
     "fossick>=0.1.18",
     "fastcore>=2.2.15",

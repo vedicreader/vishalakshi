@@ -18,7 +18,7 @@ from inspect import Parameter, signature
 from fastcore.all import AttrDict, L, Path, chunked, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, topic_nodes,
                         DOC_EXTS, write_txn, sql_in, StoreMismatch, encoder_id)
-from litesearch.tree import doc_id
+from litesearch.tree import doc_id, source_key
 
 # %% ../nbs/00_core.ipynb #a9628282
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'image')
@@ -128,8 +128,12 @@ def add(self:Vault,
     if p is not None and p.is_file(): return self.add_file(str(p), title=title, kind=kind, force=force, **kw)
     ttl = title or _first_line(src)
     h, src_ = content_hash(src), str(ifnone(source, ttl))
-    prev = first(self.t.docs(where='id=?', where_args=[doc_id(src_, ttl)]))
-    if prev and not force and refresh:
+    key = src_ if source is None else source_key(src_)
+    al = first(self.t.sources(where='source=?', where_args=[key]))   # a source whose text another source filed first
+    prev = first(self.t.docs(where='id=?', where_args=[doc_id(key, ttl)])) or (al and first(self.t.docs(where='id=?', where_args=[al['doc_id']])))
+    # litesearch replaces a source whose text changed; `refresh=False` is the opt-out, so it stops here
+    if prev and not force and not refresh: return dict(doc_id=prev['id'], title=ttl, skipped='already filed', changed=False)
+    if prev and not force:
         force = json.loads(prev['meta'] or '{}').get('content_hash') != h
     out = self.db.add_doc(src, ttl, source=source, kind=kind or 'file', store=self.name, emb_fn=self.emb,
                           meta=dict(meta or {}, content_hash=h), force=force, **kw)
@@ -405,8 +409,10 @@ def doc(self:Vault, ref:str) -> dict:
     "Find one document's row by `doc_id`, exact `source` or part of its title, with `meta` decoded."
     # empty ref must not become title LIKE '%%' (would mark the newest doc)
     if not str(ref or '').strip(): return None
-    q = str(ref or '').replace("'", "''")
-    for w in (f"id='{q}'", f"source='{q}'", f"title LIKE '%{q}%'"):
+    q, k = str(ref or '').replace("'", "''"), source_key(ref).replace("'", "''")
+    # a copy of text already filed is a row in litesearch's sources table, not in docs
+    alias = f"id in (select doc_id from [{self.t.sources.name}] where source in ('{q}', '{k}'))"
+    for w in (f"id='{q}'", f"source='{q}'", alias, f"title LIKE '%{q}%'"):
         if r:=first(self.t.docs(where=w, order_by='added_at desc')): return dict(r, meta=json.loads(r['meta'] or '{}'))
     return None
 
