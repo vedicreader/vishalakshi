@@ -18,7 +18,6 @@ from rahasya import (DENSE, IDENTIFYING, MAX_SCAN, fingerprint, mask_preview, pe
                      redact, redact_obj)
 from varga import MIN_SCORE, SENSITIVE, guess_type
 
-# re-exported so a caller holding a Vault has one import, not two
 _all_ = ['DENSE', 'IDENTIFYING', 'MAX_SCAN', 'person_spans', 'pii_report', 'pii_spans',
          'redact', 'redact_obj']
 
@@ -35,7 +34,7 @@ def pii(self:Vault,
     "Report whether one document holds personal information, which kinds, and any mark that overrides the detector."
     d = self.document(ref, max_chars=max_chars)
     prose = (d.get('kind') or '') != 'code'
-    # `scanned_ner` then reports False, which is the honest answer: nothing looked for a name here
+    # `scanned_ner` reports False for code, because no name pass ran
     r = pii_report(d.text, ner=ner and prose)
     override = (self.marks(d.get('doc_id')) or {}).get('pii_override') if d.get('doc_id') else None
     r.detected, r.override = r.has_pii, override
@@ -75,20 +74,18 @@ CTX_ROWS = ('results', 'related', 'docs', 'hits')
 
 def _pii_marks(v):
     "Cleared and force-private `(store, doc_id)` pairs, for whichever gate is asking. A local-only mark is private."
-    try: rows = list(v._marks()(where="pii_override IN ('clear','force','local')"))
-    except Exception: return set(), set()
+    if not v._marks().exists(): return set(), set()
+    rows = list(v._marks()(where="pii_override IN ('clear','force','local')"))
     return ({(r['store'], r['doc_id']) for r in rows if r['pii_override'] == 'clear'},
             {(r['store'], r['doc_id']) for r in rows if r['pii_override'] in ('force', 'local')})
 
 def _level_sets(v):
     "Cleared, private and local-only `(store, doc_id)` pairs, and the shelf's floor. A floor above open voids `clear`."
     cleared, forced = _pii_marks(v)
-    try:
-        fl, sens = v.floor(), [k for k, p in TYPE_POLICY.items() if p.get('level') == 'local']
-        local = {(r['store'], r['doc_id']) for r in v._marks()(where="pii_override='local'")}
-        typed = {(v.name, r['id']) for r in v.t.docs(select='id', where_args=sens,
-                 where=f"json_extract(meta,'$.doctype') IN ({','.join('?' * len(sens))})")}
-    except Exception: return cleared, forced, set(), 'open'
+    fl, sens = v.floor(), [k for k, p in TYPE_POLICY.items() if p.get('level') == 'local']
+    local = {(r['store'], r['doc_id']) for r in v._marks()(where="pii_override='local'")} if v._marks().exists() else set()
+    typed = {(v.name, r['id']) for r in v.t.docs(select='id', where_args=sens,
+             where=f"json_extract(meta,'$.doctype') IN ({','.join('?' * len(sens))})")}
     return (cleared if fl == 'open' else set()), forced, local | (typed - cleared - forced), fl
 
 def _row_get(r, k): return r.get(k) if isinstance(r, dict) else getattr(r, k, None)
@@ -247,8 +244,7 @@ def _findings_t(self:Vault):
 def _page_texts(self:Vault, doc_id:str) -> dict:
     "`{page: (text, version)}`: the latest read version of each page, else its chunks in order."
     if self.db.t.read_pages.exists():
-        out = {r['page']: (r['text'] or '', r['version']) for r in self.db.t.read_pages.rows_where(
-            'doc_id=? and store=?', [doc_id, self.name], order_by='page, version')}
+        out = {r.page: (r.text or '', r.version) for r in self.pages(doc_id)}
         if out: return out
     out = {}
     for c in self.store(where='doc_id=?', where_args=[doc_id], select='content, page', order_by='rowid'):
@@ -302,7 +298,6 @@ def level(self:Vault, ref, page:int=None) -> AttrDict:
     kinds = hit(fs) + tk
     if page is not None:
         txt = self._page_texts(did).get(page, ('', None))[0]
-        # a page with no text to judge takes the whole document's verdict
         if txt.strip(): kinds = hit(self._found(d, page)) + tk
     det, tl, fl = 'personal' if kinds else 'open', (TYPE_POLICY.get(m.get('doctype')) or {}).get('level', 'open'), self.floor()
     lv = top(fl, OVERRIDE_LEVEL.get(ov) or top(tl, det))
@@ -332,7 +327,8 @@ def findings(self:Vault, ref=None, state:str=None, page:int=None) -> L:
     if page is not None: w.append('page=?'); a.append(page)
     tx = {}
     def prev(r):
-        s = tx.setdefault(r['doc_id'], self._page_texts(r['doc_id'])).get(r['page'], ('', None))[0][r['start']:r['end']]
+        if r['doc_id'] not in tx: tx[r['doc_id']] = self._page_texts(r['doc_id'])
+        s = tx[r['doc_id']].get(r['page'], ('', None))[0][r['start']:r['end']]
         return mask_preview(s, r['kind']) if s and fingerprint(r['kind'], s) == r['fp'] else None
     return L(self._findings_t().rows_where(' and '.join(w), a, order_by='doc_id, page, start')).map(lambda r: AttrDict(r, preview=prev(r)))
 

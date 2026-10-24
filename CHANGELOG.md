@@ -2,8 +2,23 @@
 
 <!-- do not remove -->
 
+## 0.1.34
+- Re-reading a shorter PDF marks pages beyond its end stale and keeps their reading history. Retrieval excludes stale pages by default. Pass `stale=True` to include them through a temporary in-memory index. `prune_stale(doc_id=None, dry_run=False)` reports or deletes stale page readings on the current shelf.
+- Default change: the privacy gate raises database query errors. Before, it ignored these errors and could treat a Local only shelf as Open.
+- Default change: `reshelf` raises `ValueError` when a document to move exceeds `max_chars`. The original stays on its shelf. Before, it saved a truncated copy and deleted the original. Increase `max_chars` to move documents longer than the default 2,000,000 characters.
+- `reshelf` keeps the original when the destination returns no document id or chunks, or has no stored document. It raises `RuntimeError` in these cases. Before, it deleted the original without checking the destination result.
+- `Vault.read_doc(pages=...)` keeps stored readings of pages you did not request. Before, text-layer rows replaced those pages' model readings.
+- `Vault.read_doc` keeps an existing page reading when privacy rules block a new reading. Before, the blocked page's text layer replaced its model reading.
+- `Vault.read_doc` keeps stored readings of unread or failed pages. Before, cancellation or an exhausted retry replaced those readings with text-layer rows.
+- Default change: `Vault.read_doc` gives each file in a folder its own cache path, including its relative path and extension. Before, files with the same stem shared cached readings. Folder reads do not reuse the old stem-only caches. Read those files again to fill the new caches.
+- Folder reads include files when the requested folder or one of its parents has a hidden name. They still skip hidden files and subfolders below the requested folder. Before, a hidden name anywhere in the full path excluded the file.
+- `add(directory, force=True)` passes `force` to `add_dir`. Before, `add` ignored `force` for a directory.
+- Default change: `add` raises `ValueError` if you pass `source` or `meta` with a file or directory path. Use these arguments with text instead. Before, `add` ignored them for paths.
+- `reject(doc_id, ids)` rejects only open proof changes for that document on the current shelf. It returns the number of changes it rejected. Before, it could reject changes from another document or shelf and overwrite accepted decisions. Its count included duplicate and unknown ids.
+- Default change: `accept` refuses overlapping proof changes before it changes any page. Accept one change from each overlapping pair. Before, it applied overlapping changes to the same text.
+
 ## 0.1.33
-- Follows litesearch 0.1.50, which stores one text once and replaces a source whose text changed. `add(refresh=False)` now returns `skipped='already filed'` for a source already in the vault, since litesearch no longer skips changed text on its own. A source whose text another source filed first counts as filed.
+- Follows litesearch 0.1.50, which stores one text once and replaces a source whose text changed. `add(refresh=False)` now returns `skipped='already filed'` for a source already in the vault. litesearch no longer skips changed text on its own. A source whose text another source filed first counts as filed.
 - `doc(ref)` finds a document by any source it is filed under, including a copy recorded only in litesearch's `sources` table.
 - A Local only document's `sources` list is withheld with its `source`. Before, `toc` showed it.
 - Raises the floor to litesearch 0.1.50.
@@ -31,27 +46,27 @@ cache check checks both halves of the ocr page.
 - The tests that build the entity graph replay recorded replies through `CachedChat`, so CI loads no model.
 
 ## 0.1.27
-- The MCP server gates every result before the client sees it. Each string under a Local only document is withheld, title, heading and source included. Every other string goes through `redact`, so a Personal document's identifiers are masked. A document a person cleared comes back as stored. Before, `search`, `read`, `context`, `document`, `sources`, `ask` and the rest returned stored text, so a client model got a Personal document's email and a Local only document's title.
+- The MCP server gates every result before the client sees it. Each string under a Local only document is withheld, title, heading and source included. Every other string goes through `redact`, which masks the identifiers of a Personal document. A document a person cleared comes back as stored. Before, `search`, `read`, `context`, `document`, `sources`, `ask` and the rest returned stored text. A client model received the email address of a Personal document and the title of a Local only document.
 - A tool that takes `pii` defaults to `redact` over MCP. A client may ask for `refuse`. `pii='off'` raises `PermissionError`, as lowering a level does. The CLI and Python defaults are unchanged.
 - `ask` and `ask_doc` over MCP return no `prompt`. When a local model read a Local only section whole, the answer, thinking and fields are withheld.
 - Raises the floors to rahasya 0.0.4, varga 0.0.7, fossick 0.1.18, koshas 0.1.11, pdflite 0.0.4, litesearch 0.1.43, rishi 0.1.44 and uraiyadal 0.0.13.
 
 ## 0.1.26
-- `ask` masks each section's heading line, title and source under `redact`, as it masks the text. Before, the heading went as stored, so a note titled with an email address sent the address to a hosted model.
+- `ask` masks each section's heading line, title and source under `redact`, as it masks the text. Before, the heading went as stored. A note titled with an email address sent the address to a hosted model.
 - A Local only section reaches a hosted model as a bare `[n] [withheld: local only]` line, through `ref=` or retrieval. Before, its heading and source went with the placeholder.
 - `explain` goes through the same gate as `ask`: the section title and the related headings are masked or withheld, a Local only related section is dropped, and a hosted send is written to the send log.
 - `categorize` and `extract` send the title and source under the same `send_check` decision as the text: masked under `redact`, nothing when withheld. `extract` decides through `send_check` and logs every hosted send. A file read off disk is judged on its name too. Under `redact` a local model now reads the document whole, as `send_rule` says.
 - `gated` withholds a Local only row's title, breadcrumb and source with its text. `pii_ctx` and the row detector read titles, breadcrumbs and sources as well as text.
 - `level` counts an identifier in a document's title, on every page.
-- `read_page` judges the title with the page text, since the title goes into the reading prompt.
+- `read_page` judges the title with the page text. The title goes into the reading prompt.
 - `build_graph` and `connect` refuse a hosted chat when the shelf holds a document above Open; nothing is sent and the result has `refused`, `kind` and `why`.
-- `new_chat`, `use_chat`, `is_stock_chat` and `local_ok` read `CHAT` and `LOCAL_OK` on the module at call time, so a copy run from a notebook obeys the same switch. Notebooks pass in one process as well as in parallel.
+- `new_chat`, `use_chat`, `is_stock_chat` and `local_ok` read `CHAT` and `LOCAL_OK` on the module at call time. A copy run from a notebook obeys the same switch. Notebooks pass in one process as well as in parallel.
 
 ## 0.1.25
 - `read_doc` and `Vault.read_doc` take `cache=`: a folder, or `cache(page, half)` returning a path. Each page's reading is kept there as JSON, `{page, items, cost, model}`, with `page` the file's stem. A cached page is not sent again; its row has `cached` set and `cost` None. An empty reading is kept too.
 - `redo=` reads pages again though they are cached. The old reading moves to the folder's `_prev` sibling once the new one is in, numbered `.1`, `.2` when one is there already.
 - `spread=True` reads a landscape page, a two-page spread, as its two halves in turn (`halves`), kept as `p0001a.json` and `p0001b.json`. `strips=k` sends each image as `k` overlapping strips (`page_strips`), and the model is told to read the page once. Both are cut from the page at full size; each piece is then held to the size limit.
-- `clean=` is a function made of every block's text before it is kept.
+- `clean=` is a function applied to the text of every block before the block is kept.
 - `tries=n` tries a failing page `n` times, waiting `RETRY_WAIT` seconds more each time. A page that still fails keeps its text layer, carries its `error` and is listed in `failed`. Without `tries` the error is raised, as before. `Vault.read_doc` results carry `failed`.
 - `read_page` takes `strips` and `fresh`. A reply that is not JSON raises and is dropped from the recorder, so asking again reaches the model. `fresh=True` drops the recorded reply before asking; `read_doc` asks fresh on a retry and on a `redo` page.
 - `fit(img)` holds a page image to the size `render` allows: within `max_bytes` as it is, else a JPEG within `max_px`. An image file given to `read_doc` is held to it.
@@ -79,12 +94,12 @@ cache check checks both halves of the ocr page.
 
 ## 0.1.22
 - Privacy levels: Open, Personal, Local only. `level(ref, page=)`, `set_level(ref, level, reason, by=)`, `floor()`, `set_floor(level, by=)`. `pii_override` takes `local`. A document's level is its mark, else its type and findings, never below the shelf's floor.
-- Only a person lowers a level, clears a mark, rejects a finding or lowers a floor: `by='agent'` raises `PermissionError`. MCP tools always pass `by='agent'`, so `mark_not_pii` over MCP now raises.
+- Only a person lowers a level, clears a mark, rejects a finding or lowers a floor: `by='agent'` raises `PermissionError`. MCP tools always pass `by='agent'`. `mark_not_pii` over MCP now raises.
 - `pii_findings`: every ingest files each page's identifiers as fingerprints, kinds and offsets, never values. `scan_pii`, `findings` (masked `preview`), `accept_pii`, `reject_pii` (`kind: stale` for an id from before a re-read). A verdict follows the fingerprint through a re-read.
 - `send_check(refs|pages|text, model, policy, allow=, image=)` returns `{ok, send, masked, withheld, kinds, kind, why, rows}`. `send_rule`, `model_local`, `send_line`. Hosted sends are logged in `send_log`, read with `sends`.
 - `TYPE_POLICY` and `type_policy(doctype, text=)`: invoice, receipt, quote and catalogue read with `tables`; id_card, passport, bank_statement, payslip, tax_return and clinical_record start Local only.
 - Default change: a Local only document goes to no hosted model, whatever the policy, in `ask`, `explain`, `categorize`, `extract` and page reads. `gated(pii='redact')` withholds it as well.
-- Default change: `categorize(pii='redact')`. The model leg was unchecked; a hosted model now gets a Personal document masked.
+- Default change: `categorize(pii='redact')`. The model leg was unchecked. A hosted model now receives a Personal document masked.
 - Default change: `extract` categorises with the model its privacy routing picks, and scans with names on. It used to send an undecided private document to the caller's model. A local Ollama counts as local, as it does in `ask`.
 - Default change: `read_page`, `read_doc`, `reparse` and `proofread` take `pii='redact'`. A Personal page image goes to a hosted model only with `allow=True`, and a Local only page never does. `local_model=` / `local_chat=` read those pages instead. Results carry `blocked`.
 - `read_doc` raises a document to Local only when its text layer reads as a sensitive type.
@@ -106,7 +121,7 @@ cache check checks both halves of the ocr page.
 - Needs litesearch>=0.1.41 and pdflite>=0.0.3.
 
 ## 0.1.18
-- `search`, `sections` and `context` take `where=`, ANDed with the kind and noisy filter, so `context(where="doc_id='…'")` scopes to one document instead of raising `TypeError`.
+- `search`, `sections` and `context` take `where=`, ANDed with the kind and noisy filter. `context(where="doc_id='…'")` scopes to one document and no longer raises `TypeError`.
 - `rerank=True` without flashrank raises naming the new `rerank` extra: `pip install 'vishalakshi[rerank]'`.
 - Needs litesearch>=0.1.36 (plain-English spellings fold with IAST and Devanagari) and vruksha>=0.1.1 (one-word names merge across romanisations).
 
@@ -118,7 +133,7 @@ cache check checks both halves of the ocr page.
 
 ## 0.1.15
 - `connect()` builds the typed entity graph with vruksha and writes the topic nodes; `graph_search` walks it.
-- The offline encoder is named, so litesearch stamps the store it writes.
+- The offline encoder has a name. litesearch stamps the store it writes with that name.
 - Shelf encoders live in litesearch's `store_meta`; `vault_stores` rows are read once and migrated; a wrong-width reopen raises `StoreMismatch`.
 - `extract` checks pulled values with varga's `check_fields`.
 - `categorize` proposes an undecided doctype instead of writing it: `proposed_types`, `accept_type`, `reject_type`.
@@ -129,7 +144,7 @@ cache check checks both halves of the ocr page.
 - Needs litesearch 0.1.35, varga 0.0.5, vruksha 0.1.0, uraiyadal 0.0.7.
 
 ## 0.1.14
-using urai, rahsaya, varga, pobblebonk and liteserach index
+using urai, rahasya, varga, pobblebonk and litesearch index
 
 ## 0.1.13
 litert model string bug fix
@@ -169,8 +184,8 @@ Confluence page id in a URL was an NHS number. Both are fixed, by five guards.
 - `URLISH` drops digit runs inside a link.
 - `nhs` needs its groups or its name, and `card` needs an issuer digit.
 
-Precision 0.762 to 0.996 at unchanged recall 1.000 on the tuned corpus, and **1.000 at recall 1.000
-on a held-out corpus run once**. `evals/pii.py` reports both and labels which is in sample.
+Precision 0.762 to 0.996 at unchanged recall 1.000 on the tuned corpus, and 1.000 at recall 1.000
+on a held-out corpus run once. `evals/pii.py` reports both and labels which is in sample.
 
 Nineteen regional identifiers, each with its own checksum, all at 20/20 recall.
 
@@ -189,7 +204,7 @@ Nineteen regional identifiers, each with its own checksum, all at 20/20 recall.
 Holding a corpus back found three defects the tuned corpus could not. `MS 73681` and `AL 31000` were
 addresses. An ORCID was a phone number. A Swedish organisationsnummer was a personnummer.
 
-Two learned detectors were measured and neither is shipped, so the wheel gains no weights and no
+Two learned detectors were measured and neither is shipped. The wheel has no weights and no
 `onnxruntime` import. An ONNX DeBERTa-v3 classifier scores 0.825 precision and 0.846 recall against
 the patterns' 0.996 and 1.000, at 200 times the cost, and finds 0.00 of the planted IBANs. Liquid's
 350M tflite encoder through `ai_edge_litert` finds no names at all and labels Aadhaar digits
@@ -254,7 +269,7 @@ and tightly written where none does, de-overlapped longest-first so one card is 
 times, and sampled at both ends of a long document because a statement's account number is in its
 header. `pii_spans`, `pii_report`, `redact`, `Vault.pii(ref)` and `pii_ctx(ctx)`.
 
-Not a model, deliberately: a classifier that has to read the document in order to say whether the
+The detector is not a model. A classifier that must read a document to say whether the
 document may be read has already lost. And `has_pii` is narrower than "found something": an IP
 address or an API key is reported but does not on its own make a document private, or every
 question about a server log ends up on the slow path.

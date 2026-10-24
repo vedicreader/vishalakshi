@@ -26,8 +26,8 @@ def clip(s:str, n:int=120) -> str:
     "Collapse the whitespace in a scraped title and cut it to `n` characters."
     return re.sub(r'\s+', ' ', (s or '').strip())[:n] or 'untitled'
 
-#: A `fossick.read` kind, and what the vault files it as. A GitHub file is web: the URL is
-#: its provenance, not the checkout.
+#: Maps each `fossick.read` kind to the vault kind it is filed as. A GitHub file is filed as `web`
+#: because its URL is its source, not the local checkout.
 KIND_OF = dict(web='web', arxiv='arxiv', youtube='youtube', ghfile='web', pdf='pdf', file='file')
 
 # %% ../nbs/01_acquire.ipynb #10d37b588c17
@@ -36,11 +36,11 @@ def _file(self:Vault,
           r,                  # what `fossick.read` returned
           kind:str=None,      # override the kind it named
           title:str=None,     # override the title it found
-          meta:dict=None,     # merged over the reader's own provenance
+          meta:dict=None,     # extra meta; the reader's own keys replace any that match
           force:bool=False,   # re-ingest a source already present
           **kw                # forwarded to `add`
 ) -> dict:
-    'File a `fossick.read` result. The one place a fetched thing becomes a document.'
+    'File a `fossick.read` result as a document. A result that is not `ok` files nothing and returns `source`, `skipped` and `title`.'
     if not r.ok: return dict(source=r.source, skipped=r.skipped, title=r.title or None)
     return dict(self.add(r.text, title or clip(r.title), source=r.source,
                          kind=kind or KIND_OF.get(r.kind, 'web'),
@@ -52,10 +52,10 @@ def url(self:Vault,
         url:str,            # page to read
         title:str=None,     # defaults to the page's first heading, else its path
         sel:str=None,       # CSS selector to narrow the page before conversion
-        kind:str='web',
-        auto:bool=True,     # escalate plain -> heavy -> stealthy -> logged-in Chrome past bot walls
-        meta:dict=None,
-        force:bool=False,
+        kind:str='web',     # kind the document is filed as
+        auto:bool=True,     # past a bot wall, escalate plain -> heavy -> stealthy -> logged-in Chrome
+        meta:dict=None,     # extra meta; the reader's own keys replace any that match
+        force:bool=False,   # re-ingest a source already present
         stop=None,          # asked before the fetch; True files nothing and reports the URL in `unread`
         progress=None,      # told `progress(1, 1, [url])` once the page is filed
         **kw                # forwarded to fossick.fetch (verify=, headers=, heavy=…)
@@ -69,7 +69,7 @@ def crawl(self:Vault, start_url:str, max_pages:int=10, sel:str=None,
           stop=None,       # asked before the crawl and between pages filed; `unread` holds the URLs not filed
           progress=None,   # told `progress(done, total, [url])` after each page filed
           **kw) -> L:
-    'Crawl a docs site or blog from a start URL and file every page in the vault; the result carries `cancelled` and `unread`.'
+    'Crawl a site from `start_url`, up to `max_pages` pages, and file each page with non-empty markdown. The result carries `cancelled` and `unread`.'
     from fossick import crawl as _crawl, to_md
     if stop is not None and stop(): return run_steps([start_url], noop, stop=lambda: True)
     pgs = L((pg.url, to_md(pg, sel=sel)) for pg in _crawl(start_url, sel=sel, max_pages=max_pages, **kw)).filter(lambda x: x[1].strip())
@@ -89,14 +89,14 @@ def web(self:Vault,
         progress=None,      # told `progress(done, total, [source])` after each source filed
         **kw                # forwarded to fossick.research
 ) -> AttrDict:
-    'Search the web, read the top `n` results, and file all of them in the vault.'
+    'Search the web, read the top `n` results, and file each result that has a URL and non-empty markdown.'
     from fossick import research
     res = research(query, n=n, engine='google' if google else 'search', chars=chars, **kw)
     srcs = L(res['sources']).filter(lambda s: s['md'].strip() and s['href'])
     add = lambda s: dict(self.add(s['md'], clip(s['title']), source=s['href'], kind='web',
                                   meta=dict(url=s['href'], query=query, fetched_at=time.time())), url=s['href'])
     added = run_steps(srcs, lambda st: st.map(add), stop=stop, progress=progress)
-    # dropped pages: bot walls vs empty results; only the former is worth retrying
+    # `dropped` mixes bot-wall pages and empty results. Only bot-wall pages are worth retrying.
     out = AttrDict(query=query, n_found=len(res['sources']), added=added, dropped=L(res.get('dropped') or []))
     return AttrDict(out, cancelled=added.cancelled, unread=added.unread.itemgot('href')) if stop is not None else out
 
@@ -105,7 +105,7 @@ def web(self:Vault,
 def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False,
           stop=None, progress=None,   # as in `url`
           **kw) -> dict:
-    "Read an arXiv paper, its metadata and full text, into the vault as kind `arxiv`, on the `papers` shelf."
+    "File an arXiv paper, with its metadata and full text, as kind `arxiv` on the `papers` shelf."
     if (v := self.route('arxiv')) is not self: return v.arxiv(id_or_url, save_dir=save_dir, force=force, stop=stop, progress=progress, **kw)
     return self._one(id_or_url, lambda t: self._file(read(t, save_dir=save_dir or str(self.assets('pdfs')),
                                                           force=force, **kw), force=force), stop, progress)
@@ -114,7 +114,7 @@ def arxiv(self:Vault, id_or_url:str, save_dir:str=None, force:bool=False,
 def pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False,
         stop=None, progress=None,   # as in `url`
         **kw) -> dict:
-    "Read a PDF, from a local path or a URL, into the vault, one section per heading."
+    "File a PDF from a local path or a URL, one section per heading."
     return self._one(path_or_url, lambda t: self._pdf(t, title=title, force=force, **kw), stop, progress)
 
 @patch
@@ -131,7 +131,7 @@ def _pdf(self:Vault, path_or_url:str, title:str=None, force:bool=False, **kw) ->
 def youtube(self:Vault, url:str, force:bool=False,
             stop=None, progress=None,   # as in `url`
             **kw) -> dict:
-    "Read a YouTube video's transcript and metadata into the vault."
+    "File a YouTube video's transcript and metadata."
     return self._one(url, lambda u: self._file(read(u, force=force, **kw), force=force), stop, progress)
 
 @patch
@@ -139,7 +139,7 @@ def github(self:Vault, url:str,
            stop=None,       # asked before the clone, then as in `add_tree`
            progress=None,   # as in `add_tree`
            **kw) -> AttrDict:
-    "Clone a GitHub repository and file it with `add_tree`: prose in the vault, source code in kosha."
+    "Clone a GitHub repository and file it with `add_tree`. Prose goes to the vault and source code to kosha."
     if stop is not None and stop(): return AttrDict(source=url, docs=L(), n_docs=0, n_code=0, code=None, cancelled=True, unread=L([url]))
     return self.add_tree(read(url).meta['path'], stop=stop, progress=progress, **kw)
 
@@ -149,7 +149,7 @@ _GH_BLOB = re.compile(r'https?://github\.com/([^/]+)/([^/]+)/blob/[^/]+/(.+)')
 def gh_file(self:Vault, url:str, title:str=None,
             stop=None, progress=None,   # as in `url`
             **kw) -> dict:
-    "File one file from GitHub: a prose file as a document, a source file by indexing its repository with kosha."
+    "File one file from GitHub. A prose file becomes a document. A source file causes its repository to be cloned and indexed with kosha."
     return self._one(url, lambda u: self._gh_file(u, title=title, **kw), stop, progress)
 
 @patch
@@ -165,14 +165,14 @@ def _gh_file(self:Vault, url:str, title:str=None, **kw) -> dict:
 @patch
 def grab(self:Vault,
          target:str,        # a URL, an arXiv id, a YouTube link, a GitHub repo or file, a PDF, a local file or a directory
-         title:str=None,
+         title:str=None,    # document title; ignored for a directory, repository, arXiv id and YouTube link
          sel:str=None,      # CSS selector, for the web cases
-         shelf:str=None,    # shelf to file it on; None -> whichever `KIND_SHELF` names for its kind
+         shelf:str=None,    # shelf to file it on; None uses the shelf `KIND_SHELF` names for its kind
          crawl:bool=False,  # follow links from a web target instead of reading the one page
          max_pages:int=10,  # pages to visit when crawling
          **kw               # forwarded to whichever method the target names
 ):
-    "Look at what `target` is and file it with the method that reads that kind of thing."
+    "Identify `target` and file it with the method that reads that kind of target."
     kind = 'sanskrit' if is_sanskrit_file(target) else what_is(target)
     v = self.shelf(shelf) if shelf else self.route(kind)
     if crawl:                        return v.crawl(target, max_pages=max_pages, sel=sel, **kw)
@@ -194,7 +194,7 @@ def add_tree(self:Vault,
              types:str=DOC_EXTS,     # extensions filed into the vault as prose
              code:bool=True,         # index source files with kosha, when the tree has any
              kind:str=None,          # override the kind for the prose half
-             connect:bool=False,     # rebuild the topic nodes at the end; see below
+             connect:bool=False,     # rebuild the topic nodes at the end, unless `stop` cancelled the ingest
              verbose:bool=False,
              queue:bool=False,       # enqueue the work instead of doing it; `poll` or `drain` runs it
              batch:int=50,           # files per job when queueing, and per batch filed when `stop` or `progress` is given
@@ -202,7 +202,7 @@ def add_tree(self:Vault,
              progress=None,          # told `progress(done, total, batch)` after each batch of documents
              **kw                    # forwarded to add_file
 ) -> AttrDict:
-    "Add a directory, its documents to the vault and its source code to kosha, or queue the work with `queue=True`."
+    "Add the documents in a directory to the vault and its source code to kosha. With `queue=True`, queue the work instead."
     p = Path(dir)
     if not p.is_dir(): raise ValueError(f'not a directory: {dir}')
     if queue: return self.enqueue_tree(p, types=types, code=code, kind=kind, batch=batch,
@@ -215,8 +215,8 @@ def add_tree(self:Vault,
     if srcs and not cut:
         try: out.code = self.index_code(p, verbose=verbose)
         except Exception as e:
-            # kosha owns code. Filing source as prose instead would put a second, worse copy of it
-            # in the vault, so the failure is reported and the source is left alone.
+            # Kosha owns source code. Filing it as prose would add a second, worse copy to the vault.
+            # Report the failure and leave the source out.
             warnings.warn(f'could not index {len(srcs)} source files with kosha '
                           f'({type(e).__name__}: {str(e)[:120]}); they are not searchable. '
                           f'Install kosha for symbol search.')
@@ -293,7 +293,7 @@ def _job_connect(self:Vault, payload:dict) -> dict:
 
 # %% ../nbs/01_acquire.ipynb #65225e9d6c6ca206
 def records_md(recs, title_keys=('name', 'title', 'displayName', 'productName', 'label', 'sku', 'id')) -> str:
-    "Write records as markdown, one `##` section per record, so that each can be found on its own."
+    "Format records as markdown with one `##` section per record."
     def ttl(r): return clip(next((r[k] for k in title_keys if isinstance(r.get(k), str) and r[k].strip()),
                                  json.dumps(r, default=str)), 80)
     return '\n\n'.join(f'## {ttl(r)}\n\n```json\n{json.dumps(r, indent=1, default=str)}\n```'
@@ -308,7 +308,7 @@ def apis(self:Vault,
          preview:int=240,     # chars of each response shown
          **kw                 # forwarded to fossick.find_xhr
 ) -> L:
-    'Discover the JSON endpoints a page calls, so you can read its data instead of its HTML.'
+    'List the JSON calls a page makes, with the record count of each. The `Vault` object keeps the captures for `harvest`.'
     from fossick import find_xhr
     self._caps = L(find_xhr(url, pattern=pattern, session=session, **kw))
     return L(AttrDict(n=i, url=h['url'], content_type=h.get('content_type'),
@@ -321,12 +321,12 @@ def harvest(self:Vault,
             url:str,                # the page whose API you want
             pattern:str='*',        # which captured request URLs to keep
             title:str=None,         # document title; defaults to the page host + path
-            capture:int=None,       # replay a specific endpoint from the last apis() call
+            capture:int=None,       # `n` of the call to replay, from the last `apis` result; None picks the call with the most records
             pages:int=1,            # pages to pull; >1 paginates the endpoint
             page_field:str='page',  # query/body key incremented per page
             session:bool=False,     # capture through the logged-in Chrome
-            force:bool=False,
-            **kw
+            force:bool=False,       # re-ingest a source already present
+            **kw                    # forwarded to `replay_xhr` and `paginate_api`
 ) -> dict:
     "Capture the JSON API a page calls, pull its records, following pagination when asked, and file them as kind `data`."
     from fossick import replay_xhr, paginate_api
@@ -382,7 +382,7 @@ def pob(self:Vault) -> Pob:
 
 @patch
 def _fire_watch(self:Vault, fire) -> dict:
-    'What a due schedule does: put one `watch` job on the queue. Running it is still the queue.'
+    'Queue one `watch` job for a due schedule. The queue runs it.'
     return self.q.enqueue('watch', dict(watch_id=fire.schedule, scheduled_at=fire.fire_at),
                           key=f'{fire.schedule}@{int(fire.fire_at)}')
 
@@ -411,12 +411,12 @@ def _wrow(r:dict) -> dict:
 
 @patch
 def watch(self:Vault,
-          target:str,         # URL, query, arXiv id, or the text of a reminder
+          target:str,         # URL, query, arXiv id, path, folder, or the text of a reminder
           action:str='url',   # one of ACTIONS: what to do when it fires
           every:str='1d',     # interval: '30m', '6h', '1d', '1w', '1M', or seconds
           cron:str=None,      # or a five-field cron expression, instead of an interval
           note:str=None,      # why you are watching
-          start:float=None,   # first run time (epoch); defaults to the next boundary
+          start:float=None,   # first run time (epoch); an interval watch defaults to now, a cron watch to its next match
           catchup:int=1,      # missed intervals to make up after a gap; the rest count as `missed`
           kind:str=None,      # alias for action; what the target set calls it
           instructions:str='',# the standing brief a folder watch's reviewer gets, verbatim
@@ -435,7 +435,7 @@ def watch(self:Vault,
     self._w().insert(row, replace=True)
     p = self.pob
     p.runners[row['id']] = self._fire_watch
-    # an interval watch is due at once, as it always was; a cron says for itself when it runs
+    # an interval watch is due at once; a cron watch runs at its next match
     sched = p.add(row['id'], cron=cron, every=None if cron else row['every'],
                   catchup=row['catchup'],
                   start=start if start is not None else (None if cron else time.time()))
@@ -443,7 +443,7 @@ def watch(self:Vault,
 
 @patch
 def watches(self:Vault, due_only:bool=False, at:float=None) -> L:
-    'Every registered watch, soonest first; `due_only` keeps the ones whose next run has arrived.'
+    'Every registered watch, soonest first. `due_only` keeps the enabled watches whose next run has arrived.'
     nxt = {s['name']: s['next_fire_at'] for s in self.pob.all()}
     rows = L(self._w()(where='enabled=1' if due_only else None)).map(lambda r: dict(_wrow(r), next_run=nxt.get(r['id'])))
     now = time.time() if at is None else at
@@ -464,7 +464,7 @@ def unwatch(self:Vault, watch_id:str):
 
 @patch
 def pause(self:Vault, watch_id:str, enabled:bool=False):
-    'Disable (or re-enable) a watch without losing it.'
+    'Disable a watch and keep it. `enabled=True` re-enables it.'
     (self.pob.resume if enabled else self.pob.pause)(watch_id)
     self._w().update(dict(id=watch_id, enabled=int(enabled)))
 
@@ -529,9 +529,9 @@ def schedule(self:Vault, at:float=None) -> L:
 
 @patch
 def poll(self:Vault, at:float=None, limit:int=None, connect:bool=True, worker:str='poll',
-         housekeep:bool=None,   # run housekeeping; None -> when HOUSEKEEP_EVERY has passed on this connection
+         housekeep:bool=None,   # run housekeeping; None runs it when `HOUSEKEEP_EVERY` (600 s) has passed on this connection
 ) -> dict:
-    "The periodic tick: return expired jobs to the queue, queue due watches, run the queue, and every ten minutes run `housekeep`."
+    "The periodic tick. Return expired jobs to the queue, queue due watches, run the queue, then run `connect` and `housekeep` when they apply."
     back = self.q.reclaim()
     self.schedule(at=at)
     ran = self.q.drain(worker, limit=limit or 1000)
@@ -566,7 +566,7 @@ def _file_state(src:str, added:float) -> str|None:
 
 @patch
 def housekeep(self:Vault, now:float=None, prune:bool=True) -> dict:
-    "Mark documents stale whose source changed or vanished or that expired unwatched, mark superseded copies, and delete those both stale and superseded."
+    "Mark a document stale when its source changed or vanished, or when it expired with no watch. Mark older copies superseded. With `prune`, delete documents that are both stale and superseded."
     now, reasons = now or time.time(), {}
     ws = L(self._w()(where='enabled=1'))
     targets = set(ws.attrgot('target'))
@@ -637,11 +637,11 @@ def add_image(self:Vault,
               title:str=None,     # defaults to the filename
               caption:str=None,   # a description, if you have one
               labels=None,        # what a classifier saw
-              meta:dict=None,     # merged over what the file says about itself
-              force:bool=False,
-              **kw
+              meta:dict=None,     # your keys replace any the file gives
+              force:bool=False,   # re-ingest a source already present
+              **kw                # forwarded to `add`
              ) -> dict:
-    'File one picture in the vault as `kind="image"`: its metadata is the text, the pixels stay on disk.'
+    'File one picture as `kind="image"`. Its metadata is the searchable text. The pixels stay on disk.'
     p = Path(path).expanduser()
     m = dict(exif_meta(p), path=str(p.resolve()), added_at=time.time(), **(meta or {}))
     if labels: m['labels'] = list(L(labels))
@@ -653,10 +653,10 @@ def add_image(self:Vault,
 @patch
 def add_images(self:Vault,
                dir:str,             # folder of pictures
-               recurse:bool=True,
+               recurse:bool=True,   # include subfolders
                labels:dict=None,    # {path: labels}, as `label_images` produces
-               force:bool=False,
-               **kw
+               force:bool=False,    # re-ingest a source already present
+               **kw                 # forwarded to `add_image`
               ) -> L:
     'File every picture under a directory, one document each.'
     d = Path(dir).expanduser()
@@ -672,7 +672,7 @@ def images(self:Vault, limit:int=None) -> L:
 
 @patch
 def tag_image(self:Vault, ref:str, labels=None, caption:str=None, **kv) -> dict:
-    "Write what a model saw onto a picture already in the vault, and refresh its searchable text."
+    "Add labels or a caption to a picture already in the vault, and rebuild its searchable text."
     d = self.doc(ref)
     m = self.set_meta(d['id'], **{k: v for k, v in dict(labels=list(L(labels)) if labels else None,
                                                             caption=caption).items() if v}, **kv)

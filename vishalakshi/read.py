@@ -158,7 +158,7 @@ def crop(img:bytes, box, pad:float=.02) -> bytes:
     return out.getvalue()
 
 def backends():
-    "Register Rishi's model backends with Urai, so that ids such as `claude/sonnet` resolve."
+    "Register the `rishi` model backends with `urai`, so that ids such as `claude/sonnet` resolve."
     import rishi
 
 def _forget(c, msg):
@@ -175,7 +175,7 @@ def read_page(img:bytes, model:str=None, preset:str='generic', title:str='', scr
 ) -> AttrDict:
     "Read one page image with a vision model and return its `blocks`, their markdown `text`, the `model` and the `cost`, or `blocked` when the page may not be sent."
     from vishalakshi.ask import CachedChat, model_local, send_rule
-    # the title rides in the reading prompt, so it is judged with the page
+    # the title is part of the reading prompt, and is judged with the page
     lv = top(level, 'personal' if (s := f"{title or ''}\n{text or ''}".strip()) and pii_report(s, ner=True).has_pii else 'open')
     if send_rule(lv, model_local(chat if chat is not None else model), pii, allow, image=True) == 'withheld':
         return AttrDict(blocks=[], text='', model=getattr(chat, 'model', model), cost=None, blocked=AttrDict(
@@ -225,7 +225,6 @@ def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title
     want, redo = (pages if pages is None else set(pages)), set(as_list(redo, int) or ())
     def needs(r): return parse == 'llm' or (parse == 'auto' and (r.route == 'scanned' or bool(r.flags)))
     todo = [r for r in rows if (want is None or r.page in want) and needs(r)]
-    # a passport or a payslip reads as one from its text layer before any page image goes anywhere
     if todo and pii != 'off': level = top(level, type_policy(text='\n\n'.join(r.text for r in rows)[:6000]).level)
     skip, fail, done, lock = [], [], [0], threading.Lock()
     at = cache if cache is None or callable(cache) else (lambda page, half, d=Path(cache): d/f'p{page + 1:04d}{half}.json')
@@ -256,7 +255,7 @@ def read_doc(path, parse:str='auto', model:str=None, preset:str='generic', title
         return got
     def keep(f, got):
         f = Path(f); f.parent.mkdir(parents=True, exist_ok=True)
-        if f.is_file():   # a page read again: the old reading aside, numbered when one is there already
+        if f.is_file():
             d = f.parent.parent/f'{f.parent.name}_prev'; d.mkdir(exist_ok=True)
             to, k = d/f.name, 1
             while to.exists(): to, k = d/f'{f.stem}.{k}.json', k + 1
@@ -302,7 +301,7 @@ def doc_cost(rows) -> float:
 
 def doc_files(folder, exts=('.pdf',) + IMG_EXTS) -> L:
     "The PDFs and page images under `folder`, sorted."
-    return L(sorted(f for f in Path(folder).rglob('*') if f.is_file() and f.suffix.lower() in exts and not any(s.startswith('.') for s in f.parts)))
+    return L(sorted(f for f in Path(folder).rglob('*') if f.is_file() and f.suffix.lower() in exts and not any(s.startswith('.') for s in f.relative_to(folder).parts)))
 
 # %% ../nbs/12_read.ipynb #86df4d45
 @patch
@@ -312,30 +311,75 @@ def _pages_t(self:Vault):
         with write_txn(self.db):
             t.create(doc_id=str, store=str, page=int, version=int, route=str, text=str, flags=str, model=str, preset=str, at=float, blocks=str,
                      pk=('doc_id', 'store', 'page', 'version'))
-    elif 'blocks' not in t.columns_dict: self.db.execute('alter table read_pages add column blocks text')
+    if 'blocks' not in t.columns_dict: self.db.execute('alter table read_pages add column blocks text')
+    if 'stale' not in t.columns_dict: self.db.execute('alter table read_pages add column stale integer not null default 0')
     return t
 
 @patch
-def pages(self:Vault, doc_id:str, history:bool=False) -> L:
+def pages(self:Vault,
+          doc_id:str,          # document whose pages to return
+          history:bool=False,  # return every reading version
+          stale:bool=False,    # include pages beyond the current file end
+) -> L:
     "A read document's pages: the latest version of each, or every version with `history`."
     rs = L(self._pages_t().rows_where('doc_id=? and store=?', [doc_id, self.name], order_by='page, version'))
+    if not stale: rs = rs.filter(lambda r: not r['stale'])
     if history: return rs.map(AttrDict)
     last = {}
     for r in rs: last[r['page']] = r
     return L(AttrDict(r, flags=json.loads(r['flags'] or '[]'), blocks=json.loads(r.get('blocks') or 'null')) for r in last.values())
 
 @patch
-def _file_pages(self:Vault, doc_id, rows, preset):
-    t, now, have, new = self._pages_t(), time.time(), {r.page: r for r in self.pages(doc_id)}, []
+def _file_pages(self:Vault, doc_id, rows, preset, count=None):
+    t, now, have, new = self._pages_t(), time.time(), {r.page: r for r in self.pages(doc_id, stale=True)}, []
     with write_txn(self.db):
+        if count is not None:
+            self.db.execute('update read_pages set stale=(page >= ?) where doc_id=? and store=?', [count, doc_id, self.name])
         for r in rows:
             if (o := have.get(r.page)) and o.text == r.text and o.route == r.route and (o.blocks or None) == (r.get('blocks') or None): continue
             new.append(r.page)
             t.insert(dict(doc_id=doc_id, store=self.name, page=r.page, version=(o.version if o else 0) + 1, route=r.route, text=r.text,
                           flags=json.dumps(r.flags), model=r.get('model'), preset=preset if r.route == 'model' else None, at=now,
-                          blocks=json.dumps(r['blocks'], ensure_ascii=False) if r.get('blocks') else None))
-    # a model's reading is scanned like any other text, and its findings filed against the new version
+                          blocks=json.dumps(r['blocks'], ensure_ascii=False) if r.get('blocks') else None, stale=0))
     if new: self.scan_pii(doc_id, pages=new)
+
+@patch
+def prune_stale(self:Vault,
+                doc_id:str=None,     # restrict to one document; None checks this shelf
+                dry_run:bool=False,  # report pages without deleting their readings
+) -> L:
+    "Delete all versions of stale pages and return their document, page and version count."
+    self._pages_t()
+    where, args = 'store=? and stale=1', [self.name]
+    if doc_id is not None: where += ' and doc_id=?'; args.append(doc_id)
+    gone = L(self.db.q(f'select doc_id, page, count(*) as versions from read_pages where {where} group by doc_id, page order by doc_id, page', args))
+    if not dry_run:
+        with write_txn(self.db): self.db.execute(f'delete from read_pages where {where}', args)
+    return gone
+
+@patch
+def _stale_view(self:Vault):
+    "Copy this vault in memory and index retained stale pages there."
+    view = Vault(':memory:', encoder=self.enc, store=self.name)
+    try:
+        with view.db.conn.backup('main', self.db.conn, 'main') as backup: backup.step()
+        if view.db.t.usearch_indices.exists(): view.db.execute('update usearch_indices set path=null')
+        if not view.db.t.read_pages.exists(): return view
+        view._pages_t()
+        targets = list(view.db.q('select distinct store, doc_id from read_pages where stale=1'))
+        for r in targets:
+            shelf = view if r['store'] == view.name else view.shelf(r['store'])
+            d = shelf.doc(r['doc_id'])
+            if d:
+                marks = shelf.marks(d['id'])
+                shelf.add([(p.page, p.text) for p in shelf.pages(d['id'], stale=True)], d['title'],
+                          source=d['source'], kind=d['kind'], meta=d['meta'], force=True)
+                shelf.t.docs.update(dict(id=d['id'], added_at=d['added_at']))
+                if marks: shelf._marks().insert(marks, replace=True)
+        return view
+    except BaseException:
+        view.db.close()
+        raise
 
 @patch
 def _read_sent(self:Vault, doc_id, rows, model, chat, pii):
@@ -352,19 +396,25 @@ def read_doc(self:Vault, src, title:str=None, kind:str=None, parse:str='auto', m
          local_model:str=None,  # reads the pages a hosted `model` may not
          local_chat=None,       # a built local reader instead of `local_model`
          progress=None,         # `progress(done, total, page, route, cost)` per file; False stops the reading
-         spread:bool=False, strips:int=1, cache=None, redo=None, clean=None, tries:int=None,   # as `read_doc`; a folder's files cache in `cache/<stem>`
+         spread:bool=False, strips:int=1, cache=None, redo=None, clean=None, tries:int=None,   # as `read_doc`; a folder's files cache in `cache/<path below the folder, extension included>`
          **kw):
     "Read a PDF, a page image or every one under a folder into the vault page by page, keeping each page's readings as versions."
     p, rk = Path(src), dict(spread=spread, strips=strips, redo=redo, clean=clean, tries=tries)
     if p.is_dir(): return doc_files(p).map(lambda f: self.read_doc(f, None, kind, parse, model, preset, script, hint, pages, dpi, workers, chat,
                                                                     pii=pii, allow=allow, local_model=local_model, local_chat=local_chat, progress=progress,
-                                                                    cache=cache if cache is None or callable(cache) else Path(cache)/f.stem, **rk, **kw))
+                                                                    cache=cache if cache is None or callable(cache) else Path(cache)/f.relative_to(p), **rk, **kw))
     lvl = self.level(str(p)).level if self.doc(str(p)) and self.doc(str(p))['source'] == str(p) else self.floor()
     rows = read_doc(p, parse, model, preset, title or '', script, hint, pages, dpi, self.assets(p.stem), workers, chat,
                     pii=pii, level=lvl, allow=allow, local_model=local_model, local_chat=local_chat, progress=progress, cache=cache, **rk)
-    out = self.add([(r.page, r.text) for r in rows], title or p.stem, source=str(p), kind=kind or ('pdf' if p.suffix.lower() == '.pdf' else 'image'),
+    d0 = self.doc(str(p))
+    have = {k: t for k, (t, _) in self._page_texts(d0['id']).items()} if d0 and Path(d0['source']).resolve() == p.resolve() else {}
+    have = {k: t for k, t in have.items() if k in set(rows.attrgot('page'))}
+    want = as_list(pages, int)
+    ok = rows.filter(lambda r: (r.page not in {*rows.unread, *rows.failed} or r.page not in have) and not (r.get('blocked') and r.page in have)
+                               and (want is None or r.page in want or r.page not in have))
+    out = self.add(sorted({**have, **{r.page: r.text for r in ok}}.items()), title or p.stem, source=str(p), kind=kind or ('pdf' if p.suffix.lower() == '.pdf' else 'image'),
                    meta=dict(parse=parse, model=model, preset=preset, script=script, hint=hint), force=True, **kw)
-    self._file_pages(out['doc_id'], rows, preset)
+    self._file_pages(out['doc_id'], ok, preset, len(rows))
     self._read_sent(out['doc_id'], rows, model, chat, pii)
     blocked = [r.page for r in rows if r.get('blocked')]
     return dict(out, routes={k: len(v) for k, v in rows.groupby(lambda r: r.route).items()},
@@ -387,7 +437,7 @@ def reparse(self:Vault, doc_id:str, pages=None, model:str=None, preset:str=None,
     keep = (got if pages is None else got.filter(lambda r: r.page in set(pages))).filter(lambda r: r.page not in got.unread)
     blocked = keep.filter(lambda r: r.get('blocked'))
     keep = keep.filter(lambda r: not r.get('blocked'))
-    self._file_pages(doc_id, keep, preset)
+    self._file_pages(doc_id, keep, preset, len(got))
     self._read_sent(doc_id, keep, model, chat, pii)
     new = {r.page: r for r in self.pages(doc_id)}
     out = self.add([(k, new[k].text) for k in sorted(new)], d['title'], source=d['source'], kind=d['kind'], meta=dict(m, reparsed=time.time()), force=True)

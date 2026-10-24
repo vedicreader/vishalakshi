@@ -50,11 +50,11 @@ mcp = MCPServer('vishalakshi', instructions=(
     'retrieval. `pii` says whether a document is private; `mark_pii` and `mark_not_pii` overrule '
     'the detector.'))
 
-#: fields that name a row or say how it was judged, which a client needs to ask again; never masked
+#: fields that name a row or say how it was judged. A client needs them to ask again. They are never masked
 KEEP = ('doc_id', 'node_id', 'id', 'store', 'ref', 'level', 'how', 'policy', 'kind')
 
 def client_view(o, v, ner:bool=False):
-    "What an MCP client is handed of a result: each string under a Local only document withheld, the rest through `redact`, a cleared document's as stored, and no `prompt`."
+    "Return what an MCP client receives for a result. Each string under a Local only document is withheld. Every other string goes through `redact`, except in a cleared document, which is returned as stored. The result has no `prompt`."
     cleared, _, local, fl = _level_sets(v)
     loc = held({'local': 1})
     def walk(x, k=None):
@@ -63,13 +63,13 @@ def client_view(o, v, ner:bool=False):
         if not isinstance(x, dict): return x
         k = _row_key(x, v.name) or k
         return {f: y if f in KEEP else walk(y, k) for f, y in x.items() if f != 'prompt'}
-    # a local model read a Local only section whole, so whatever it wrote may repeat it
+    # a local model read a Local only section whole; whatever it wrote can repeat it
     if isinstance(o, dict) and any(r.get('level') == 'local' and r.get('how') != 'withheld' for r in (o.get('send') or {}).get('rows') or ()):
         o = dict(o, **{f: loc for f in ('answer', 'thinking', 'fields') if o.get(f)})
     return walk(o)
 
 def as_tool(name:str):
-    "Register one `Vault` method as an MCP tool that returns JSON through `client_view`, with `by` fixed to `'agent'` and hidden, and `pii` defaulting to `redact`."
+    "Register one `Vault` method as an MCP tool that returns JSON through `client_view`. The tool fixes `by` to `'agent'` and hides it. The default of `pii` is `redact`."
     f = cmd(name)
     ps = f.__signature__.parameters
     by = dict(by='agent') if 'by' in ps else {}

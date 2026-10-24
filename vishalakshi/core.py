@@ -44,7 +44,7 @@ class HashEmbed:
     "litesearch's `hash_embed` wrapped as an encoder with `.encode`, for a vault that must not download a model."
     def __init__(self, dims:int=256, dtype=DTYPE):
         store_attr()
-        self.ls_id = f'hash-{dims}'   # litesearch stamps it on the store, so a reopen cannot mix spaces
+        self.ls_id = f'hash-{dims}'   # litesearch stamps it on the store; a reopen cannot mix vector spaces
     def encode(self, xs, **kw): return hash_embed(list(xs), ndim=self.dims, dtype=self.dtype)
 
 def _load(nm:str, dtype):
@@ -58,7 +58,7 @@ def mk_encoder(model=None,          # an `ENCODERS` alias, any model2vec id, or 
                offline:bool=False,  # skip the download attempt entirely
                dtype=DTYPE,         # stored width; litesearch's default everywhere
 ) -> AttrDict:
-    "Load the encoder `model` names, or the default, falling back to hashing when it cannot load, as `AttrDict(model, dims, method, name, note)`."
+    "Load the encoder that `model` names, or the default encoder. Fall back to hashing when loading fails. Return `AttrDict(model, dims, method, name, note)`."
     if offline:
         return AttrDict(model=HashEmbed(dims, dtype), dims=dims, method='hash', name='hash',
         note=f'char-n-gram hashing ({dims}d): lexical only; pass encoder= or restore network access for real semantics')
@@ -114,24 +114,26 @@ def _kw(kind) -> str: return sql_in('kind', kinds(kind))
 def add(self:Vault,
         src,                  # text, `[(page_no, text)]`, a file path, or a directory
         title:str=None,       # document title; defaults to the filename, or the first line of text
-        source:str=None,      # url or path; defaults to the title. Identity is hashed over it
+        source:str=None,      # url or path; defaults to the title. The document id is a hash of the source and the title
         kind:str=None,        # one of KINDS: the facet you filter and report on
         meta:dict=None,       # provenance: the query that found it, when, which tier fetched it
         force:bool=False,     # re-ingest a source already present
-        refresh:bool=True,    # re-ingest text whose content hash differs from what is filed; files refresh via `force` or `housekeep`
+        refresh:bool=True,    # re-ingest text whose content hash differs from the filed hash. A file refreshes only through `force` or `housekeep`
         **kw                  # forwarded to litesearch add_doc (chunker, summarize, with_heading)
 ) -> dict:
     "Add text, pages, a file or a directory to the vault, adding a source again only when its content changed."
     # a document's text is not a path, and asking the filesystem about a 40kB "filename" raises
     p = Path(src) if isinstance(src, (str, Path)) and len(str(src)) < 255 and '\n' not in str(src) else None
-    if p is not None and p.is_dir():  return self.add_dir(str(p), kind=kind, **kw)
-    if p is not None and p.is_file(): return self.add_file(str(p), title=title, kind=kind, force=force, **kw)
+    if p is not None and (p.is_dir() or p.is_file()):
+        if bad := [k for k, v in dict(source=source, meta=meta).items() if v is not None]: raise ValueError(f'{bad} cannot be set when adding a path; they apply to text')
+        if p.is_dir(): return self.add_dir(str(p), kind=kind, force=force, **kw)
+        return self.add_file(str(p), title=title, kind=kind, force=force, **kw)
     ttl = title or _first_line(src)
     h, src_ = content_hash(src), str(ifnone(source, ttl))
     key = src_ if source is None else source_key(src_)
     al = first(self.t.sources(where='source=?', where_args=[key]))   # a source whose text another source filed first
     prev = first(self.t.docs(where='id=?', where_args=[doc_id(key, ttl)])) or (al and first(self.t.docs(where='id=?', where_args=[al['doc_id']])))
-    # litesearch replaces a source whose text changed; `refresh=False` is the opt-out, so it stops here
+    # litesearch replaces a source whose text changed; `refresh=False` opts out of that
     if prev and not force and not refresh: return dict(doc_id=prev['id'], title=ttl, skipped='already filed', changed=False)
     if prev and not force:
         force = json.loads(prev['meta'] or '{}').get('content_hash') != h
@@ -141,7 +143,7 @@ def add(self:Vault,
 
 @patch
 def _settled(self:Vault, out:dict, src:str) -> dict:
-    'After an ingest: one document per source, a stale mark lifted, its identifiers filed, and `changed` saying whether anything was written.'
+    'After an ingest: keep one document per source, clear the stale mark, file the identifiers, and set `changed` to whether anything was written.'
     if not out.get('skipped'):
         self._replace_source(src, out['doc_id'])
         # `vishalakshi.pii` patches it on, and importing the package imports that
@@ -244,7 +246,7 @@ def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,
     return res
 
 def slug(s:str, n:int=60) -> str:
-    'ASCII-folded, lower-cased, hyphenated, clipped: a stable key from a title.'
+    'A stable key from a title: ASCII-folded, lower-cased, hyphenated and clipped to `n` characters.'
     s = unicodedata.normalize('NFKD', str(s or '')).encode('ascii', 'ignore').decode()
     return re.sub(r'[^a-z0-9]+', '-', s.lower()).strip('-')[:n].strip('-')
 
@@ -255,7 +257,7 @@ def _by_source(self:Vault, src:str) -> L:
 
 @patch
 def _replace_source(self:Vault, src:str, keep:str) -> int:
-    'Forget every document under `src` except `keep`; one source, one document.'
+    'Forget every document under `src` except `keep`. A source keeps one document.'
     gone = self._by_source(src).filter(lambda r: r['id'] != keep)
     for r in gone: self.forget(r['id'])
     return len(gone)
@@ -282,12 +284,17 @@ def note(self:Vault,
 #: `pii=` and `pii_ner=`, spliced onto every gated method so the CLI, the MCP tools and the docs
 #: all see them. `@wraps` alone would report the undecorated signature and hide both.
 _PII_PARAMS = [Parameter('pii', Parameter.KEYWORD_ONLY, default='off', annotation=str),
-               Parameter('pii_ner', Parameter.KEYWORD_ONLY, default=False, annotation=bool)]
+               Parameter('pii_ner', Parameter.KEYWORD_ONLY, default=False, annotation=bool),
+               Parameter('stale', Parameter.KEYWORD_ONLY, default=False, annotation=bool)]
 
 def gate(f):
     "Make a retrieval method take `pii=` and `pii_ner=` and apply that policy to what it returns."
     @wraps(f)
-    def _f(self, *a, pii:str='off', pii_ner:bool=False, **kw):
+    def _f(self, *a, pii:str='off', pii_ner:bool=False, stale:bool=False, **kw):
+        if stale:
+            view = self._stale_view()
+            try: return _f(view, *a, pii=pii, pii_ner=pii_ner, **kw)
+            finally: view.db.close()
         o = f(self, *a, **kw)
         if pii == 'off' or o is None: return o
         from vishalakshi.pii import gated
@@ -839,7 +846,7 @@ def stats(self:Vault) -> dict:
 # %% ../nbs/00_core.ipynb #typedgraph02
 @patch
 def build_graph(self:Vault, chat=None, seed:bool=False, **kw) -> dict:
-    "Have a model extract the entities and relations in chunks not yet processed, with vruksha, into the shelf's entity graph; a hosted chat only when every document on the shelf is Open."
+    "Have a model extract entities and relations from chunks not yet processed, with vruksha, into the entity graph of the shelf. A hosted chat runs only when every document on the shelf is Open."
     from vruksha import build_graph as _bg, cites, norm_cite
     if seed: kw = dict(kw, seed_fn=cites, canon=norm_cite)
     from vishalakshi.ask import model_local, new_chat   # absolute: this cell's patch runs outside the package
@@ -881,6 +888,6 @@ def connect(self:Vault,
 
 @patch
 def graph_search(self:Vault, q:str, limit:int=10, graph_w:float=1.0, **kw) -> list:
-    "Search that adds chunks reached by walking the entity graph to the usual hits, for questions that share no words with their answer."
+    "Search that adds chunks found by walking the entity graph to the usual hits. It suits questions that share no words with their answer."
     import vruksha  # applies Database.graph_search
     return self.db.graph_search(q, self.qemb(q), store=self.name, limit=limit, graph_w=graph_w, **kw)

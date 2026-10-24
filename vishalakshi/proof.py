@@ -9,7 +9,7 @@ __all__ = ['word_changes', 'change_box', 'apply_changes', 'block_changes']
 
 # %% ../nbs/13_proof.ipynb #9eb8e6da
 import json, re, time, uuid
-from itertools import accumulate
+from itertools import accumulate, pairwise
 from difflib import SequenceMatcher
 from fastcore.all import AttrDict, L, Path, first, ifnone, patch
 from litesearch import write_txn
@@ -88,7 +88,7 @@ def proofread(self:Vault, doc_id:str, readers, pages=None, agree:int=2, preset:s
               progress=None,       # `progress(done, total, page, route, cost)` after each page; False stops the rest
 ) -> dict:
     "Have each of `readers` read the pages again and file their word changes to the current text, `proposed` where at least `agree` readers make the same one."
-    d, readers, pages = first(self.t.docs(where='id=?', where_args=[doc_id])), list(dict.fromkeys(as_list(readers))), as_list(pages, int)   # a reader named twice is one reader
+    d, readers, pages = first(self.t.docs(where='id=?', where_args=[doc_id])), list(dict.fromkeys(as_list(readers))), as_list(pages, int)
     assert d, f'no document {doc_id}'
     m, src, t = json.loads(d['meta'] or '{}'), Path(d['source']), self._proof_t()
     preset, script, hint = ifnone(preset, m.get('preset', 'generic')), ifnone(script, m.get('script', '')), ifnone(hint, m.get('hint', ''))
@@ -134,11 +134,14 @@ def changes(self:Vault, doc_id:str, state:str=None, page:int=None) -> L:
 
 @patch
 def reject(self:Vault, doc_id:str, ids) -> int:
-    "Set changes aside as not taken, remembering the state each had so that `undo_decision` can restore it."
-    ids = as_list(ids); self._proof_t()
+    "Set this document's open changes aside as not taken, remembering the state each had so that `undo_decision` can restore it, and return how many were set aside."
+    ids = list(dict.fromkeys(as_list(ids))); self._proof_t()
     with write_txn(self.db):
-        for i in ids: self.db.execute("update proof_changes set was=case when state in ('proposed', 'doubt') then state else was end, state='rejected' where id=?", [i])
-    return len(ids)
+        n = 0
+        for i in ids:
+            self.db.execute("update proof_changes set was=state, state='rejected' where id=? and doc_id=? and store=? and state in ('proposed', 'doubt')", [i, doc_id, self.name])
+            n += first(self.db.q('select changes() n'))['n']
+    return n
 
 @patch
 def accept(self:Vault, doc_id:str, ids=None) -> dict:
@@ -148,6 +151,8 @@ def accept(self:Vault, doc_id:str, ids=None) -> dict:
     pg = {p.page: p for p in self.pages(doc_id)}
     stale = [c.id for c in cs if pg.get(c.page) is None or pg[c.page].version != c.version]
     assert not stale, f'changes {stale} were made against an older version of their page: proofread again'
+    ov = [b.id for g in cs.groupby(lambda c: c.page).values() for a, b in pairwise(sorted(g, key=lambda c: (c.at, c.n))) if b.at < a.at + a.n]
+    assert not ov, f'changes {ov} overlap an earlier change on their page: accept one of each overlapping pair'
     rows = L()
     for k, g in cs.groupby(lambda c: c.page).items():
         rows.append(AttrDict(page=k, text=apply_changes(pg[k].text, g), route='proof', flags=pg[k].flags, model=None, blocks=block_changes(pg[k].blocks, pg[k].text, g)))

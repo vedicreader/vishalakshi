@@ -65,7 +65,7 @@ def log_ask(self:Vault,
     up, down = set(up or ()), set(down or ())
     res = L((out.get('context') or {}).get('results') or ())
     cited = {c['n'] for c in (out.get('cited') or L())}
-    if not (cited or up or down): return 0     # see above: no citations is not six negatives
+    if not (cited or up or down): return 0     # an answer with no citation and no rating gives no signal
     q, aid = out.get('question') or '', uuid.uuid4().hex[:12]
     n = 0
     for i, r in enumerate(res, 1):
@@ -107,10 +107,11 @@ def doc_prior(self:Vault,
               lo:float=0.6, hi:float=1.6,   # clamp, so no amount of evidence can bury a document
               seed:int=None,
               exclude_ask=None,   # ignore these questions' rows; for an out-of-fold prior
+              stats:dict=None,    # `{doc_id: (wins, losses)}` to use instead of reading the log
 ) -> dict:
     "Each document's multiplier on its retrieval score, from a Beta distribution over its feedback, as `{doc_id: multiplier}`."
     rng, out = np.random.default_rng(seed), {}
-    for did, (wins, losses) in self.doc_stats(exclude_ask=exclude_ask).items():
+    for did, (wins, losses) in (self.doc_stats(exclude_ask=exclude_ask) if stats is None else stats).items():
         a, b = 1.0 + wins, 1.0 + losses
         p = rng.beta(a, b) if (explore and rng.random() < explore) else a/(a+b)
         out[did] = float(np.clip((p/0.5)**gamma, lo, hi))
@@ -228,7 +229,7 @@ def training_data(self:Vault, min_group:int=2) -> AttrDict:
     by = defaultdict(list)
     for r in self._fb()(where=f'store={self.name!r}', order_by='at'): by[r['ask_id']].append(r)
     Xs, gs, ys, ws = [], [], [], []
-    nodes = {}
+    nodes, tot = {}, self.doc_stats()
     for aid, rows in by.items():
         labs = {float(r['label'] or 0) for r in rows}
         if len(rows) < min_group or len(labs) < 2: continue
@@ -238,7 +239,11 @@ def training_data(self:Vault, min_group:int=2) -> AttrDict:
                 nodes[r['node_id']] = (self.read(r['node_id'], max_chars=4000) or {}).get('text', '')
             hits.append(AttrDict(node_id=r['node_id'], doc_id=r['doc_id'], text=nodes[r['node_id']],
                                  score=float(r['score'] or 0.0)))
-        X = self.pair_X(rows[0]['q'], hits, prior=self.doc_prior(explore=0.0, exclude_ask={aid}))
+        own = defaultdict(lambda: [0.0, 0.0])
+        for r in rows:
+            if r['doc_id']: own[r['doc_id']][0 if (r['label'] or 0) >= 0.5 else 1] += float(r['weight'] or 1.0)
+        rest = {d: (w - own[d][0], l - own[d][1]) for d, (w, l) in tot.items()}
+        X = self.pair_X(rows[0]['q'], hits, prior=self.doc_prior(explore=0.0, stats=rest))
         if not len(X): continue
         Xs.append(X); gs += [aid]*len(X)
         ys += [float(r['label'] or 0) for r in rows]; ws += [float(r['weight'] or 1.0) for r in rows]
@@ -324,7 +329,7 @@ def _rk(self:Vault):
 
 @patch
 def retune(self:Vault, q:str, hits, ranker=None, alpha:float=0.25, rrf_k:int=60) -> L:
-    """Reorder hits fused with baseline RRF (`alpha=0.25`: -0.001 ΔnDCG@10 vs -0.127 substitute)."""
+    """Reorder `hits` by baseline reciprocal rank fusion plus the ranker's order, weighted by `alpha`. At `alpha=0.25` nDCG@10 changed by -0.001. Replacing the baseline order with the ranker's order changed it by -0.127."""
     rk = ranker or self._rk()
     if rk is None or not len(hits): return L(hits)
     s = rk.score(self.pair_X(q, hits))
@@ -337,7 +342,7 @@ def retune(self:Vault, q:str, hits, ranker=None, alpha:float=0.25, rrf_k:int=60)
 
 @patch
 def _post(self:Vault, q:str, ctx):
-    "The hook `context` calls: a no-op until a ranker has been fitted *and* switched on."
+    "The hook `context` calls. It does nothing until a ranker is fitted and switched on."
     if self._rk() is None: return ctx
     try: ctx.results, ctx.tuned = self.retune(q, ctx.results), True
     except Exception as e: warnings.warn(f'ranker not applied ({type(e).__name__}: {e})')

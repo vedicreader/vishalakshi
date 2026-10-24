@@ -126,7 +126,7 @@ from pyskills import allow
 from .core import Vault
 from .cli import vault
 
-# Everything a sandboxed agent may call: read the vault, and add to it
+# the vault methods a sandboxed agent may call: those that read the vault and those that add to it
 READ = ('search sections context related read toc doc document sources stats shelves elsewhere map '
         'doctypes of_type ner categorize extract extract_all ask ask_doc explain doc_context topic_tree show_topics '
         'code_search symbol where_to_add grep federate watches apis assets images level findings send_check').split()

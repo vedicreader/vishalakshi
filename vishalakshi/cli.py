@@ -36,7 +36,7 @@ def vault(path:str=None) -> Vault:
                  offline=bool(os.getenv('VISHALAKSHI_OFFLINE')))
 
 def _spellable(p) -> bool:
-    'Can this parameter be written on a command line? `self`, `**kw`, a test stand-in chat, the `stop` and `progress` callbacks and callable defaults cannot.'
+    'Whether a parameter can be written on a command line. `self`, `**kw`, test stand-in chats, the `stop` and `progress` callbacks and callable defaults cannot.'
     return (p.name not in ('self', 'chat', 'chats', 'local_chat', 'stop', 'progress') and p.kind is not Parameter.VAR_KEYWORD
             and not (p.default is not Parameter.empty and callable(p.default)))
 
@@ -52,7 +52,7 @@ def cmd(name:str, vault_fn=vault):
 
 # %% ../nbs/04_cli.ipynb #f0a650d6
 def jsonable(o):
-    "Make a value JSON-friendly for `json.dumps`: sequences become lists, numpy scalars numbers, and anything else a string."
+    "Convert a value that `json.dumps` cannot encode: iterables become lists, numpy scalars become Python numbers, and anything else becomes a string."
     if hasattr(o, '__iter__') and not isinstance(o, (str, bytes, dict)): return list(o)
     return o.item() if hasattr(o, 'item') else str(o)
 

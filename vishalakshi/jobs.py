@@ -27,7 +27,7 @@ class Terminal(Exception):
 def backoff(attempt:int,       # failures so far; 1 on the first
             base:float=30,     # first delay, seconds
             cap:float=21600,   # longest delay, 6h
-            jitter:float=0.25  # +/- fraction, so jobs that failed together do not retry together
+            jitter:float=0.25  # +/- fraction of the delay; spreads out jobs that failed together
 ) -> float:
     "The delay before the next attempt: `base` seconds doubled for each failure so far, at most `cap`, with some random jitter."
     return max(1., min(cap, base * 2**(attempt-1)) * (1 + random.uniform(-jitter, jitter)))
@@ -118,7 +118,7 @@ def claim(self:Queue,
             'UPDATE jobs SET state=?, worker=?, lease_until=?, updated_at=? WHERE id IN '
             '(SELECT id FROM jobs WHERE state=? AND run_at<=? ORDER BY priority, run_at LIMIT ?) '
             'RETURNING *', ['running', worker, now + self.lease, now, 'ready', now, n])
-    # ORDER BY picks *which* rows; RETURNING hands them back in no defined order, so sort again here
+    # RETURNING gives no defined row order; ORDER BY in the subquery only picks which rows
     return L(sorted(rows, key=lambda r: (r['priority'], r['run_at']))).map(_row)
 
 @patch
@@ -157,10 +157,10 @@ def fail(self:Queue,
 
 @patch
 def reclaim(self:Queue, now:float=None) -> L:
-    "Put jobs whose lease expired back on the queue, so a worker that died loses its claim but not the job."
+    "Fail each running job whose lease expired with `lease expired`; this counts one attempt, and the job is dead after `max_attempts`."
     now = time.time() if now is None else now
     exp = self.db.q('SELECT * FROM jobs WHERE state=? AND lease_until>0 AND lease_until<=?', ['running', now])
-    # two pollers can read the same expired row; the fence in `fail` means only one of them counts it
+    # two pollers can read the same expired row; the check in `fail` lets only one of them count it
     return L(exp).map(lambda j: self.fail(j, 'lease expired')).filter(lambda j: j['state'] != 'lost')
 
 # %% ../nbs/11_jobs.ipynb #06be5c39
@@ -190,14 +190,13 @@ def _ran(self:Queue, job, status:str, t0:float, error:str=None, result=None) -> 
 
 @patch
 def run_one(self:Queue, job) -> AttrDict:
-    'Dispatch one claimed job, then ack or fail it, and record the run either way.'
+    'Run the handler for one claimed job, then ack or fail the job, and record the run.'
     t0 = time.time()
-    # ack and fail are fenced, so a call that lost its lease changed nothing and the run says `lost`
+    # a call from a worker that lost its lease changes nothing; the run is recorded as `lost`
     def _rep(out, status, error=None, result=None):
         if out['state'] == 'lost': status, error = 'lost', 'the lease was reclaimed mid-handler'
         return self._ran(job, status, t0, error, result)
     if (fn := self.handlers.get(job['kind'])) is None:
-        # a kind nothing subscribes to will not start doing so on the next attempt
         err = f"no handler for {job['kind']!r}"
         return _rep(self.fail(job, err, dead=True), 'dead', err)
     try: res = fn(job['payload'])
@@ -238,7 +237,7 @@ def jobs(self:Queue, state:str=None, kind:str=None, limit:int=100) -> L:
 
 @patch
 def dead(self:Queue, limit:int=100) -> L:
-    'Jobs that used up their attempts, with the error that finished them off.'
+    'Dead jobs: those that used up their attempts or failed with `Terminal`, each with its last error.'
     return self.jobs(state='dead', limit=limit)
 
 @patch

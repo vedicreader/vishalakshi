@@ -25,7 +25,7 @@ from .pii import LEVEL_LABELS, top
 from .ask import (LOCAL_RUNTIMES, PII_SP, dflt_model, is_local, is_stock_chat, model_local,
                             new_chat, pii_model_, urai)   # also patches Vault.ask
 
-# re-exported: what varga decides is still reachable from the vault that stores the verdict
+# re-exported from varga, so callers reach them from this module
 _all_ = ['DOCTYPES', 'EXTRACT_SP', 'FIELD_TYPES', 'KIND_BONUS', 'KIND_HINT', 'MIN_MARGIN',
          'MIN_SCORE', 'NER_CHARS', 'SCHEMAS', 'SIGNALS',
          'TYPE_SP', 'Catalogue', 'Contract', 'IdentityDoc', 'Invoice', 'MeetingNotes', 'Paper', 'Receipt',
@@ -37,7 +37,7 @@ _all_ = ['DOCTYPES', 'EXTRACT_SP', 'FIELD_TYPES', 'KIND_BONUS', 'KIND_HINT', 'MI
 REVIEW_SCORE = 0.2
 
 def model_cached(mid:str) -> bool:
-    "Whether model `mid` is already in the Hugging Face cache, found by scanning the cache and never by downloading."
+    "Return True when model `mid` is in the Hugging Face cache. The check scans the cache and never downloads."
     try:
         from huggingface_hub import scan_cache_dir
         return any(r.repo_id == mid for r in scan_cache_dir().repos)
@@ -71,7 +71,7 @@ def categorize(self:Vault,
         lbls = L(labels.split(',') if isinstance(labels, str) else labels or list(DOCTYPES)).map(str.strip)
         mid = model or dflt_model
         try:
-            # auto may use a model already loaded; it must not download one
+            # `auto` must not download a model
             if mode == 'auto' and is_stock_chat() and urai().infer_runtime(mid) != 'remote' and not model_cached(mid):
                 by = f'cues ({g.method}); {mid or "no model"} is not downloaded, so none was asked'
             else:
@@ -87,10 +87,9 @@ def categorize(self:Vault,
                     if said in lbls or said == 'other': dt, by = said, f'llm ({mid or "Urai default"})'
                     else: by = f'cues ({g.method}); llm answered {said[:40]!r}, not a label'
         except Exception as e:
-            # keep the cue verdict when the model leg fails
             if mode == 'always': raise
             by = f'cues ({g.method}); no model available ({type(e).__name__})'
-    # a model was asked precisely because the cues could not decide, so its answer is the confident one
+    # a model was asked because the cues could not decide: its answer counts as confident
     conf = by.startswith('llm') or g.decisive
     res = AttrDict(doc_id=d.doc_id, title=d.title, kind=d.kind, doctype=dt, score=g.score, sensitive=dt in SENSITIVE,
                    margin=g.margin, decisive=g.decisive, confident=conf, by=by, scores=g.scores,
@@ -125,13 +124,13 @@ def categorize_all(self:Vault,
 
 @patch
 def proposed_types(self:Vault, kind:str=None) -> L:
-    "Documents whose doctype is only proposed and waits for a person, surest first."
+    "Return the documents with a proposed doctype that a person has not confirmed, surest first."
     p = lambda r: (r['meta'] or {}).get('doctype_proposed')
     return self.sources(kind).filter(p).sorted(key=lambda r: -((r['meta'] or {}).get('doctype_score') or 0))
 
 @patch
 def accept_type(self:Vault, ref, doctype:str=None) -> dict:
-    "Confirm a document's proposed doctype, or give it `doctype` instead."
+    "Confirm the proposed doctype of a document, or set `doctype` instead."
     d = self.doc(ref)
     if d is None: raise ValueError(f'no document in the vault matching {ref!r}')
     dt = doctype or (d['meta'] or {}).get('doctype_proposed')
@@ -142,7 +141,7 @@ def accept_type(self:Vault, ref, doctype:str=None) -> dict:
 
 @patch
 def reject_type(self:Vault, ref) -> dict:
-    "Drop a document's proposed doctype and leave it untyped."
+    "Remove the proposed doctype of a document. The document stays untyped."
     d = self.doc(ref)
     if d is None: raise ValueError(f'no document in the vault matching {ref!r}')
     self.set_meta(d['id'], doctype_proposed=None)
@@ -150,7 +149,7 @@ def reject_type(self:Vault, ref) -> dict:
 
 @patch
 def accept_types(self:Vault, k:int=None, kind:str=None) -> L:
-    "Confirm the `k` surest waiting proposals, or all of them when `k` is None."
+    "Confirm the `k` surest proposals. Confirm all of them when `k` is None."
     return self.proposed_types(kind)[:k].map(lambda r: self.accept_type(r['id']))
 
 @patch
@@ -164,7 +163,7 @@ def of_type(self:Vault, doctype:str, kind:str=None) -> L:
     'Every document categorised as `doctype`, newest first.'
     return self.sources(kind).filter(lambda r: (r['meta'] or {}).get('doctype') == doctype)
 
-# doctype routing (KIND_SHELF is arrival kind)
+# the shelf for each doctype; `KIND_SHELF` maps the arrival kind instead
 DOCTYPE_SHELF = {'paper': 'papers', 'code': 'code', 'catalogue': 'data'}
 
 @patch
@@ -172,7 +171,7 @@ def reshelf(self:Vault,
             ref,                      # doc_id, source, or a title substring
             shelf:str=None,           # where to put it; None -> whatever its doctype says
             llm:str='auto',           # the LLM leg of the categorisation that picks the shelf
-            max_chars:int=2_000_000,  # cap on the text carried over
+            max_chars:int=2_000_000,  # longest text carried over; a longer document is refused
             **kw                      # forwarded to categorize (model=, chat_kw=, ner=)
 ) -> AttrDict:
     "Move a document to `shelf`, or to the shelf its doctype belongs on: papers to `papers`, code to `code`, catalogues to `data`."
@@ -183,8 +182,11 @@ def reshelf(self:Vault,
                    was=self.name, store=self.name, moved=False)
     if c is not None and not c.confident: out.skipped = 'the doctype is a guess, not a verdict'
     if not nm or nm == self.name or not d.doc_id: return out
+    if d.truncated: raise ValueError(f'{d.title!r} is {d.chars} characters, over max_chars={max_chars}; nothing was moved')
     r = self.shelf(nm).add(d.text, d.title, source=d.source, kind=d.kind, force=True,
                            meta=dict(d.meta, doctype=out.doctype, reshelved_from=self.name))
+    if not r.get('doc_id') or not r.get('chunks') or self.shelf(nm).doc(r['doc_id']) is None:
+        raise RuntimeError(f'{nm} did not take {d.title!r}; the original was kept')
     self.forget(d.doc_id)
     return AttrDict(out, doc_id=r.get('doc_id'), store=nm, moved=True, chunks=r.get('chunks'))
 
@@ -222,7 +224,7 @@ def extract(self:Vault,
     if not (d.text or '').strip():
         return AttrDict(doc_id=d.doc_id, title=d.title, source=d.source, doctype=None, schema=None,
                         fields={}, skipped='no text to extract from')
-    # marks win over arithmetic, so this is `self.pii` rather than a bare `pii_report`
+    # a mark overrides the detector, so use `self.pii` and not a bare `pii_report`
     report = (self.pii(d.doc_id, max_chars=max_chars, ner=True) if d.doc_id else pii_report(d.text, ner=True)) if pii != 'off' else None
     lvl = self._doc_level(None, d.doc_id) if d.doc_id else top(self.floor(), 'personal' if report and report.has_pii else 'open')
     private = pii != 'off' and (bool(report and report.has_pii) or lvl != 'open')
@@ -231,7 +233,7 @@ def extract(self:Vault,
                         fields={}, skipped='pii', refused=True, pii=report, level=lvl, kind='pii_blocked')
     dt, cat = None, None
     if schema is None:
-        # the categorising leg goes where the extraction would, and through the same check
+        # categorisation goes to the same model and through the same check as the extraction
         cat = self.categorize(d, model=(pii_model or pii_model_) if private and pii == 'local' else model, chat_kw=chat_kw, llm=llm,
                               save=save, pii=pii)
         dt = cat.doctype
@@ -241,7 +243,7 @@ def extract(self:Vault,
     if private and pii == 'local':
         mid, sys_sp = pii_model or pii_model_, PII_SP
     ch = new_chat(mid, **(chat_kw or {}))
-    # the title and source travel with the text, so the one decision covers all three
+    # the title and source go with the text, under one decision
     chk = self.send_check(refs=[d.doc_id] if d.doc_id else None, text=None if d.doc_id else f'{d.title}\n{d.source}\n\n{d.text}',
                           model=ch, policy=pii, level=top(lvl, 'personal' if private else None))
     if (how := chk.rows[0].how) == 'withheld':
@@ -256,9 +258,9 @@ def extract(self:Vault,
     at = locate(raw, {k: t for k, (t, _) in self._page_texts(d.doc_id).items()}) if d.doc_id else {}
     src = {f: dict(page=at.get(f, {}).get('page'), block=at.get(f, {}).get('block'), quote=raw[f]['quote'] if cite else None)
            for f in flds if f in at or cite}
-    # the document's own timestamp supplies the year a date omits, never the date itself
+    # the document timestamp supplies a missing year, never the date
     flds, errs = check_fields(sch, flds, ref=d.get('added_at')) if check else (flds, L())
-    # the same backstop `ask` applies to an answer: fields are short, so names are looked for
+    # the same second scan as `ask`; fields are short, so it also looks for names
     if private and pii_report(str(flds), ner=True).has_pii: flds = redact_obj(flds, ner=True)
     if private: src = redact_obj(src, ner=True)
     if save and d.doc_id: self.set_meta(d.doc_id, extracted=flds, extracted_as=sch.__name__, extracted_src=src)

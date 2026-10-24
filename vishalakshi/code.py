@@ -120,7 +120,7 @@ def federate(self:Vault,
         for i, r in enumerate(rows): r['_fid'] = f'{nm}:{r.ref or i}'
     fused = rrf_all(list(lists.values()), limit=limit, id_key='_fid',
                     weights=[(weights or {}).get(nm, 1.0) for nm in lists])
-    # the code legs are files, not sections, so a mark cannot reach them; `gate` scans the text
+    # the code legs are files, not sections, and a mark cannot reach them; `gate` scans the text instead
     return AttrDict(query=q, hits=L(fused).map(AttrDict),
                     legs={nm: (len(r) if isinstance(r, L) else r) for nm, r in legs.items()},
                     note=warn + f"RRF over {', '.join(lists) or 'nothing'}; the legs use different "
