@@ -2,6 +2,15 @@
 
 <!-- do not remove -->
 
+## 0.1.35
+- Needs litesearch>=0.1.61. litesearch 0.1.61 loads adhara, a native SQLite extension, into the vault's connection. A search with a `kind` filter now ranks its vectors with adhara on all cores. The hits are the same as before.
+
+| 10 searches on a vault of 181,290 chunks | 0.1.34 | 0.1.35 |
+|---|---|---|
+| no filter | 46 ms | 49 ms |
+| `kind='web'` | 100 ms | 110 ms |
+| `kind='note,pdf,md'` | 517 ms | 89 ms |
+
 ## 0.1.34
 - Re-reading a shorter PDF marks pages beyond its end stale and keeps their reading history. Retrieval excludes stale pages by default. Pass `stale=True` to include them through a temporary in-memory index. `prune_stale(doc_id=None, dry_run=False)` reports or deletes stale page readings on the current shelf.
 - Default change: the privacy gate raises database query errors. Before, it ignored these errors and could treat a Local only shelf as Open.
