@@ -2,6 +2,12 @@
 
 <!-- do not remove -->
 
+## 0.1.36
+- `shelves()` lists only stores that have a docs table. A store of names, such as a graph's `entities` table, is left out. Before, `shelves()` listed it and queried its missing `entities_docs` table, and SQLite logged `no such table` on each search.
+- `elsewhere(q, shelves=[...])` searches the shelves you name and counts only those. Before, it counted every store in the vault on each call.
+- `shelf(name)` and `Vault(store=name)` raise `ValueError` when a table `name` exists with no `doc_id` column. They raise before they write to `store_meta`. Before, litesearch recorded the name in `store_meta` and then failed.
+- Default change: `Vault()` with no path opens the file that `$VISHALAKSHI_VAULT` names. If the variable is not set, it opens `~/.vishalakshi/vault.db`. Before, `Vault()` ignored the variable; only the `vishalakshi` command and the MCP server read it.
+
 ## 0.1.35
 - Needs litesearch>=0.1.61. litesearch 0.1.61 loads adhara, a native SQLite extension, into the vault's connection. A search with a `kind` filter now ranks its vectors with adhara on all cores. The hits are the same as before.
 

@@ -17,7 +17,7 @@ from importlib.util import find_spec
 from inspect import Parameter, signature
 from fastcore.all import AttrDict, L, Path, chunked, first, ifnone, patch, store_attr
 from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, topic_nodes,
-                        DOC_EXTS, write_txn, sql_in, StoreMismatch, encoder_id)
+                        DOC_EXTS, write_txn, sql_in, StoreMismatch, encoder_id, database)
 from litesearch.tree import doc_id, source_key
 
 # %% ../nbs/00_core.ipynb #a9628282
@@ -82,7 +82,7 @@ class Vault(Index):
     "Everything you have collected, in one SQLite file, searchable as one collection."
     _any_noisy = None
     def __init__(self,
-                 path:str=None,       # vault file; None -> ~/.vishalakshi/vault.db
+                 path:str=None,       # vault file; None -> $VISHALAKSHI_VAULT, else ~/.vishalakshi/vault.db
                  encoder=None,        # an `ENCODERS` alias, a model2vec id, an `mk_encoder()` result, or None
                  store:str='store',   # chunk store name
                  offline:bool=None,   # never attempt a model download; None -> $VISHALAKSHI_OFFLINE
@@ -91,7 +91,11 @@ class Vault(Index):
         offline = bool(os.getenv('VISHALAKSHI_OFFLINE')) if offline is None else offline
         self.enc = encoder if isinstance(encoder, AttrDict) and 'dims' in encoder \
                    else mk_encoder(encoder, dims=dims, offline=offline)
-        super().__init__(ifnone(path, Path.home()/'.vishalakshi'/'vault.db'), encoder=self.enc.model, name=store, db=db)
+        path = path or os.getenv('VISHALAKSHI_VAULT') or Path.home()/'.vishalakshi'/'vault.db'
+        db = ifnone(db, database(path))
+        if store in db.t and 'doc_id' not in db.t[store].columns_dict:   # litesearch stamps store_meta before it fails
+            raise ValueError(f'{store!r} is a table with no doc_id column, not a shelf')
+        super().__init__(path, encoder=self.enc.model, name=store, db=db)
         self._register()
 
     def _where(self, kind=None, include_noisy:bool=False, where:str=None) -> str|None:
@@ -563,17 +567,20 @@ def drop_shelf(self:Vault, name:str, force:bool=False) -> dict:
     self.db.forget_ensured(name)
     return dict(shelf=name, dropped=gone)
 
+def _docs_tbl(s:str) -> str: return 'docs' if s == 'store' else f'{s}_docs'
+
+@patch
+def _tables(self:Vault) -> set: return {r['name'] for r in self.db.q("select name from sqlite_master where type='table'")}
+
 @patch
 def shelves(self:Vault) -> L:
-    "List the shelves in this vault file with each one's encoder, vector width and document count."
-    def n(s):
-        p = '' if s == 'store' else f'{s}_'
-        try: return self.db.t[f'{p}docs'].count
-        except Exception: return 0
+    "List the shelves in this vault file with each one's encoder, vector width and document count; a store with no docs table is left out."
+    have = self._tables()
     rows = self.db.q("select m.name as store, m.encoder, u.ndim as dims, cast(strftime('%s', m.created_at) as real) as added_at "
                      "from store_meta m left join usearch_indices u on u.name=m.name order by m.rowid")
     eid = encoder_id(self.enc.model)   # an empty shelf has no ANN index yet, but shares this vault's width
-    return L(rows).map(lambda r: dict(r, dims=r['dims'] or (self.enc.dims if r['encoder'] == eid else None), docs=n(r['store'])))
+    return L(rows).filter(lambda r: _docs_tbl(r['store']) in have).map(lambda r: dict(r,
+        dims=r['dims'] or (self.enc.dims if r['encoder'] == eid else None), docs=self.db.t[_docs_tbl(r['store'])].count))
 
 # Shelf names, not encoder assignments
 SHELVES = ('store',      # the main shelf: notes, pages, anything unrouted
@@ -712,10 +719,10 @@ def elsewhere(self:Vault,
               max_read:int=2000,  # chars kept per section
 ) -> L:
     "Search the vault's other shelves and return their best sections in the same shape as this shelf's."
-    out, want = L(), (None if shelves is True else set(L(shelves)))
-    for s in self.shelves():
-        nm = s['store']
-        if nm == self.name or not s['docs'] or (want is not None and nm not in want): continue
+    out, have = L(), self._tables()
+    names = L(self.db.q('select name from store_meta order by rowid')).attrgot('name') if shelves is True else L(shelves)
+    for nm in names:
+        if nm == self.name or _docs_tbl(nm) not in have or not self.db.t[_docs_tbl(nm)].count: continue
         for r in self.shelf(nm).sections(q, limit=limit): out.append(AttrDict(node_id=r['node_id'],
             doc_id=r['node_id'].split('#')[0], store=nm, title=r['title'], breadcrumb=f"{nm} › {r['breadcrumb']}",
             filename=None, pages=r['pages'], via=f'shelf:{nm}', text=' '.join(r['snippets'])[:max_read]))

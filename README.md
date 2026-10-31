@@ -15,7 +15,7 @@ pip install vishalakshi
 
 ## Adding and searching
 
-[`Vault()`](https://vedicreader.github.io/vishalakshi/core.html#vault) with no argument opens `~/.vishalakshi/vault.db`. This page uses a throwaway file and fills it with this repository’s own docs and source.
+[`Vault()`](https://vedicreader.github.io/vishalakshi/core.html#vault) with no argument opens the file `$VISHALAKSHI_VAULT` names, else `~/.vishalakshi/vault.db`. This page uses a throwaway file and fills it with this repository’s own docs and source.
 
 ``` python
 from tempfile import mkdtemp
