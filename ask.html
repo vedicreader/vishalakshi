@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.20">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Answer questions from the vault with a local or hosted model, cite the sections used, and check what each model is sent">
+
+<title>ask – vishalakshi</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-17888a1159294d3eb470f19f6f52f5a5.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-66a38d7287321bc50e069add96f8c30e.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="ask – vishalakshi">
+<meta property="og:description" content="Answer questions from the vault with a local or hosted model, cite the sections used, and check what each model is sent">
+<meta property="og:site_name" content="vishalakshi">
+<meta name="twitter:title" content="ask – vishalakshi">
+<meta name="twitter:description" content="Answer questions from the vault with a local or hosted model, cite the sections used, and check what each model is sent">
+<meta name="twitter:card" content="summary">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">vishalakshi</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+          <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./ask.html">ask</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">vishalakshi</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./core.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">core</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acquire.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">acquire</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ask.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">ask</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./code.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">code</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./cli.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cli</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./extract.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">extract</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">concepts</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./skill.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">skill</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pii.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pii</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quality.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">quality</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./jobs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">jobs</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./read.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./proof.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">proof</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#answering-with-citations" id="toc-answering-with-citations" class="nav-link active" data-scroll-target="#answering-with-citations">Answering with citations</a></li>
+  <li><a href="#deciding-what-a-model-may-be-sent" id="toc-deciding-what-a-model-may-be-sent" class="nav-link" data-scroll-target="#deciding-what-a-model-may-be-sent">Deciding what a model may be sent</a>
+  <ul class="collapse">
+  <li><a href="#recording-what-a-model-said" id="toc-recording-what-a-model-said" class="nav-link" data-scroll-target="#recording-what-a-model-said">Recording what a model said</a></li>
+  </ul></li>
+  <li><a href="#try-it" id="toc-try-it" class="nav-link" data-scroll-target="#try-it">Try it</a></li>
+  <li><a href="#when-the-sections-hold-personal-information" id="toc-when-the-sections-hold-personal-information" class="nav-link" data-scroll-target="#when-the-sections-hold-personal-information">When the sections hold personal information</a></li>
+  <li><a href="#against-real-models" id="toc-against-real-models" class="nav-link" data-scroll-target="#against-real-models">Against real models</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/vedicreader/vishalakshi/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div><div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="ask.html.md"><i class="bi bi-file-code"></i>Markdown</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">ask</h1>
+</div>
+
+<div>
+  <div class="description">
+    Answer questions from the vault with a local or hosted model, cite the sections used, and check what each model is sent
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- WARNING: THIS FILE WAS AUTOGENERATED! DO NOT EDIT! -->
+<p><code>ask</code> answers a question from the vault with a language model. <a href="https://github.com/vedicreader/urai">Urai</a> is the chat library that vishalakshi calls. <a href="https://github.com/vedicreader/rishi">Rishi</a> provides the model backends, and Urai registers them the first time a chat is built.</p>
+<p>A model id names the model, and the id selects the backend. The local backends are LiteRT, MLX, llama.cpp and Ollama. A hosted API id looks like <code>claude/sonnet</code> or <code>gpt-4.1-nano</code>.</p>
+<p>With no id, the vault uses <code>gemma-4-E2B</code>. This small model runs on this machine through LiteRT and needs no API key. Set <code>$VISHALAKSHI_MODEL</code> to use a different default.</p>
+<p>LiteRT is asked for the GPU backend. When no GPU is available, LiteRT uses its default backend and a warning appears. Set <code>$VISHALAKSHI_GPU=0</code> to keep LiteRT on the CPU.</p>
+<p><code>chat_kw=</code> passes any other chat constructor argument, such as a temperature.</p>
+<div id="c1f04c59" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:08.823710+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.171339+00:00&quot;,&quot;total&quot;:0.3476345199999997}}" data-execution_count="4">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L121" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="use_chat" class="level3">
+<h3 class="anchored" data-anchor-id="use_chat">use_chat</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> use_chat(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    f</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Build chats with <code>f</code> instead of Urai’s <code>Chat</code> inside the block. The swap applies to the whole process. A threaded host passes <code>mk_chat=</code> to <code>ask</code> instead.</em></p>
+</section>
+</div>
+<div id="6c25f36f" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.171472+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.174817+00:00&quot;,&quot;total&quot;:0.0033484450000003108}}" data-execution_count="5">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L114" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="is_stock_chat" class="level3">
+<h3 class="anchored" data-anchor-id="is_stock_chat">is_stock_chat</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_stock_chat()<span class="op">-&gt;</span><span class="bu">bool</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return True when <a href="https://vedicreader.github.io/vishalakshi/ask.html#new_chat"><code>new_chat</code></a> builds Urai’s own <code>Chat</code>, which is the case when no replacement factory is set or when the factory is Urai’s <code>Chat</code>.</em></p>
+</section>
+</div>
+<div id="789cc965" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.174918+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.178482+00:00&quot;,&quot;total&quot;:0.0035681030000063174}}" data-execution_count="6">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L101" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="new_chat" class="level3">
+<h3 class="anchored" data-anchor-id="new_chat">new_chat</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> new_chat(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    model:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># a model id or path, such as `mlx/…`; None uses the default model</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kw</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Build a new chat for <code>model</code>. Every model call in the vault builds a fresh chat here.</em></p>
+</section>
+</div>
+<div id="68069564" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.178578+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.180983+00:00&quot;,&quot;total&quot;:0.0024065709999945284}}" data-execution_count="7">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L86" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="urai" class="level3">
+<h3 class="anchored" data-anchor-id="urai">urai</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> urai():</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Import Urai with Rishi’s backends registered. Raise <code>ImportError</code> when Rishi is missing.</em></p>
+</section>
+</div>
+<div id="d39f8d9f" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.181053+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.183580+00:00&quot;,&quot;total&quot;:0.0025294699999989234}}" data-execution_count="8">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L75" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="litert_gpu" class="level3">
+<h3 class="anchored" data-anchor-id="litert_gpu">litert_gpu</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> litert_gpu(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    model:<span class="bu">str</span>, <span class="co"># the model id the chat is built from</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    kw:<span class="bu">dict</span>, <span class="co"># the other chat constructor arguments</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return <code>kw</code> with LiteRT’s GPU backend added, when <code>model</code> runs on LiteRT and <code>kw</code> has no <code>backend</code> or <code>engine</code>.</em></p>
+</section>
+</div>
+<div id="2c39fe0d" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.183655+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.186107+00:00&quot;,&quot;total&quot;:0.0024552139999940437}}" data-execution_count="9">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L43" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="is_local" class="level3">
+<h3 class="anchored" data-anchor-id="is_local">is_local</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_local(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    rt</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">bool</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return True when runtime <code>rt</code> runs on this machine. Ollama counts as local only when <code>$OLLAMA_HOST</code> points at this machine.</em></p>
+</section>
+</div>
+<div id="f09e5c4f" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.216693+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.220595+00:00&quot;,&quot;total&quot;:0.003905927999994674}}" data-execution_count="13">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L153" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="cited" class="level3">
+<h3 class="anchored" data-anchor-id="cited">cited</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cited(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    answer:<span class="bu">str</span>, results</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return the sections that <code>answer</code> cites as <code>[n]</code>, in order of first citation.</em></p>
+</section>
+</div>
+<div id="b9bcb85c" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.220701+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.223877+00:00&quot;,&quot;total&quot;:0.003179392000006942}}" data-execution_count="14">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L148" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="split_reasoning" class="level3">
+<h3 class="anchored" data-anchor-id="split_reasoning">split_reasoning</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> split_reasoning(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    text:<span class="bu">str</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">tuple</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Split a reply into <code>(answer, thinking)</code>. <code>thinking</code> is the model’s reasoning block.</em></p>
+</section>
+</div>
+<div id="29090ded" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.223977+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.226968+00:00&quot;,&quot;total&quot;:0.0029927179999873488}}" data-execution_count="15">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L130" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="mk_prompt" class="level3">
+<h3 class="anchored" data-anchor-id="mk_prompt">mk_prompt</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mk_prompt(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    question:<span class="bu">str</span>, <span class="co"># the question to answer</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    ctx, <span class="co"># AttrDict from Vault.context()</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    max_chars:<span class="bu">int</span><span class="op">=</span><span class="dv">4000</span>, <span class="co"># characters kept from each section</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    related:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># list the related sections</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    note:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, <span class="co"># a line placed before the question</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Build the prompt text: the numbered sections, the related sections by title, then the question.</em></p>
+</section>
+</div>
+<section id="answering-with-citations" class="level3">
+<h3 class="anchored" data-anchor-id="answering-with-citations">Answering with citations</h3>
+<p><code>ask(question)</code> calls <code>context</code> to retrieve the sections of the vault that best match the question. <a href="https://vedicreader.github.io/vishalakshi/ask.html#mk_prompt"><code>mk_prompt</code></a> numbers the sections [1], [2] and so on. It also lists the related sections by title only. A related section is a neighbour of a retrieved section in vector similarity. The question does not retrieve it.</p>
+<p>The system prompt <code>VAULT_SP</code> tells the model to answer only from the sections and to cite the number of each section it used. <code>ask</code> returns the answer and <a href="https://vedicreader.github.io/vishalakshi/ask.html#cited"><code>cited</code></a>. <a href="https://vedicreader.github.io/vishalakshi/ask.html#cited"><code>cited</code></a> lists the sections that the answer cites. Each entry has a <code>node_id</code> that <code>read</code> opens.</p>
+<p>The context budget is <code>sections=4</code> and <code>max_chars=1500</code>. <code>max_chars</code> is the number of characters kept from each section.</p>
+<p>To ask about particular documents, pass <code>ref=</code> with one or more documents, or use <code>ask_doc</code> from <a href="./extract.html">extract</a>. <code>doc_context</code> then puts the named documents first, whole, as sections [1] to [n]. The named documents share <code>doc_chars</code> characters. <code>doc_context</code> adds <code>related</code> sections from the rest of the vault after them.</p>
+<div id="e0f849bb" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.229173+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.232378+00:00&quot;,&quot;total&quot;:0.003207023000001641}}" data-execution_count="17">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L168" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.doc_context" class="level3">
+<h3 class="anchored" data-anchor-id="vault.doc_context">Vault.doc_context</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> doc_context(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    ref, <span class="co"># a doc_id, source, title or path, or a list of them</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    question:<span class="bu">str</span>, <span class="co"># the question the other sections are retrieved for</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    related:<span class="bu">int</span><span class="op">=</span><span class="dv">3</span>, <span class="co"># sections to add from the rest of the vault</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    max_chars:<span class="bu">int</span><span class="op">=</span><span class="dv">12000</span>, <span class="co"># characters of the named documents, shared between them</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>, pii:<span class="bu">str</span><span class="op">=</span><span class="st">'off'</span>, pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, stale:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Build a context with the documents <code>ref</code> names as whole sections [1] to [n], followed by <code>related</code> sections from the rest of the vault.</em></p>
+</section>
+</div>
+<div id="7bf36bf8" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.232469+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.235654+00:00&quot;,&quot;total&quot;:0.00318894599999453}}" data-execution_count="18">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L161" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="doc_note" class="level3">
+<h3 class="anchored" data-anchor-id="doc_note">doc_note</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> doc_note(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    n:<span class="bu">int</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return the prompt line that names which numbered sections are the documents asked about.</em></p>
+</section>
+</div>
+<p><code>mk_chat=</code> gives <code>ask</code> a chat that the host already runs, such as a model that an app has loaded. <code>ask</code> then builds no new chat. The privacy check reads the runtime of the chat that <code>ask</code> uses. A hosted chat passed by mistake is treated as hosted.</p>
+<p>A section is private in three cases. The detector finds personal identifiers in it. Its document is marked as personal. Its document has a level above Open for another reason, such as the document type or the shelf floor.</p>
+<p>Before <code>ask</code> sends anything, it drops each related section that holds personal information. When <code>ref=</code> names documents, it also drops each retrieved section that holds personal information. <code>pii=</code> then sets what happens to the remaining sections:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th><code>pii=</code></th>
+<th>what happens when the sections are private</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>local</code></td>
+<td>A model on this machine answers. The model is <code>pii_model</code>, else <code>$VISHALAKSHI_PII_MODEL</code>, else the default model. It runs under <code>PII_SP</code>, a system prompt that forbids repeating any personal detail. If that chat is not local, <code>ask</code> sends nothing and the answer says so.</td>
+</tr>
+<tr class="even">
+<td><code>redact</code></td>
+<td><code>ask</code> masks the recognised identifiers in the text, heading line, title and source of each section. The model named by <code>model=</code> then answers, hosted or not.</td>
+</tr>
+<tr class="odd">
+<td><code>refuse</code></td>
+<td>No model is asked. The answer says what was held back.</td>
+</tr>
+</tbody>
+</table>
+<p>The default policy is <code>local</code> when a local runtime is installed, and <code>redact</code> when none is. <code>pii='off'</code> is not valid for <code>ask</code>. It gives a warning and applies the default. The <code>policy</code> field of the result names the policy that ran.</p>
+<p>Under every policy, a hosted model receives a Local only section as the bare line <code>[n] [withheld: local only]</code>. The line has no heading, title or source. <code>send_check</code> below explains the rule.</p>
+<p>Under <code>redact</code>, <code>ask</code> does not mask a name that has no title before it, such as Dr.&nbsp;Name detection is on by default (<code>pii_ner=True</code>).</p>
+<p><code>ask</code> scans each answer over private sections again before it returns the answer. It masks any identifier that the model repeated, and <code>leaked</code> lists the kinds of identifier.</p>
+<p>The result also has the <code>prompt</code> and the <code>context</code> that the model read. Under <code>local</code> they hold the private sections whole. A host that gives the result to a hosted model must pass on only <code>answer</code> and <a href="https://vedicreader.github.io/vishalakshi/ask.html#cited"><code>cited</code></a>.</p>
+</section>
+<section id="deciding-what-a-model-may-be-sent" class="level2">
+<h2 class="anchored" data-anchor-id="deciding-what-a-model-may-be-sent">Deciding what a model may be sent</h2>
+<p><code>send_check</code> runs before anything goes to a model. For each document, page or piece of text, it decides one of three outcomes: whole, masked, or withheld. Withheld means not sent.</p>
+<p><code>send_check</code> returns the decisions in <code>rows</code>, and the subsets <code>send</code>, <code>masked</code> and <code>withheld</code>. It also returns a <code>why</code> sentence for a person to read before the send. An example is <code>gpt-4.1-nano, hosted. 1 personal document masked, 1 document open, 1 local-only document withheld.</code></p>
+<p><a href="https://vedicreader.github.io/vishalakshi/ask.html#send_rule"><code>send_rule</code></a> holds the rule:</p>
+<ul>
+<li>A model on this machine receives everything whole. <a href="https://vedicreader.github.io/vishalakshi/ask.html#model_local"><code>model_local</code></a> decides which models are local. LiteRT, MLX and llama.cpp are always local. Ollama is local only when <code>$OLLAMA_HOST</code> points at this machine. Every other runtime is hosted. A chat that names no runtime is hosted.</li>
+<li>An Open item goes whole to any model.</li>
+<li>A Local only item is withheld from a hosted model under every policy. <code>allow=True</code> does not change this.</li>
+<li>Under <code>redact</code>, a Personal item goes to a hosted model masked. Under <code>local</code> and <code>refuse</code>, it is withheld.</li>
+<li>A page image cannot be masked. A Personal page image is withheld from a hosted model under every policy except <code>off</code>, and when <code>allow=True</code>.</li>
+<li><code>allow=True</code> allows once. It sends Personal items whole for that one call, as <code>policy='off'</code> does.</li>
+</ul>
+<p><code>ask</code>, <code>explain</code>, <code>categorize</code>, <code>extract</code>, <a href="https://vedicreader.github.io/vishalakshi/read.html#read_doc"><code>read_doc</code></a>, <code>reparse</code> and <code>proofread</code> all decide through this rule. The decision covers everything that goes with the text. A document’s title, headings and source path are masked or withheld with it. A page image is read with the document’s title in its prompt. <code>send_check</code> judges the title with the page.</p>
+<p><code>build_graph</code> sends every chunk to its chat with nothing to mask. <code>connect</code> calls <code>build_graph</code>. A hosted chat builds the graph only when every document on the shelf is Open. Otherwise <code>build_graph</code> sends nothing and the result says why.</p>
+<p>Masking replaces only what the detector recognises. A document marked Personal by hand, with nothing recognisable in it, goes to a hosted model under <code>redact</code> exactly as stored.</p>
+<p>The <code>send_log</code> table of the vault records each send to a hosted model. A row has the time, the document and pages, the model and runtime, the policy, and the kinds of personal information when known. <code>sends(ref)</code> reads the log, newest first. The log has no row for a send to a local model or for a withheld item.</p>
+<div id="b9de612a" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.246597+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.250648+00:00&quot;,&quot;total&quot;:0.004054590000009739}}" data-execution_count="20">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L276" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.sends" class="level3">
+<h3 class="anchored" data-anchor-id="vault.sends">Vault.sends</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sends(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    ref:NoneType<span class="op">=</span><span class="va">None</span>, limit:<span class="bu">int</span><span class="op">=</span><span class="dv">100</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Read the send log, newest first: what went to a hosted model, when and to which model, for one document when <code>ref</code> names it.</em></p>
+</section>
+</div>
+<div id="35a6361a" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.250760+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.257867+00:00&quot;,&quot;total&quot;:0.00710959599999228}}" data-execution_count="21">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L217" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.send_check" class="level3">
+<h3 class="anchored" data-anchor-id="vault.send_check">Vault.send_check</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> send_check(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    refs:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># documents: a doc_id, source or title, or a list of them</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    pages:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># pages: `(ref, page)` pairs or `{doc_id, page}` dicts</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    text:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># text with no document behind it: a string or a list of them</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    model:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># an id or a built chat; None -&gt; $VISHALAKSHI_MODEL</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    policy:<span class="bu">str</span><span class="op">=</span><span class="st">'redact'</span>, <span class="co"># off|local|redact|refuse: what a hosted model gets of a Personal item</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    allow:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># allow once: Personal items go whole; Local only still never does</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    image:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># the items go as page images, which cannot be masked</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    level:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># a level the items start at, above what they would have</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    ner:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># look for names in `text` too</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Decide, before a send, which documents, pages or texts go to <code>model</code> whole, masked or withheld, with a sentence saying so.</em></p>
+</section>
+</div>
+<div id="35827557" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.257977+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.261962+00:00&quot;,&quot;total&quot;:0.003989062000002264}}" data-execution_count="22">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L206" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="send_line" class="level3">
+<h3 class="anchored" data-anchor-id="send_line">send_line</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> send_line(</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    items, model_name:<span class="bu">str</span>, local:<span class="bu">bool</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return the sentence that says where a send goes and how many items go whole, masked or withheld.</em></p>
+</section>
+</div>
+<div id="252257d1" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.262067+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.265743+00:00&quot;,&quot;total&quot;:0.0036796499999951493}}" data-execution_count="23">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L198" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="send_rule" class="level3">
+<h3 class="anchored" data-anchor-id="send_rule">send_rule</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> send_rule(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    level:<span class="bu">str</span>, local:<span class="bu">bool</span>, policy:<span class="bu">str</span><span class="op">=</span><span class="st">'redact'</span>, allow:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, image:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return <code>whole</code>, <code>masked</code> or <code>withheld</code> for one item, from its level, <code>local</code>, <code>policy</code>, <code>allow</code> and <code>image</code>.</em></p>
+</section>
+</div>
+<div id="81bff6ab" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.265845+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.269096+00:00&quot;,&quot;total&quot;:0.0032549949999918226}}" data-execution_count="24">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L192" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="model_local" class="level3">
+<h3 class="anchored" data-anchor-id="model_local">model_local</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> model_local(</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    model:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">bool</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return True when <code>model</code>, an id or a built chat, runs on this machine. A chat with no runtime, or an id that Urai cannot place, counts as hosted.</em></p>
+</section>
+</div>
+<div id="9059d06c" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.283660+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.290505+00:00&quot;,&quot;total&quot;:0.006848896000008153}}" data-execution_count="26">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L399" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.explain" class="level3">
+<h3 class="anchored" data-anchor-id="vault.explain">Vault.explain</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> explain(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    node_id:<span class="bu">str</span>, model:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, chat_kw:<span class="bu">dict</span><span class="op">=</span><span class="va">None</span>, max_chars:<span class="bu">int</span><span class="op">=</span><span class="dv">6000</span>,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    sp:<span class="bu">str</span><span class="op">=</span><span class="st">"You answer questions from a personal research vault.</span><span class="ch">\n\n</span><span class="st">You are given numbered sections retrieved from the user's own corpus: papers, web pages,</span><span class="ch">\n</span><span class="st">transcripts, files and their own notes. Answer only from those sections.</span><span class="ch">\n\n</span><span class="st">Rules:</span><span class="ch">\n</span><span class="st">- Cite every claim with the bracketed number of the section it came from, like [2]. A sentence</span><span class="ch">\n</span><span class="st">  drawing on two sections cites both.</span><span class="ch">\n</span><span class="st">- If the sections do not answer the question, say exactly what is missing rather than filling the</span><span class="ch">\n</span><span class="st">  gap from memory. A vault that admits a hole is useful; one that guesses is not.</span><span class="ch">\n</span><span class="st">- Sections marked RELATED were reached by association, not by matching the question. Use them for</span><span class="ch">\n</span><span class="st">  context or to point somewhere worth reading next, and say so when you do.</span><span class="ch">\n</span><span class="st">- Prefer the user's own notes when they conflict with a source, and flag the disagreement."</span>,</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    mk_chat:NoneType<span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    pii:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># local|redact|refuse; None -&gt; local when a local runtime exists, else redact</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    pii_model:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Have a model explain one section and say what related sections in the vault add to it or contradict.</em></p>
+</section>
+</div>
+<div id="0028ab6d" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.290624+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.300395+00:00&quot;,&quot;total&quot;:0.009774789000005057}}" data-execution_count="27">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L317" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.ask" class="level3">
+<h3 class="anchored" data-anchor-id="vault.ask">Vault.ask</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ask(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    question:<span class="bu">str</span>, <span class="co"># what you want to know</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    ref:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># documents to ask about: a doc_id, source, title or path, or a list of them</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    schema:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># answer as this shape instead of prose: a SCHEMAS key, dataclass, or 'field:type' spec</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    model:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># an id, a path, `mlx/…`; None -&gt; $VISHALAKSHI_MODEL</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    chat_kw:<span class="bu">dict</span><span class="op">=</span><span class="va">None</span>, <span class="co"># anything else Urai's `Chat` takes: temp, runtime, think, …</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    sections:<span class="bu">int</span><span class="op">=</span><span class="dv">4</span>, <span class="co"># operative sections retrieved</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    related:<span class="bu">int</span><span class="op">=</span><span class="dv">6</span>, <span class="co"># associative sections offered as leads</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># restrict retrieval to one or more KINDS</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    code:<span class="bu">int</span><span class="op">=</span><span class="va">None</span>, <span class="co"># code sections to add; None -&gt; 4 if kosha has indexed the repo</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">dir</span>:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># repo for the code legs; None -&gt; the cwd repo</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    max_chars:<span class="bu">int</span><span class="op">=</span><span class="dv">1500</span>, <span class="co"># chars of each retrieved section shown to the model</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>    doc_chars:<span class="bu">int</span><span class="op">=</span><span class="dv">8000</span>, <span class="co"># chars of `ref`'s documents shown to the model, shared between them</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>    sp:<span class="bu">str</span><span class="op">=</span><span class="st">"You answer questions from a personal research vault.</span><span class="ch">\n\n</span><span class="st">You are given numbered sections retrieved from the user's own corpus: papers, web pages,</span><span class="ch">\n</span><span class="st">transcripts, files and their own notes. Answer only from those sections.</span><span class="ch">\n\n</span><span class="st">Rules:</span><span class="ch">\n</span><span class="st">- Cite every claim with the bracketed number of the section it came from, like [2]. A sentence</span><span class="ch">\n</span><span class="st">  drawing on two sections cites both.</span><span class="ch">\n</span><span class="st">- If the sections do not answer the question, say exactly what is missing rather than filling the</span><span class="ch">\n</span><span class="st">  gap from memory. A vault that admits a hole is useful; one that guesses is not.</span><span class="ch">\n</span><span class="st">- Sections marked RELATED were reached by association, not by matching the question. Use them for</span><span class="ch">\n</span><span class="st">  context or to point somewhere worth reading next, and say so when you do.</span><span class="ch">\n</span><span class="st">- Prefer the user's own notes when they conflict with a source, and flag the disagreement."</span>, <span class="co"># system prompt</span></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>    mk_chat:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># build chats with this instead of `new_chat`; same signature</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>    pii:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># local|redact|refuse; None -&gt; local when a local runtime exists, else redact</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>    pii_model:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># the local model that answers then; None -&gt; $VISHALAKSHI_PII_MODEL</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># also look for names that follow a title such as Dr; a pattern, not a model</span></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>    instruction:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, <span class="co"># an instruction from the questioner, for a second turn</span></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>    stale:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># include retained pages beyond the file's current end</span></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kw</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict: <span class="co"># forwarded to Vault.context</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Answer a question from the vault, or about the documents <code>ref</code> names, citing the numbered sections the answer used.</em></p>
+</section>
+</div>
+<div id="d49a2bf4" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.300515+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.304110+00:00&quot;,&quot;total&quot;:0.003597376000001873}}" data-execution_count="28">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L309" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ask_policy" class="level3">
+<h3 class="anchored" data-anchor-id="ask_policy">ask_policy</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ask_policy(</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    pii:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, model:<span class="bu">str</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return the policy <code>ask</code> applies: <code>pii</code> when given, else <code>local</code> when a local runtime is installed, else <code>redact</code>. <code>off</code> gives a warning and the default.</em></p>
+</section>
+</div>
+<div id="b518e2bc" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.304187+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.307664+00:00&quot;,&quot;total&quot;:0.0034805720000008478}}" data-execution_count="29">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L299" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="local_ok" class="level3">
+<h3 class="anchored" data-anchor-id="local_ok">local_ok</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> local_ok(</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    model:<span class="bu">str</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">bool</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Return True when the runtime of <code>model</code>, by default the PII model, runs on this machine and is installed.</em></p>
+</section>
+</div>
+<section id="recording-what-a-model-said" class="level3">
+<h3 class="anchored" data-anchor-id="recording-what-a-model-said">Recording what a model said</h3>
+<p><a href="https://vedicreader.github.io/vishalakshi/ask.html#cachedchat"><code>CachedChat</code></a> records the replies of a model on disk and plays them back. Tests and these pages use it to show real answers without a model run. The vault treats a <a href="https://vedicreader.github.io/vishalakshi/ask.html#cachedchat"><code>CachedChat</code></a> as any other chat.</p>
+<p>The recording folder is <code>path</code>, else <code>$VISHALAKSHI_CHAT_CACHE</code>, else <code>chatcache</code> in the working directory.</p>
+<p>A question with no recording raises an error. When <code>$VISHALAKSHI_RECORD_CHAT</code> is set, the question goes to the real model and <a href="https://vedicreader.github.io/vishalakshi/ask.html#cachedchat"><code>CachedChat</code></a> records the reply. The next run answers from disk.</p>
+<p>Building a <a href="https://vedicreader.github.io/vishalakshi/ask.html#cachedchat"><code>CachedChat</code></a> registers Rishi’s runtimes, as <a href="https://vedicreader.github.io/vishalakshi/ask.html#new_chat"><code>new_chat</code></a> does. <code>runtime</code> then names the backend of the id and builds no engine.</p>
+<div id="b532ddf7" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.317397+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.321090+00:00&quot;,&quot;total&quot;:0.003697255000005839}}" data-execution_count="32">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/ask.py#L499" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="cachedchat" class="level3">
+<h3 class="anchored" data-anchor-id="cachedchat">CachedChat</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> CachedChat(</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    model:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># any model id Urai accepts; None uses the default model</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    path:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># the diskcache directory; None uses $VISHALAKSHI_CHAT_CACHE, else CHAT_CACHE</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    record:<span class="bu">bool</span><span class="op">=</span><span class="va">None</span>, <span class="co"># let a missing recording reach the real model; None uses $VISHALAKSHI_RECORD_CHAT</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kw</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>A chat that replays recorded replies from disk. It uses this package’s default model, cache folder and recording switch.</em></p>
+</section>
+</div>
+<div id="eae9eebe" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.365415+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.366295+00:00&quot;,&quot;total&quot;:0.0008833109999955013}}" data-execution_count="34">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> subprocess, sys</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>The default budget is <code>sections=4</code> and <code>max_chars=1500</code>. Six sections of 4,000 characters each overflowed the context window of the 2B default model. LiteRT reported this as a send failure with no explanation (<code>evals/RESULTS.md</code>).</p>
+<p>When a send fails this way, <code>ask</code> gives a warning and tries once more on a new chat. The second try uses the first two sections, each cut to a third of <code>max_chars</code>, and no related sections.</p>
+</section>
+</section>
+<section id="try-it" class="level2">
+<h2 class="anchored" data-anchor-id="try-it">Try it</h2>
+<p>Retrieval needs no model. Only the answer needs one. <a href="https://vedicreader.github.io/vishalakshi/ask.html#mk_prompt"><code>mk_prompt</code></a> builds the exact text that the model reads. The cell below prints one prompt.</p>
+<div id="5fb789cc" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> Vault(<span class="st">':memory:'</span>)</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>v.note(<span class="st">'Late chunking beats naive chunking because context survives the split.'</span>)</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(mk_prompt(<span class="st">'why late chunking?'</span>, v.context(<span class="st">'late chunking'</span>))[:<span class="dv">400</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] Late chunking beats naive chunking because context survives the split.
+(source: note:04111d439a73, pages 0–0)
+
+Late chunking beats naive chunking because context survives the split.
+
+---
+
+[2] repo › ../vishalakshi/core.py:209
+(source: ../vishalakshi/core.py:209)
+
+def search(self:Vault,
+           q:str,              # query
+           limit:int=10,       # hits to return
+           kind:str=No</code></pre>
+</div>
+</div>
+<div id="0f97cf44" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># a document to ask about becomes section [1] in full, and the rest of the vault follows it</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>_dc <span class="op">=</span> _v.doc_context(<span class="st">'doc 3'</span>, <span class="st">'rank fusion'</span>, related<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>test_eq(_dc.results[<span class="dv">0</span>].breadcrumb, <span class="st">'doc 3'</span>)</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>test_eq(_dc.results[<span class="dv">0</span>].text, _v.document(<span class="st">'doc 3'</span>).text)             <span class="co"># the whole document, not a chunk</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(r.doc_id <span class="op">!=</span> _dc.doc.doc_id <span class="cf">for</span> r <span class="kw">in</span> _dc.results[<span class="dv">1</span>:])     <span class="co"># never the document itself twice</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="bu">len</span>(_v.doc_context(<span class="st">'doc 3'</span>, <span class="st">'rank fusion'</span>, max_chars<span class="op">=</span><span class="dv">200</span>).results[<span class="dv">0</span>].text), <span class="dv">200</span>)</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> mk_prompt(<span class="st">'rank fusion'</span>, _dc, note<span class="op">=</span>_dc.note).endswith(_dc.note <span class="op">+</span> <span class="st">'Question: rank fusion'</span>)</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a><span class="co"># several docs: each is a numbered section; max_chars is a shared window</span></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>_dc2 <span class="op">=</span> _v.doc_context([<span class="st">'doc 3'</span>, <span class="st">'doc 5'</span>], <span class="st">'rank fusion'</span>, related<span class="op">=</span><span class="dv">2</span>, max_chars<span class="op">=</span><span class="dv">600</span>)</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>test_eq(_dc2.results.attrgot(<span class="st">'breadcrumb'</span>)[:<span class="dv">2</span>], [<span class="st">'doc 3'</span>, <span class="st">'doc 5'</span>])</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>test_eq([<span class="bu">len</span>(r.text) <span class="cf">for</span> r <span class="kw">in</span> _dc2.results[:<span class="dv">2</span>]], [<span class="dv">300</span>, <span class="dv">300</span>])</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(r.doc_id <span class="kw">not</span> <span class="kw">in</span> <span class="bu">set</span>(_dc2.docs.attrgot(<span class="st">'doc_id'</span>)) <span class="cf">for</span> r <span class="kw">in</span> _dc2.results[<span class="dv">2</span>:])</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="bu">len</span>(_dc2.results), <span class="dv">4</span>)                                       <span class="co"># 2 named + related=2</span></span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="st">'[1]–[2] are the documents'</span> <span class="kw">in</span> _dc2.note, _dc2.note</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>test_eq(doc_note(<span class="dv">1</span>)[:<span class="dv">19</span>], <span class="st">'[1] is the document'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="87909c8b" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>res <span class="op">=</span> L([AttrDict(node_id<span class="op">=</span><span class="st">'d#1'</span>, title<span class="op">=</span><span class="st">'A'</span>, breadcrumb<span class="op">=</span><span class="st">'A › B'</span>, filename<span class="op">=</span><span class="st">'f'</span>, doc_id<span class="op">=</span><span class="st">'d'</span>)])</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>test_eq(cited(<span class="st">'as [1] shows, and again [1], but not [9]'</span>, res).attrgot(<span class="st">'node_id'</span>), [<span class="st">'d#1'</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="104c0ecd" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># reasoning: full pair, truncated opener, or MLX closing-only tag</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>test_eq(split_reasoning(<span class="st">'&lt;think&gt;weighing [1]&lt;/think&gt;</span><span class="ch">\n\n</span><span class="st">RRF fuses ranks [2].'</span>),</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>        (<span class="st">'RRF fuses ranks [2].'</span>, <span class="st">'weighing [1]'</span>))</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>test_eq(split_reasoning(<span class="st">'weighing [1]&lt;/think&gt;</span><span class="ch">\n\n</span><span class="st">RRF fuses ranks [2].'</span>),</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>        (<span class="st">'RRF fuses ranks [2].'</span>, <span class="st">'weighing [1]'</span>))</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>test_eq(split_reasoning(<span class="st">'RRF fuses ranks [2].'</span>), (<span class="st">'RRF fuses ranks [2].'</span>, <span class="st">''</span>))</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co"># a section the reasoning weighed and dropped must not come back as a citation</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>test_eq(cited(split_reasoning(<span class="st">'cites [1]&lt;/think&gt; cites nothing'</span>)[<span class="dv">0</span>], res), [])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="when-the-sections-hold-personal-information" class="level2">
+<h2 class="anchored" data-anchor-id="when-the-sections-hold-personal-information">When the sections hold personal information</h2>
+<p><a href="./pii.html">pii</a> explains the detector and the marks. The cells below show what <code>ask</code> does with them. They use a stand-in chat that records everything it receives. A leak appears as a recorded call.</p>
+<p>The check runs on the chat that <code>ask</code> built, before <code>ask</code> sends anything. The next cell passes a hosted chat under the default <code>local</code> policy. <code>ask</code> does not call the model.</p>
+<div id="18ed4061" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>_seen.clear()</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> _v.ask(<span class="st">'what is on invoice 4471?'</span>, mk_chat<span class="op">=</span>_chat(<span class="st">'remote'</span>, <span class="st">'THIS MUST NEVER BE SENT'</span>))</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>test_eq(_seen, {})                       <span class="co"># the model was never called at all</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>test_eq(r.refused, <span class="va">True</span>)</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'held back: these sections hold personal information (card, email, phone) and remote is not a local runtime, so nothing was sent to it'</code></pre>
+</div>
+</div>
+<p>With a local runtime, <code>ask</code> sends the private sections to the local model under <code>PII_SP</code>. <code>PII_SP</code> tells the model to answer with counts, kinds and totals instead of personal details, and to say what it held back.</p>
+<div id="79a60adc" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a>_seen.clear()</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> _v.ask(<span class="st">'what is on invoice 4471?'</span>, mk_chat<span class="op">=</span>_chat(<span class="st">'litert'</span>,</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">'One invoice, 240.00 GBP, due in September. Holding back the name, email, phone and card. '</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">'Tell me what you need: a total, a due date, or a yes/no.'</span>))</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>test_eq(_seen[<span class="st">'runtime'</span>], <span class="st">'litert'</span>)</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>test_eq(_seen[<span class="st">'sp'</span>], PII_SP)             <span class="co"># not VAULT_SP: that one tells it to cite, and a citation points at the text</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>test_eq(r.get(<span class="st">'refused'</span>, <span class="va">False</span>), <span class="va">False</span>)</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'One invoice, 240.00 GBP, due in September. Holding back the name, email, phone and card. Tell me what you need: a total, a due date, or a yes/no.'</code></pre>
+</div>
+</div>
+<p><code>instruction=</code> sends a follow-up turn. When the local model holds something back, it names an instruction that would let it answer, such as “give me the total and the due date”. The caller sends that instruction with the same question.</p>
+<div id="a2c5a1f6" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>_seen.clear()</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> _v.ask(<span class="st">'what is on invoice 4471?'</span>, instruction<span class="op">=</span><span class="st">'Give me the total and the due date only.'</span>,</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>           mk_chat<span class="op">=</span>_chat(<span class="st">'litert'</span>, <span class="st">'Total 240.00 GBP, due 2026-09-01.'</span>))</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="st">'Instruction from the questioner'</span> <span class="kw">in</span> _seen[<span class="st">'prompt'</span>], <span class="va">True</span>)</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Total 240.00 GBP, due 2026-09-01.'</code></pre>
+</div>
+</div>
+<p><code>ask</code> scans every answer over private sections again before it returns the answer. It masks identifiers that the model repeated, and <code>leaked</code> lists their kinds.</p>
+<div id="7231bee7" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>_seen.clear()</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> _v.ask(<span class="st">'what is on invoice 4471?'</span>,</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>           mk_chat<span class="op">=</span>_chat(<span class="st">'litert'</span>, <span class="st">'It is for ada@example.com, card 4111 1111 1111 1111.'</span>))</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>test_eq(r.answer, <span class="st">'It is for [EMAIL], card [CARD].'</span>)</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>r.leaked</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>{'email': 1, 'card': 1}</code></pre>
+</div>
+</div>
+<p><code>pii='redact'</code> masks the recognised identifiers in the text of each section. A hosted model then answers. A name is masked only when a title such as Dr comes before it. “Ada Lovelace” is not masked, as a real-model cell further down shows.</p>
+<div id="7d3b000e" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a>_seen.clear()</span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> _v.ask(<span class="st">'what is on invoice 4471?'</span>, pii<span class="op">=</span><span class="st">'redact'</span>, mk_chat<span class="op">=</span>_chat(<span class="st">'remote'</span>, <span class="st">'An invoice for 240.00 GBP [1]'</span>))</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="st">'ada@example.com'</span> <span class="kw">in</span> _seen[<span class="st">'prompt'</span>], <span class="va">False</span>)</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>test_eq(_seen[<span class="st">'runtime'</span>], <span class="st">'remote'</span>)</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'An invoice for 240.00 GBP [1]'</code></pre>
+</div>
+</div>
+<p><code>ask</code> scrubs the fields of a structured answer (<code>schema=</code>) in the same way. An API key counts as personal information, as an email address does. A hosted chat is refused for a section that holds an API key, and for a document marked by hand.</p>
+<div id="aa5a2691" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.311073+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.311646+00:00&quot;,&quot;total&quot;:0.000573818000006554}}" data-execution_count="37">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> inspect</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="against-real-models" class="level2">
+<h2 class="anchored" data-anchor-id="against-real-models">Against real models</h2>
+<p>These cells replay replies that <a href="https://vedicreader.github.io/vishalakshi/ask.html#cachedchat"><code>CachedChat</code></a> recorded from real models. They run without the models. Each cell shows one rule or one way a call can fail.</p>
+<p>The vault holds nothing private here. The default local model on its default backend answers and cites section [1].</p>
+<div id="cb4a6473" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> model_ask(open_vault, q)</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>test_eq((r.model, r.runtime), (dflt_model, <span class="st">'litert'</span>))   <span class="co"># gemma-4-E2B on LiteRT, unasked for</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>test_eq(r.pii.has_pii, <span class="va">False</span>)                           <span class="co"># nothing private: one model, VAULT_SP, no scrubbing</span></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>test_eq(r.cited.attrgot(<span class="st">'n'</span>), [<span class="dv">1</span>])                      <span class="co"># it cited [1]...</span></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> r.cited[<span class="dv">0</span>][<span class="st">'node_id'</span>], r.cited                   <span class="co"># ...and [1] resolves to a section of the vault</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Reciprocal rank fusion combines rankings from legs that share no vector space by summing $1/(60 + \\text{rank})$ over the legs [1].'</code></pre>
+</div>
+</div>
+<p>The same question goes to a hosted model. Only the model id changes.</p>
+<div id="0c634f78" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> model_ask(open_vault, q, model<span class="op">=</span>CLOUD)</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>test_eq((r.model, r.runtime), (CLOUD, <span class="st">'remote'</span>))</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>test_eq(r.pii.has_pii, <span class="va">False</span>)                           <span class="co"># ...which is the only reason it was allowed to run</span></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>test_eq(r.cited.attrgot(<span class="st">'n'</span>), [<span class="dv">1</span>])</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> r.cited[<span class="dv">0</span>][<span class="st">'node_id'</span>], r.cited</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Reciprocal rank fusion combines the rankings from different legs by summing the reciprocals of their ranks plus 60, specifically using the formula 1/(60 + rank) for each leg. A document that is ranked well in multiple legs will have a higher combined score, making it outperform documents that are only ranked well in a single leg [1].'</code></pre>
+</div>
+</div>
+<p>The vault holds an invoice. The local model answers under <code>PII_SP</code>. <code>ask</code> scans the answer again before it returns it.</p>
+<div id="2bbb2bd9" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> model_ask(private_vault, pq)</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="bu">sorted</span>(r.pii.identifying), [<span class="st">'card'</span>, <span class="st">'email'</span>, <span class="st">'phone'</span>])</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>test_eq((r.model, r.runtime), (pii_model_, <span class="st">'litert'</span>))   <span class="co"># local, so it answered rather than refusing</span></span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>test_eq(r.get(<span class="st">'refused'</span>, <span class="va">False</span>), <span class="va">False</span>)</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="co"># answer must not contain invoice PII; r.leaked says model vs scrubber</span></span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> s <span class="kw">in</span> (<span class="st">'ada@example.com'</span>, <span class="st">'4111 1111 1111 1111'</span>, <span class="st">'020 7946 0958'</span>, <span class="st">'Ada Lovelace'</span>): <span class="cf">assert</span> s <span class="kw">not</span> <span class="kw">in</span> r.answer, (s, r.answer)</span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a>r.answer, r.get(<span class="st">'leaked'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>('I am holding back the specific personal details from the invoice.\nThe invoice is for an amount of 240.00 GBP, due on 2026-09-01.',
+ None)</code></pre>
+</div>
+</div>
+<p>Under <code>pii='local'</code>, a hosted <code>model=</code> does not receive private sections. The local <code>pii_model</code> answers instead. A hosted model named as <code>pii_model</code> also receives nothing. The check sees a hosted chat and refuses.</p>
+<div id="094bf873" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="co"># naming a hosted model where the sections are private routes to the local one instead</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>test_eq(model_ask(private_vault, pq, model<span class="op">=</span>CLOUD).runtime, <span class="st">'litert'</span>)</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> model_ask(private_vault, pq, model<span class="op">=</span>CLOUD, pii_model<span class="op">=</span>CLOUD)   <span class="co"># ...and naming it as the *local* one is refused</span></span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>test_eq((r.refused, r.runtime, r.answer.startswith(<span class="st">'held back'</span>)), (<span class="va">True</span>, <span class="st">'remote'</span>, <span class="va">True</span>))</span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a><span class="co"># nothing was sent, and the proof is that there is nothing to replay: a call would have been</span></span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a><span class="co"># recorded under one of these two keys, and neither is in the cache</span></span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>_c <span class="op">=</span> ch_fn(CLOUD).cache</span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _sp <span class="kw">in</span> (VAULT_SP, PII_SP): <span class="cf">assert</span> <span class="ss">f'</span><span class="sc">{</span>CLOUD<span class="sc">}</span><span class="ss">|call|</span><span class="sc">{</span>_sp<span class="sc">}</span><span class="ss">|</span><span class="sc">{</span>r<span class="sc">.</span>prompt<span class="sc">}</span><span class="ss">'</span> <span class="kw">not</span> <span class="kw">in</span> _c</span>
+<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'held back: these sections hold personal information (card, email, phone) and remote is not a local runtime, so nothing was sent to it'</code></pre>
+</div>
+</div>
+<p><code>pii='redact'</code> masks the identifiers, and a hosted model answers. “Ada Lovelace” has no title before it. The detector does not mask it, and it reaches the hosted model.</p>
+<div id="b765346b" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> model_ask(private_vault, pq, model<span class="op">=</span>CLOUD, pii<span class="op">=</span><span class="st">'redact'</span>)</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>test_eq((r.model, r.runtime, r.get(<span class="st">'refused'</span>, <span class="va">False</span>)), (CLOUD, <span class="st">'remote'</span>, <span class="va">False</span>))</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="st">'[CARD]'</span> <span class="kw">in</span> r.prompt <span class="kw">and</span> <span class="st">'[EMAIL]'</span> <span class="kw">in</span> r.prompt, <span class="va">True</span>)   <span class="co"># what the network actually carried</span></span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> s <span class="kw">in</span> (<span class="st">'ada@example.com'</span>, <span class="st">'4111 1111 1111 1111'</span>, <span class="st">'020 7946 0958'</span>):</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> s <span class="kw">not</span> <span class="kw">in</span> r.prompt, s</span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="st">'Ada Lovelace'</span> <span class="kw">in</span> r.prompt          <span class="co"># ...and the limit of it, pinned rather than discovered</span></span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Invoice 4471 is for Ada Lovelace, with contact details including email and phone number. It shows an amount of 240.00 GBP, due on 2026-09-01, and the payment is to be made using a card ending in [CARD] (specific digits not provided) [1].'</code></pre>
+</div>
+</div>
+<p>The follow-up turn with <code>instruction=</code>, against the real local model.</p>
+<div id="2bfd6af7" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> model_ask(private_vault, pq, instruction<span class="op">=</span><span class="st">'Give me the amount and the due date only, and no name.'</span>)</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="st">'Instruction from the questioner'</span> <span class="kw">in</span> r.prompt</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>test_eq((r.runtime, r.get(<span class="st">'refused'</span>, <span class="va">False</span>)), (<span class="st">'litert'</span>, <span class="va">False</span>))</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> s <span class="kw">in</span> (<span class="st">'ada@example.com'</span>, <span class="st">'4111 1111 1111 1111'</span>, <span class="st">'020 7946 0958'</span>): <span class="cf">assert</span> s <span class="kw">not</span> <span class="kw">in</span> r.answer, s</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>r.answer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Amount: 240.00 GBP, Due Date: 2026-09-01.'</code></pre>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/vedicreader\.github\.io\/vishalakshi");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/vedicreader/vishalakshi/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

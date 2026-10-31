@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.20">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="The vault: one SQLite file that holds everything you have collected, and the search over it">
+
+<title>core – vishalakshi</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-17888a1159294d3eb470f19f6f52f5a5.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-66a38d7287321bc50e069add96f8c30e.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="core – vishalakshi">
+<meta property="og:description" content="The vault: one SQLite file that holds everything you have collected, and the search over it">
+<meta property="og:site_name" content="vishalakshi">
+<meta name="twitter:title" content="core – vishalakshi">
+<meta name="twitter:description" content="The vault: one SQLite file that holds everything you have collected, and the search over it">
+<meta name="twitter:card" content="summary">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">vishalakshi</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+          <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./core.html">core</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">vishalakshi</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./core.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">core</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acquire.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">acquire</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ask.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ask</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./code.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">code</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./cli.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cli</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./extract.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">extract</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">concepts</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./skill.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">skill</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pii.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pii</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quality.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">quality</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./jobs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">jobs</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./read.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./proof.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">proof</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#shelves" id="toc-shelves" class="nav-link active" data-scroll-target="#shelves">Shelves</a></li>
+  <li><a href="#marks" id="toc-marks" class="nav-link" data-scroll-target="#marks">Marks</a></li>
+  <li><a href="#try-it" id="toc-try-it" class="nav-link" data-scroll-target="#try-it">Try it</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/vedicreader/vishalakshi/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div><div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="core.html.md"><i class="bi bi-file-code"></i>Markdown</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">core</h1>
+</div>
+
+<div>
+  <div class="description">
+    The vault: one SQLite file that holds everything you have collected, and the search over it
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- WARNING: THIS FILE WAS AUTOGENERATED! DO NOT EDIT! -->
+<p>A vault is one SQLite file that holds everything you have collected, such as web pages, papers, talk transcripts, PDFs, notes and source files. All of it is searchable together. <a href="https://vedicreader.github.io/vishalakshi/core.html#vault"><code>Vault()</code></a> opens the file <code>$VISHALAKSHI_VAULT</code> names, else <code>~/.vishalakshi/vault.db</code>. <code>Vault(path)</code> opens or creates any other file. <code>Vault(':memory:')</code> makes a vault that lasts only as long as the process.</p>
+<p>A <a href="https://vedicreader.github.io/vishalakshi/core.html#vault"><code>Vault</code></a> is a <a href="https://github.com/Karthik777/litesearch">litesearch</a> <code>Index</code>. litesearch decides how text is stored and found. Each thing you add becomes a document. litesearch splits a document along its headings into a tree of sections, which it calls nodes. It cuts the text of each section into chunks. It stores every chunk twice. One copy is text, for the full-text keyword search of SQLite. The other copy is a vector, a list of numbers from an embedding model. The model puts texts with similar meanings near each other. A search runs both lookups and merges the two rankings with reciprocal rank fusion (RRF). RRF scores each chunk by its rank in each list. It does not use the raw scores, because a keyword score and a vector distance cannot be compared. The default embedding model is <code>potion-multilingual-128M</code>. It is small and fast and covers over 100 languages, including Devanagari. <code>encoder=</code> picks another model (see <a href="./concepts.html">concepts</a>).</p>
+<p>The vault adds these to litesearch:</p>
+<ul>
+<li>a <code>kind</code> on every document that says how it arrived (<code>web</code>, <code>pdf</code>, <code>arxiv</code>, <code>note</code>, <code>code</code> and so on)</li>
+<li>shelves that keep separate collections in the same file</li>
+<li>marks that record the judgements of a person about a document</li>
+<li>an entity graph and a topic map</li>
+<li>the methods on the other pages that fetch, read, extract and answer</li>
+</ul>
+<div id="c106bfb7" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:08.807475+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.293011+00:00&quot;,&quot;total&quot;:0.4855395780000009}}" data-execution_count="4">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L31" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="kinds" class="level3">
+<h3 class="anchored" data-anchor-id="kinds">kinds</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> kinds(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    kind</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>A kind filter as a list: <code>'note'</code>, <code>'note,web'</code> and <code>['note','web']</code> all work.</em></p>
+</section>
+</div>
+<div id="b6e0d738" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.293115+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.295711+00:00&quot;,&quot;total&quot;:0.0025994150000059335}}" data-execution_count="5">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L27" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="tidy_bc" class="level3">
+<h3 class="anchored" data-anchor-id="tidy_bc">tidy_bc</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tidy_bc(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    bc:<span class="bu">str</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Clean a breadcrumb: drop the <code>Pages n–m:</code> placeholder sections litesearch inserts, and any repeated part.</em></p>
+</section>
+</div>
+<div id="70e99fa1" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.298276+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.301843+00:00&quot;,&quot;total&quot;:0.003569003999999154}}" data-execution_count="7">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L56" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="mk_encoder" class="level3">
+<h3 class="anchored" data-anchor-id="mk_encoder">mk_encoder</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mk_encoder(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    model:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># an `ENCODERS` alias, any model2vec id, or an object with `.encode`</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    dims:<span class="bu">int</span><span class="op">=</span><span class="dv">256</span>, <span class="co"># dims for the hashing fallback only</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    offline:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># skip the download attempt entirely</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    dtype:<span class="bu">type</span><span class="op">=</span>float16, <span class="co"># stored width; litesearch's default everywhere</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Load the encoder that <code>model</code> names, or the default encoder. Fall back to hashing when loading fails. Return <code>AttrDict(model, dims, method, name, note)</code>.</em></p>
+</section>
+</div>
+<div id="b7e35409" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.301918+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.304435+00:00&quot;,&quot;total&quot;:0.0025201459999948383}}" data-execution_count="8">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L43" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="hashembed" class="level3">
+<h3 class="anchored" data-anchor-id="hashembed">HashEmbed</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> HashEmbed(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    dims:<span class="bu">int</span><span class="op">=</span><span class="dv">256</span>, dtype:<span class="bu">type</span><span class="op">=</span>float16</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>litesearch’s <code>hash_embed</code> wrapped as an encoder with <code>.encode</code>, for a vault that must not download a model.</em></p>
+</section>
+</div>
+<div id="93977761" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.306850+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.310562+00:00&quot;,&quot;total&quot;:0.003715266999989808}}" data-execution_count="10">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L81" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault" class="level3">
+<h3 class="anchored" data-anchor-id="vault">Vault</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Vault(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    path:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># vault file; None -&gt; $VISHALAKSHI_VAULT, else ~/.vishalakshi/vault.db</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    encoder:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># an `ENCODERS` alias, a model2vec id, an `mk_encoder()` result, or None</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    store:<span class="bu">str</span><span class="op">=</span><span class="st">'store'</span>, <span class="co"># chunk store name</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    offline:<span class="bu">bool</span><span class="op">=</span><span class="va">None</span>, <span class="co"># never attempt a model download; None -&gt; $VISHALAKSHI_OFFLINE</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    dims:<span class="bu">int</span><span class="op">=</span><span class="dv">256</span>, <span class="co"># dims for the hashing fallback</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    db:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># an open litesearch Database to share; shelves pass the vault's</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Everything you have collected, in one SQLite file, searchable as one collection.</em></p>
+</section>
+</div>
+<div id="2819bc4f" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.326787+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.331300+00:00&quot;,&quot;total&quot;:0.004517101000004686}}" data-execution_count="12">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L270" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.note" class="level3">
+<h3 class="anchored" data-anchor-id="vault.note">Vault.note</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> note(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    text:<span class="bu">str</span>, <span class="co"># what you want to remember</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    title:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># defaults to the first line</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    tags:<span class="bu">list</span><span class="op">=</span><span class="va">None</span>, <span class="co"># free-form tags, kept in the doc's meta</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    key:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, <span class="co"># upsert key; defaults to `slug(title)` when a title is given. Same key, same document</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    meta:<span class="bu">dict</span><span class="op">=</span><span class="va">None</span>, <span class="co"># merged into the doc's meta beside `tags` and `key`</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Write a note, or replace the note with the same <code>key</code> or title; notes are searched with everything else.</em></p>
+</section>
+</div>
+<div id="877ae8ea" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.331399+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.334852+00:00&quot;,&quot;total&quot;:0.0034497150000021293}}" data-execution_count="13">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L252" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="slug" class="level3">
+<h3 class="anchored" data-anchor-id="slug">slug</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> slug(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    s:<span class="bu">str</span>, n:<span class="bu">int</span><span class="op">=</span><span class="dv">60</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>A stable key from a title: ASCII-folded, lower-cased, hyphenated and clipped to <code>n</code> characters.</em></p>
+</section>
+</div>
+<div id="3550ba12" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.334927+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.339641+00:00&quot;,&quot;total&quot;:0.004718066000009458}}" data-execution_count="14">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L236" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.add_dir" class="level3">
+<h3 class="anchored" data-anchor-id="vault.add_dir">Vault.add_dir</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add_dir(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">dir</span>:<span class="bu">str</span>, types:<span class="bu">str</span><span class="op">=</span><span class="st">'.pdf,.md,.markdown,.txt,.rst,.ipynb,.xml,.tei,.htm,.html,.conllu'</span>, kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    route:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># send Sanskrit sources to the Sanskrit shelf, file by file</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    stop:NoneType<span class="op">=</span><span class="va">None</span>, progress:NoneType<span class="op">=</span><span class="va">None</span>, <span class="op">**</span>kw</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Add every document under a directory, skipping dotfiles, tests and build output, and send Sanskrit files to the Sanskrit shelf; <code>stop</code> and <code>progress</code> as in <code>add_files</code>.</em></p>
+</section>
+</div>
+<div id="2e592b90" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.339744+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.345100+00:00&quot;,&quot;total&quot;:0.005358948999997892}}" data-execution_count="15">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L208" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.add_files" class="level3">
+<h3 class="anchored" data-anchor-id="vault.add_files">Vault.add_files</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add_files(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    files, <span class="co"># paths to ingest, all onto *this* shelf</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># override the kind inferred from the extension</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    n_workers:<span class="bu">int</span><span class="op">=</span><span class="va">None</span>, <span class="co"># parse workers; 0 is serial, None picks by parse-heavy file count</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    embed_batch:<span class="bu">int</span><span class="op">=</span><span class="dv">2000</span>, <span class="co"># chunks embedded and written per flush; 0 writes per document</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    stop:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># asked before each batch and each file; True stops, and the result's `unread` holds the rest</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    progress:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># told `progress(done, total, batch)` after each batch</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    batch:<span class="bu">int</span><span class="op">=</span><span class="dv">50</span>, <span class="co"># files per batch when `stop` or `progress` is given</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kw</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L: <span class="co"># forwarded to add_file</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Add a list of files to this shelf, embedding and writing their chunks in batches; the result carries <code>cancelled</code> and <code>unread</code>.</em></p>
+</section>
+</div>
+<div id="978f70a4" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.345197+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.349798+00:00&quot;,&quot;total&quot;:0.004604151999998862}}" data-execution_count="16">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L183" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="run_steps" class="level3">
+<h3 class="anchored" data-anchor-id="run_steps">run_steps</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_steps(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    items, <span class="co"># what to work through</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    f, <span class="co"># does one step: takes a list of items, returns a list of results</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    size:<span class="bu">int</span><span class="op">=</span><span class="dv">1</span>, <span class="co"># items per step</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    stop:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># asked before each step; True stops, leaving the rest unread</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    progress:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># told `progress(done, total, step)` after each step; its errors are swallowed</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Run <code>f</code> over <code>items</code> a step at a time; the results carry <code>cancelled</code> and <code>unread</code>, the items no step reached.</em></p>
+</section>
+</div>
+<div id="e06e7138" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.349894+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.353860+00:00&quot;,&quot;total&quot;:0.003968220999993832}}" data-execution_count="17">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L175" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.add_file" class="level3">
+<h3 class="anchored" data-anchor-id="vault.add_file">Vault.add_file</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add_file(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    path:<span class="bu">str</span>, title:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    stop:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># asked before the read; True files nothing and reports the path in `unread`</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    progress:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># told `progress(1, 1, [path])` once the file is filed</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kw</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Add one local file to the vault.</em></p>
+</section>
+</div>
+<div id="26883c35" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.353957+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.357531+00:00&quot;,&quot;total&quot;:0.0035782030000035547}}" data-execution_count="18">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L170" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.assets" class="level3">
+<h3 class="anchored" data-anchor-id="vault.assets">Vault.assets</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> assets(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    name:<span class="bu">str</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>pathlib.Path:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The folder beside the vault file where extracted assets, such as PDF images and downloaded papers, are kept.</em></p>
+</section>
+</div>
+<div id="80ad6233" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.357627+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.360998+00:00&quot;,&quot;total&quot;:0.003374282999999423}}" data-execution_count="19">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L159" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="content_hash" class="level3">
+<h3 class="anchored" data-anchor-id="content_hash">content_hash</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> content_hash(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    src</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>sha1 of the text a document was built from; pages are joined by newlines.</em></p>
+</section>
+</div>
+<div id="969facf7" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.361094+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.369489+00:00&quot;,&quot;total&quot;:0.00839891799999748}}" data-execution_count="20">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L118" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.add" class="level3">
+<h3 class="anchored" data-anchor-id="vault.add">Vault.add</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> add(</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    src, <span class="co"># text, `[(page_no, text)]`, a file path, or a directory</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    title:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># document title; defaults to the filename, or the first line of text</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    source:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># url or path; defaults to the title. The document id is a hash of the source and the title</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># one of KINDS: the facet you filter and report on</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    meta:<span class="bu">dict</span><span class="op">=</span><span class="va">None</span>, <span class="co"># provenance: the query that found it, when, which tier fetched it</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    force:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># re-ingest a source already present</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    refresh:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># re-ingest text whose content hash differs from the filed hash. A file refreshes only through `force` or `housekeep`</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>kw</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>: <span class="co"># forwarded to litesearch add_doc (chunker, summarize, with_heading)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Add text, pages, a file or a directory to the vault, adding a source again only when its content changed.</em></p>
+</section>
+</div>
+<p><code>search</code> returns chunks. Each hit has a short <code>snippet</code>, the <code>node_id</code> of its section and the <code>doc_id</code> of its document. <code>sections</code> ranks whole sections instead. <code>context</code> returns the text to give a language model. It returns whole sections. Each section has a breadcrumb, the path of headings down to it, such as <code>Attention › Multi-head</code>. Each section also has a <code>node_id</code>, which <code>read</code> turns back into the full section. The <code>related</code> list of <code>context</code> holds sections as leads. They are found by vector similarity to the results, not by matching the question. <code>context</code> also adds two sections from each other shelf (<code>shelves=2</code>). It adds code sections (<code>code=</code>) when <a href="./code.html">kosha</a> has indexed the repository. <code>rerank=True</code> reorders the hits with a cross-encoder model. It needs the <code>rerank</code> extra (<code>pip install 'vishalakshi[rerank]'</code>).</p>
+<p>These methods, and <code>read</code> and <code>document</code>, take <code>pii=</code>. The default is <code>off</code>. See <a href="./pii.html">pii</a>. Every row also has <code>age</code>, the seconds since its document was filed, and <code>stale</code>. Stale rows sort last.</p>
+<div id="496fe9a6" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.382473+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.388870+00:00&quot;,&quot;total&quot;:0.006401136999997448}}" data-execution_count="22">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L401" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.read" class="level3">
+<h3 class="anchored" data-anchor-id="vault.read">Vault.read</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    node_id:<span class="bu">str</span>, max_chars:<span class="bu">int</span><span class="op">=</span><span class="dv">6000</span>, store:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># the shelf the section is on; None -&gt; this one</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>, pii:<span class="bu">str</span><span class="op">=</span><span class="st">'off'</span>, pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, stale:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Rebuild one whole section from its chunks; <code>store</code> names the shelf when the <code>node_id</code> came from another one.</em></p>
+</section>
+</div>
+<div id="22158a44" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.388984+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.396104+00:00&quot;,&quot;total&quot;:0.007124507000000335}}" data-execution_count="23">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L387" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.related" class="level3">
+<h3 class="anchored" data-anchor-id="vault.related">Vault.related</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> related(</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    node_id:<span class="bu">str</span>, limit:<span class="bu">int</span><span class="op">=</span><span class="dv">8</span>, clip:<span class="bu">int</span><span class="op">=</span><span class="dv">300</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The sections nearest an existing one in vector space, found from its stored vectors without embedding anything again.</em></p>
+</section>
+</div>
+<div id="7d3449b0" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.396220+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.406734+00:00&quot;,&quot;total&quot;:0.010517516999996701}}" data-execution_count="24">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L349" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.context" class="level3">
+<h3 class="anchored" data-anchor-id="vault.context">Vault.context</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> context(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    q:<span class="bu">str</span>, <span class="co"># the question</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    sections:<span class="bu">int</span><span class="op">=</span><span class="dv">6</span>, <span class="co"># operative sections returned</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    related:<span class="bu">int</span><span class="op">=</span><span class="dv">8</span>, <span class="co"># related sections reached by vector</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># restrict to one or more KINDS ('note' or 'note,web')</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    max_read:<span class="bu">int</span><span class="op">=</span><span class="dv">6000</span>, <span class="co"># chars of assembled text per section</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    code:<span class="bu">int</span><span class="op">=</span><span class="va">None</span>, <span class="co"># code sections to append; None -&gt; 4 if kosha has indexed the repo</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    shelves:<span class="bu">int</span><span class="op">=</span><span class="dv">2</span>, <span class="co"># sections to append from each *other* shelf; 0 -&gt; none</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="bu">dir</span>:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># repo for the code legs; None -&gt; the cwd repo</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    rerank:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># reorder the chunk hits before they are rolled up into sections</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>    include_noisy:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># include documents explicitly marked as noisy</span></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    where:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># extra chunk-store `WHERE`, e.g. `doc_id='…'` for one document</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>, pii:<span class="bu">str</span><span class="op">=</span><span class="st">'off'</span>, pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, stale:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="op">**</span>kw</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict: <span class="co"># forwarded to litesearch context</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The retrieval to hand a language model: whole sections with breadcrumbs and <code>node_id</code>s, related leads, and sections from other shelves and from code.</em></p>
+</section>
+</div>
+<div id="6e6e57d6" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.406854+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.412636+00:00&quot;,&quot;total&quot;:0.005785196000005044}}" data-execution_count="25">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L338" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.sections" class="level3">
+<h3 class="anchored" data-anchor-id="vault.sections">Vault.sections</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sections(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    q:<span class="bu">str</span>, limit:<span class="bu">int</span><span class="op">=</span><span class="dv">5</span>, kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, per:<span class="bu">int</span><span class="op">=</span><span class="dv">3</span>, rerank:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, include_noisy:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, where:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="op">*</span>,</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    pii:<span class="bu">str</span><span class="op">=</span><span class="st">'off'</span>, pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, stale:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="op">**</span>kw</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">list</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Search like <code>search</code> but return whole sections, best first, leaving noisy documents out unless asked.</em></p>
+</section>
+</div>
+<div id="d35a5ab4" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.412746+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.422587+00:00&quot;,&quot;total&quot;:0.009843830999997749}}" data-execution_count="26">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L318" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.search" class="level3">
+<h3 class="anchored" data-anchor-id="vault.search">Vault.search</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> search(</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    q:<span class="bu">str</span>, <span class="co"># query</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    limit:<span class="bu">int</span><span class="op">=</span><span class="dv">10</span>, <span class="co"># hits to return</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># restrict to one or more KINDS ('note' or 'note,web')</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    chars:<span class="bu">int</span><span class="op">=</span><span class="dv">300</span>, <span class="co"># chars of each hit kept as `snippet`</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    rerank:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># reorder the candidates with a cross-encoder (see below)</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    include_noisy:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># include documents explicitly marked as noisy</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    where:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># extra chunk-store `WHERE`, ANDed with the kind and noisy filter</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>, pii:<span class="bu">str</span><span class="op">=</span><span class="st">'off'</span>, pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, stale:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="op">**</span>kw</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L: <span class="co"># forwarded to litesearch doc_search</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Search this shelf’s chunks by keywords and meaning together; each hit carries a <code>snippet</code>, its breadcrumb and <code>node_id</code>, and noisy documents are left out.</em></p>
+</section>
+</div>
+<div id="9e5beaf8" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.422677+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.429631+00:00&quot;,&quot;total&quot;:0.006957506999995644}}" data-execution_count="27">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L294" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="gate" class="level3">
+<h3 class="anchored" data-anchor-id="gate">gate</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gate(</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    f</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Make a retrieval method take <code>pii=</code> and <code>pii_ner=</code> and apply that policy to what it returns.</em></p>
+</section>
+</div>
+<p>A <code>node_id</code> names a section. A <code>doc_id</code> names a document. <code>doc(ref)</code> finds the row of a document by its id, its exact source, or part of its title. <code>document(ref)</code> rebuilds a whole document in reading order and puts its headings back. A model reads this text to extract fields. Given a path that the vault has never seen, <code>document</code> reads the file from disk. <code>read(node_id)</code> rebuilds one section. <code>toc</code> returns the heading tree of the shelf or of one document.</p>
+<p>The <code>meta</code> of a document holds where it came from and anything set with <code>set_meta</code>, such as its doctype. Adding a changed document again rewrites its <code>meta</code>. A lasting judgement about a document goes in the <code>doc_marks</code> table instead (see Marks below).</p>
+<div id="3b3b3215" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.441389+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.448346+00:00&quot;,&quot;total&quot;:0.006960452000001283}}" data-execution_count="29">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L463" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.set_meta" class="level3">
+<h3 class="anchored" data-anchor-id="vault.set_meta">Vault.set_meta</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> set_meta(</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    doc_id:<span class="bu">str</span>, <span class="op">**</span>kv</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Merge key/values into one document’s <code>meta</code>, and return the merged dict.</em></p>
+</section>
+</div>
+<div id="02b36e5b" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.448456+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.460639+00:00&quot;,&quot;total&quot;:0.01218624100000909}}" data-execution_count="30">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L432" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.document" class="level3">
+<h3 class="anchored" data-anchor-id="vault.document">Vault.document</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> document(</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    ref:<span class="bu">str</span>, <span class="co"># doc_id, source (url or path), or a title substring</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    max_chars:<span class="bu">int</span><span class="op">=</span><span class="dv">40000</span>, <span class="co"># cap on the text returned</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    headings:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># put the node titles back as markdown headings</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    disk:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># fall back to a path on disk the vault has never seen</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>, pii:<span class="bu">str</span><span class="op">=</span><span class="st">'off'</span>, pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, stale:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Rebuild one whole document in reading order with its headings, or read a file the vault has never seen from disk.</em></p>
+</section>
+</div>
+<div id="9ecbac1e" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.460751+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.467680+00:00&quot;,&quot;total&quot;:0.006932509999998615}}" data-execution_count="31">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L419" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.doc" class="level3">
+<h3 class="anchored" data-anchor-id="vault.doc">Vault.doc</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> doc(</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    ref:<span class="bu">str</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Find one document’s row by <code>doc_id</code>, exact <code>source</code> or part of its title, with <code>meta</code> decoded.</em></p>
+</section>
+</div>
+<section id="shelves" class="level2">
+<h2 class="anchored" data-anchor-id="shelves">Shelves</h2>
+<p>One vault file can hold several shelves. A shelf is a separate collection with its own chunks, section tree and vector index. A large corpus on one shelf, such as a thousand papers, does not crowd a small shelf out of the rankings. <code>shelf(name)</code> opens a shelf and creates it the first time. A shelf keeps the embedding model it was first written with. Reopening it with a different model raises an error, because vectors from two models cannot be compared. <code>shelves()</code> lists the shelves with their models and document counts. <code>drop_shelf</code> deletes a shelf. The main shelf is called <code>store</code>. <code>SHELVES</code> names the shelves that the vault itself uses: <code>store</code>, <code>papers</code>, <code>sanskrit</code>, <code>code</code> and <code>data</code>. Acquisition sends some kinds to their own shelf through <code>KIND_SHELF</code>, below.</p>
+<div id="55fd260e" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.488794+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.492631+00:00&quot;,&quot;total&quot;:0.003841119999989928}}" data-execution_count="33">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L576" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.shelves" class="level3">
+<h3 class="anchored" data-anchor-id="vault.shelves">Vault.shelves</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shelves()<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>List the shelves in this vault file with each one’s encoder, vector width and document count; a store with no docs table is left out.</em></p>
+</section>
+</div>
+<div id="bbd07f98" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.492740+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.497385+00:00&quot;,&quot;total&quot;:0.004648146999997493}}" data-execution_count="34">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L553" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.drop_shelf" class="level3">
+<h3 class="anchored" data-anchor-id="vault.drop_shelf">Vault.drop_shelf</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> drop_shelf(</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    name:<span class="bu">str</span>, force:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Delete a shelf and its derived data. Refuse the main shelf unless <code>force=True</code>.</em></p>
+</section>
+</div>
+<div id="a9a669ad" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.497493+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.501320+00:00&quot;,&quot;total&quot;:0.0038308240000048954}}" data-execution_count="35">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L544" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.shelf" class="level3">
+<h3 class="anchored" data-anchor-id="vault.shelf">Vault.shelf</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shelf(</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>    name:<span class="bu">str</span>, encoder:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="op">**</span>kw</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>__main__.Vault:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Open another shelf in this vault file, with the encoder litesearch recorded for it.</em></p>
+</section>
+</div>
+</section>
+<section id="marks" class="level2">
+<h2 class="anchored" data-anchor-id="marks">Marks</h2>
+<p>A mark is a judgement about one document. The <code>doc_marks</code> table keeps it when the document is added again. There are three marks. <code>noisy</code> is for junk such as a cookie banner or a site footer. <code>search</code>, <code>sections</code>, <code>context</code> and <code>ask</code> leave noisy documents out. <code>pii_override</code> holds the privacy marks described on <a href="./pii.html">pii</a>. <code>stale</code> says that a document no longer matches its source. Search still returns a stale document, flagged and sorted last. The vault clears the mark when the document is added again with new content. <code>mark</code> sets any of them. <code>mark_noisy</code>, <code>mark_stale</code> and the pii methods are the named ways to set a mark. <code>marks()</code> lists every mark on the shelf. <code>marks(ref)</code> returns the mark on one document.</p>
+<div id="f6c304a9" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.509732+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.513559+00:00&quot;,&quot;total&quot;:0.003830313999998225}}" data-execution_count="37">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L649" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.marks" class="level3">
+<h3 class="anchored" data-anchor-id="vault.marks">Vault.marks</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> marks(</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    ref:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span> <span class="op">|</span> fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Every judgement on this shelf, or the one on <code>ref</code> (an empty dict when there is none).</em></p>
+</section>
+</div>
+<div id="e5eaa6fc" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.513693+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.517338+00:00&quot;,&quot;total&quot;:0.003648652999999058}}" data-execution_count="38">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L626" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.mark_stale" class="level3">
+<h3 class="anchored" data-anchor-id="vault.mark_stale">Vault.mark_stale</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mark_stale(</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    ref, stale:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, reason:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, superseded:<span class="bu">str</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Say a document no longer reflects its source; retrieval still returns it, sorted last and flagged.</em></p>
+</section>
+</div>
+<div id="b67bc652" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.517452+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.521723+00:00&quot;,&quot;total&quot;:0.004275749000001383}}" data-execution_count="39">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L612" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.mark" class="level3">
+<h3 class="anchored" data-anchor-id="vault.mark">Vault.mark</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mark(</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    ref, <span class="op">**</span>kv</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Record a judgement about one document in <code>doc_marks</code>; a key that is not a mark raises an error.</em></p>
+</section>
+</div>
+<div id="89a1f14b" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.521960+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:09.545245+00:00&quot;,&quot;total&quot;:0.023308631999995555}}" data-execution_count="40">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tempfile <span class="im">import</span> TemporaryDirectory</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> Vault(Path(d)<span class="op">/</span><span class="st">'test.db'</span>, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> <span class="st">'vault_stores'</span> <span class="kw">not</span> <span class="kw">in</span> v.db.t                    <span class="co"># litesearch's store_meta is the one registry</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    test_eq(v.db._store_meta(<span class="st">'store'</span>)[<span class="st">'encoder'</span>], <span class="st">'hash-256'</span>)</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> v.shelves()[<span class="dv">0</span>][<span class="st">'store'</span>] <span class="op">==</span> <span class="st">'store'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="ff8edb3c" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> Path(d)<span class="op">/</span><span class="st">'test.db'</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> Vault(p, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    a.add(<span class="st">'A report about polonium.'</span>, title<span class="op">=</span><span class="st">'report'</span>)</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    b <span class="op">=</span> Vault(p, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> b.doc(<span class="st">'report'</span>)</span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    test_eq(<span class="bu">len</span>(b.shelves()), <span class="dv">1</span>)</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> <span class="st">'feedback'</span> <span class="kw">in</span> b.db.t</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> <span class="st">'rankers'</span> <span class="kw">in</span> b.db.t</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="legacy_stores" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># A vault written before litesearch stamped encoders carries only `vault_stores` rows.</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="co"># The vault copies each row into `store_meta` once, on first use. `shelf()` then reopens with the encoder that wrote it.</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Nothing writes `vault_stores` rows again.</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> Path(d)<span class="op">/</span><span class="st">'old.db'</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> Vault(p, offline<span class="op">=</span><span class="va">True</span>)<span class="op">;</span> a.add(<span class="st">'A report about polonium.'</span>, title<span class="op">=</span><span class="st">'report'</span>)</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>    a.shelf(<span class="st">'papers'</span>, encoder<span class="op">=</span><span class="st">'hash'</span>, dims<span class="op">=</span><span class="dv">64</span>).add(<span class="st">'Paper about thorium.'</span>, title<span class="op">=</span><span class="st">'paper'</span>)</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>    a.db.q(<span class="st">'update store_meta set encoder=?'</span>, [<span class="st">''</span>])</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>    a.db.t.vault_stores.create(store<span class="op">=</span><span class="bu">str</span>, encoder<span class="op">=</span><span class="bu">str</span>, dims<span class="op">=</span><span class="bu">int</span>, method<span class="op">=</span><span class="bu">str</span>, added_at<span class="op">=</span><span class="bu">float</span>, pk<span class="op">=</span><span class="st">'store'</span>)</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>    a.db.t.vault_stores.insert_all([<span class="bu">dict</span>(store<span class="op">=</span><span class="st">'store'</span>, encoder<span class="op">=</span><span class="st">'hash'</span>, dims<span class="op">=</span><span class="dv">256</span>, method<span class="op">=</span><span class="st">'hash'</span>, added_at<span class="op">=</span>time.time()),</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>                                    <span class="bu">dict</span>(store<span class="op">=</span><span class="st">'papers'</span>, encoder<span class="op">=</span><span class="st">'hash'</span>, dims<span class="op">=</span><span class="dv">64</span>, method<span class="op">=</span><span class="st">'hash'</span>, added_at<span class="op">=</span>time.time())])</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    b <span class="op">=</span> Vault(p, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>    test_eq(b.db._store_meta(<span class="st">'store'</span>)[<span class="st">'encoder'</span>], <span class="st">'hash-256'</span>)</span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>    sh <span class="op">=</span> b.shelf(<span class="st">'papers'</span>)</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>    test_eq((sh.enc.method, sh.enc.dims, b.db._store_meta(<span class="st">'papers'</span>)[<span class="st">'encoder'</span>]), (<span class="st">'hash'</span>, <span class="dv">64</span>, <span class="st">'hash-64'</span>))</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>    test_eq([s[<span class="st">'dims'</span>] <span class="cf">for</span> s <span class="kw">in</span> b.shelves()], [<span class="dv">256</span>, <span class="dv">64</span>])</span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>    test_fail(<span class="kw">lambda</span>: Vault(p, offline<span class="op">=</span><span class="va">True</span>, store<span class="op">=</span><span class="st">'papers'</span>), contains<span class="op">=</span><span class="st">'Two encoders'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="7e1f0de9" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> Path(d)<span class="op">/</span><span class="st">'test.db'</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>    a <span class="op">=</span> Vault(p, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>    a.add(<span class="st">'A report about polonium.'</span>, title<span class="op">=</span><span class="st">'report'</span>)</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    before <span class="op">=</span> <span class="bu">list</span>(a.marks())</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>    b <span class="op">=</span> Vault(p, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> <span class="bu">list</span>(b.marks()) <span class="op">==</span> before</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="97fc7fee" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> Vault(Path(d)<span class="op">/</span><span class="st">'test.db'</span>, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    v.add(<span class="st">'A report about polonium.'</span>, title<span class="op">=</span><span class="st">'report'</span>)</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> <span class="st">'doc_marks'</span> <span class="kw">in</span> v.db.t</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> v.marks() <span class="op">==</span> []</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>    v.mark(<span class="st">'report'</span>, noisy<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> v.marks(<span class="st">'report'</span>)[<span class="st">'noisy'</span>] <span class="op">==</span> <span class="dv">1</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> <span class="kw">not</span> v.search(<span class="st">'polonium'</span>)</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> v.search(<span class="st">'polonium'</span>, include_noisy<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>A shelf opened from a vault shares the embedding model of the vault in memory. Opening many shelves loads the model once. <code>offline=True</code> and <code>$VISHALAKSHI_OFFLINE</code> also carry over to a new shelf. An offline vault never downloads a model.</p>
+<div id="shelfenc01" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:09.548915+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.488380+00:00&quot;,&quot;total&quot;:12.93946874000001}}" data-execution_count="42">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="co"># A shelf is a partition. It reuses the live encoder of the vault and does not load a second encoder.</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tempfile <span class="im">import</span> mkdtemp</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> Vault(Path(mkdtemp())<span class="op">/</span><span class="st">'v.db'</span>)</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>s <span class="op">=</span> v.shelf(<span class="st">'project'</span>)</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> s.enc.model <span class="kw">is</span> v.enc.model      <span class="co"># the same object: a shelf per project used to cost a load each</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> s.name <span class="op">==</span> <span class="st">'project'</span></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a><span class="co"># `offline=True` has to survive into a brand-new shelf, or it does not mean "never download":</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a><span class="co"># a shelf with no registry row used to fall through to the default and load a real model</span></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>o <span class="op">=</span> Vault(Path(mkdtemp())<span class="op">/</span><span class="st">'o.db'</span>, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> o.enc.method <span class="op">==</span> <span class="st">'hash'</span> <span class="kw">and</span> o.shelf(<span class="st">'fresh'</span>).enc.method <span class="op">==</span> <span class="st">'hash'</span></span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a><span class="co"># An explicit encoder still wins, and a shelf already on disk is reopened with whatever wrote it.</span></span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a>r <span class="op">=</span> v.shelf(<span class="st">'papers'</span>, encoder<span class="op">=</span><span class="st">'code'</span>)</span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> r.enc.name <span class="op">==</span> ENCODERS[<span class="st">'code'</span>]</span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>r.note(<span class="st">'rank fusion needs only each leg ordering'</span>, title<span class="op">=</span><span class="st">'RRF'</span>)</span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> Vault(v.path).shelf(<span class="st">'papers'</span>).enc.name <span class="op">==</span> ENCODERS[<span class="st">'code'</span>]</span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> Vault(v.path).shelf(<span class="st">'papers'</span>).search(<span class="st">'rank fusion'</span>), <span class="st">'the reopened shelf lost its note'</span></span>
+<span id="cb35-20"><a href="#cb35-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">'shelf encoders:'</span>, {x[<span class="st">'store'</span>]: x[<span class="st">'encoder'</span>] <span class="cf">for</span> x <span class="kw">in</span> v.shelves()})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>shelf encoders: {'store': 'minishlab/potion-multilingual-128M', 'project': 'minishlab/potion-multilingual-128M', 'papers': 'minishlab/potion-code-16M-v2'}</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Fetching 30 files:   0%|          | 0/30 [00:00&lt;?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+Fetching 30 files:  13%|#3        | 4/30 [00:00&lt;00:00, 37.74it/s]
+Fetching 30 files:  53%|#####3    | 16/30 [00:00&lt;00:00, 75.04it/s]
+Fetching 30 files:  90%|######### | 27/30 [00:00&lt;00:00, 72.93it/s]
+Fetching 30 files: 100%|##########| 30/30 [00:07&lt;00:00,  4.22it/s]</code></pre>
+</div>
+</div>
+<p><code>KIND_SHELF</code> sends documents of some kinds to their own shelf when they are added to the main shelf. arXiv papers go to <code>papers</code>. Sanskrit files go to <code>sanskrit</code> when <code>add_dir</code> finds them and ganapati is installed. <code>search</code> and <code>sections</code> look at one shelf only. <code>context</code> adds results from the other shelves (<code>shelves=</code>). <code>elsewhere(q)</code> searches every other shelf directly. Use it when the answer can be on another shelf.</p>
+<div id="eeb4cabf" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.491308+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.494391+00:00&quot;,&quot;total&quot;:0.003085029999994049}}" data-execution_count="44">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L715" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.elsewhere" class="level3">
+<h3 class="anchored" data-anchor-id="vault.elsewhere">Vault.elsewhere</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> elsewhere(</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>    q:<span class="bu">str</span>, <span class="co"># the question</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>    limit:<span class="bu">int</span><span class="op">=</span><span class="dv">2</span>, <span class="co"># sections taken from each other shelf</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>    shelves:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># True -&gt; every other shelf; a list picks some</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>    max_read:<span class="bu">int</span><span class="op">=</span><span class="dv">2000</span>, <span class="co"># chars kept per section</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Search the vault’s other shelves and return their best sections in the same shape as this shelf’s.</em></p>
+</section>
+</div>
+<div id="292f34a4" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.494463+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.496677+00:00&quot;,&quot;total&quot;:0.002215200999998501}}" data-execution_count="45">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L708" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.route" class="level3">
+<h3 class="anchored" data-anchor-id="vault.route">Vault.route</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> route(</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>__main__.Vault:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The shelf a <code>kind</code> belongs on: <code>self</code>, unless <code>KIND_SHELF</code> sends it elsewhere.</em></p>
+</section>
+</div>
+<div id="b07e31e2" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.496737+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.498951+00:00&quot;,&quot;total&quot;:0.002215851999991969}}" data-execution_count="46">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L694" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="sanskrit_facets" class="level3">
+<h3 class="anchored" data-anchor-id="sanskrit_facets">sanskrit_facets</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sanskrit_facets()<span class="op">-&gt;</span><span class="bu">bool</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Re-register Sanskrit profiles with lemmas and Monier-Williams glosses in metadata.</em></p>
+</section>
+</div>
+<div id="d63dcb67" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.499006+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.501124+00:00&quot;,&quot;total&quot;:0.00212045900001101}}" data-execution_count="47">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L685" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="is_sanskrit_file" class="level3">
+<h3 class="anchored" data-anchor-id="is_sanskrit_file">is_sanskrit_file</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb41"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_sanskrit_file(</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>    path</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">bool</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Whether a Sanskrit reader is registered for this file.</em></p>
+</section>
+</div>
+<div id="86f0d277" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> Vault(Path(d)<span class="op">/</span><span class="st">'test.db'</span>, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>    v.add(<span class="st">'A report about polonium.'</span>, title<span class="op">=</span><span class="st">'report'</span>)</span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>    sql <span class="op">=</span> []</span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a>    v.db.conn.set_exec_trace(<span class="kw">lambda</span> cursor, statement, bindings:sql.append(statement) <span class="kw">or</span> <span class="va">True</span>)</span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a>    v.search(<span class="st">'polonium'</span>)</span>
+<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a>    v.sections(<span class="st">'polonium'</span>)</span>
+<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a>    v.context(<span class="st">'polonium'</span>, code<span class="op">=</span><span class="dv">0</span>, shelves<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb42-11"><a href="#cb42-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-12"><a href="#cb42-12" aria-hidden="true" tabindex="-1"></a>    v.db.conn.set_exec_trace(<span class="va">None</span>)</span>
+<span id="cb42-13"><a href="#cb42-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb42-14"><a href="#cb42-14" aria-hidden="true" tabindex="-1"></a>    ddl <span class="op">=</span> [</span>
+<span id="cb42-15"><a href="#cb42-15" aria-hidden="true" tabindex="-1"></a>        q <span class="cf">for</span> q <span class="kw">in</span> sql</span>
+<span id="cb42-16"><a href="#cb42-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> q.lstrip().upper().startswith((<span class="st">'CREATE '</span>, <span class="st">'ALTER '</span>, <span class="st">'DROP '</span>))</span>
+<span id="cb42-17"><a href="#cb42-17" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb42-18"><a href="#cb42-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> ddl <span class="op">==</span> [], ddl</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="3f15c22a" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># a store of names (a graph's `entities` table) in store_meta is not a shelf: no query touches its missing docs table</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> Vault(Path(d)<span class="op">/</span><span class="st">'test.db'</span>, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>    v.shelf(<span class="st">'papers'</span>).add(<span class="st">'A paper about polonium.'</span>, title<span class="op">=</span><span class="st">'paper'</span>)</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>    v.db.q(<span class="st">'create table entities (id text primary key, content text, embedding blob, metadata text, uploaded_at text, kind text, canon text, freq int)'</span>)</span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a>    v.db.q(<span class="st">"insert into store_meta(name, encoder) values ('entities', '')"</span>)</span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a>    sql, ex <span class="op">=</span> [], v.db.execute</span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a>    v.db.execute <span class="op">=</span> <span class="kw">lambda</span> s, <span class="op">*</span>a, <span class="op">**</span>k: sql.append(s) <span class="kw">or</span> ex(s, <span class="op">*</span>a, <span class="op">**</span>k)</span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>    test_eq(v.shelves().attrgot(<span class="st">'store'</span>), [<span class="st">'store'</span>, <span class="st">'papers'</span>])</span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a>    test_eq(v.elsewhere(<span class="st">'polonium'</span>, shelves<span class="op">=</span>[<span class="st">'papers'</span>, <span class="st">'entities'</span>]).attrgot(<span class="st">'store'</span>).unique(), [<span class="st">'papers'</span>])</span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a>    test_eq(<span class="bu">len</span>(v.elsewhere(<span class="st">'polonium'</span>)), <span class="dv">1</span>)</span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">del</span> v.db.execute</span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a>    test_eq([s <span class="cf">for</span> s <span class="kw">in</span> sql <span class="cf">if</span> <span class="st">'entities_docs'</span> <span class="kw">in</span> s], [])</span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-15"><a href="#cb43-15" aria-hidden="true" tabindex="-1"></a>    v.db.q(<span class="st">"delete from store_meta where name='entities'"</span>)</span>
+<span id="cb43-16"><a href="#cb43-16" aria-hidden="true" tabindex="-1"></a>    test_fail(<span class="kw">lambda</span>: v.shelf(<span class="st">'entities'</span>), contains<span class="op">=</span><span class="st">'no doc_id'</span>)</span>
+<span id="cb43-17"><a href="#cb43-17" aria-hidden="true" tabindex="-1"></a>    test_eq(v.db.q(<span class="st">"select name from store_meta where name='entities'"</span>), [])</span>
+<span id="cb43-18"><a href="#cb43-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-19"><a href="#cb43-19" aria-hidden="true" tabindex="-1"></a>    old <span class="op">=</span> os.environ.get(<span class="st">'VISHALAKSHI_VAULT'</span>)</span>
+<span id="cb43-20"><a href="#cb43-20" aria-hidden="true" tabindex="-1"></a>    os.environ[<span class="st">'VISHALAKSHI_VAULT'</span>] <span class="op">=</span> <span class="bu">str</span>(Path(d)<span class="op">/</span><span class="st">'env.db'</span>)</span>
+<span id="cb43-21"><a href="#cb43-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">try</span>: test_eq(Vault(offline<span class="op">=</span><span class="va">True</span>).path, <span class="bu">str</span>(Path(d)<span class="op">/</span><span class="st">'env.db'</span>))</span>
+<span id="cb43-22"><a href="#cb43-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">finally</span>: os.environ.pop(<span class="st">'VISHALAKSHI_VAULT'</span>) <span class="cf">if</span> old <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> os.environ.update(VISHALAKSHI_VAULT<span class="op">=</span>old)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="d0eb56d7" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.509556+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.512054+00:00&quot;,&quot;total&quot;:0.0025001159999931133}}" data-execution_count="49">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L845" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.stats" class="level3">
+<h3 class="anchored" data-anchor-id="vault.stats">Vault.stats</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> stats()<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Row counts across the vault, by kind.</em></p>
+</section>
+</div>
+<div id="e8b31568" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.512119+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.514279+00:00&quot;,&quot;total&quot;:0.0021620910000024196}}" data-execution_count="50">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L839" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.forget" class="level3">
+<h3 class="anchored" data-anchor-id="vault.forget">Vault.forget</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forget(</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>    doc_id:<span class="bu">str</span></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Remove a document, its sections, chunks and findings, and rebuild the vector index.</em></p>
+</section>
+</div>
+<div id="34e31d03" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.514338+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.516518+00:00&quot;,&quot;total&quot;:0.00218259199999693}}" data-execution_count="51">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L834" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.mark_noisy" class="level3">
+<h3 class="anchored" data-anchor-id="vault.mark_noisy">Vault.mark_noisy</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mark_noisy(</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>    ref, noisy:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, reason:<span class="bu">str</span><span class="op">=</span><span class="st">''</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Mark a document as noise, which search, sections, context and <code>ask</code> then leave out.</em></p>
+</section>
+</div>
+<div id="1ea9ddf6" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.516578+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.519361+00:00&quot;,&quot;total&quot;:0.0027857030000006944}}" data-execution_count="52">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L821" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.sources" class="level3">
+<h3 class="anchored" data-anchor-id="vault.sources">Vault.sources</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sources(</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, include_noisy:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span></span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>List this shelf’s documents, newest first, with their meta, age and noisy and stale marks; noisy ones are included unless <code>include_noisy=False</code>.</em></p>
+</section>
+</div>
+<div id="db6fcc56" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.519420+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.521569+00:00&quot;,&quot;total&quot;:0.0021510450000050696}}" data-execution_count="53">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L816" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.show_topics" class="level3">
+<h3 class="anchored" data-anchor-id="vault.show_topics">Vault.show_topics</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb48"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> show_topics(</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a>    limit:<span class="bu">int</span><span class="op">=</span><span class="dv">20</span>, docs:<span class="bu">int</span><span class="op">=</span><span class="dv">8</span>, <span class="op">**</span>kw</span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Print <code>topic_tree</code> as an indented listing.</em></p>
+</section>
+</div>
+<div id="880bf621" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.521625+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.524084+00:00&quot;,&quot;total&quot;:0.0024605069999950047}}" data-execution_count="54">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L803" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="fmt_topics" class="level3">
+<h3 class="anchored" data-anchor-id="fmt_topics">fmt_topics</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fmt_topics(</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>    tree, width:<span class="bu">int</span><span class="op">=</span><span class="dv">44</span></span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Format a <code>topic_tree</code> as an indented listing in plain ASCII.</em></p>
+</section>
+</div>
+<div id="14d579df" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.524139+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.527932+00:00&quot;,&quot;total&quot;:0.0037946610000005876}}" data-execution_count="55">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L763" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.topic_tree" class="level3">
+<h3 class="anchored" data-anchor-id="vault.topic_tree">Vault.topic_tree</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb50"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> topic_tree(</span>
+<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a>    limit:<span class="bu">int</span><span class="op">=</span><span class="dv">20</span>, <span class="co"># topics returned, largest first</span></span>
+<span id="cb50-3"><a href="#cb50-3" aria-hidden="true" tabindex="-1"></a>    docs:<span class="bu">int</span><span class="op">=</span><span class="dv">8</span>, <span class="co"># documents listed under each topic</span></span>
+<span id="cb50-4"><a href="#cb50-4" aria-hidden="true" tabindex="-1"></a>    min_chunks:<span class="bu">int</span><span class="op">=</span><span class="dv">2</span>, <span class="co"># skip a topic carried by fewer chunks than this</span></span>
+<span id="cb50-5"><a href="#cb50-5" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>List the topics <code>connect</code> found, largest first, with the documents each one runs through.</em></p>
+</section>
+</div>
+<div id="3ff38d53" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.527989+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.530289+00:00&quot;,&quot;total&quot;:0.002301579999993919}}" data-execution_count="56">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L755" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.map" class="level3">
+<h3 class="anchored" data-anchor-id="vault.map">Vault.map</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">map</span>(</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>    min_count:<span class="bu">int</span><span class="op">=</span><span class="dv">2</span>, force:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="op">**</span>kw</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Group the shelf’s chunks into labelled topics, reading the topics <code>connect</code> saved, when there are any, instead of clustering again.</em></p>
+</section>
+</div>
+<div id="dfbfb828" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.615203+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.617803+00:00&quot;,&quot;total&quot;:0.0026028099999990673}}" data-execution_count="60">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L897" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.graph_search" class="level3">
+<h3 class="anchored" data-anchor-id="vault.graph_search">Vault.graph_search</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb52"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> graph_search(</span>
+<span id="cb52-2"><a href="#cb52-2" aria-hidden="true" tabindex="-1"></a>    q:<span class="bu">str</span>, limit:<span class="bu">int</span><span class="op">=</span><span class="dv">10</span>, graph_w:<span class="bu">float</span><span class="op">=</span><span class="fl">1.0</span>, <span class="op">**</span>kw</span>
+<span id="cb52-3"><a href="#cb52-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">list</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Search that adds chunks found by walking the entity graph to the usual hits. It suits questions that share no words with their answer.</em></p>
+</section>
+</div>
+<div id="7e2179ad" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.617878+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.620628+00:00&quot;,&quot;total&quot;:0.0027531440000103657}}" data-execution_count="61">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L878" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.connect" class="level3">
+<h3 class="anchored" data-anchor-id="vault.connect">Vault.connect</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb53"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="ex">connect</span>(</span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a>    graph:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># build the typed entity graph over new chunks (vruksha)</span></span>
+<span id="cb53-3"><a href="#cb53-3" aria-hidden="true" tabindex="-1"></a>    topics:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, <span class="co"># (re)write the labelled topic nodes</span></span>
+<span id="cb53-4"><a href="#cb53-4" aria-hidden="true" tabindex="-1"></a>    chat:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># a urai Chat; None builds one with `new_chat()`</span></span>
+<span id="cb53-5"><a href="#cb53-5" aria-hidden="true" tabindex="-1"></a>    seed:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># regex-seed structured citations (a legal corpus booster)</span></span>
+<span id="cb53-6"><a href="#cb53-6" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Build the entity graph, which needs a model, and the topic nodes that <code>graph_search</code>, <code>map</code> and <code>topic_tree</code> read.</em></p>
+</section>
+</div>
+<div id="3df3bbc5" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.620705+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.623414+00:00&quot;,&quot;total&quot;:0.0027115830000070673}}" data-execution_count="62">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/core.py#L855" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.build_graph" class="level3">
+<h3 class="anchored" data-anchor-id="vault.build_graph">Vault.build_graph</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb54"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build_graph(</span>
+<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>    chat:NoneType<span class="op">=</span><span class="va">None</span>, seed:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="op">**</span>kw</span>
+<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Have a model extract entities and relations from chunks not yet processed, with vruksha, into the entity graph of the shelf. A hosted chat runs only when every document on the shelf is Open.</em></p>
+</section>
+</div>
+<div id="8981323e" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb55"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> Vault(Path(d)<span class="op">/</span><span class="st">'test.db'</span>, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a>    v.add(<span class="st">'Main report about polonium.'</span>, title<span class="op">=</span><span class="st">'main'</span>)</span>
+<span id="cb55-4"><a href="#cb55-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-5"><a href="#cb55-5" aria-hidden="true" tabindex="-1"></a>    papers <span class="op">=</span> v.shelf(<span class="st">'papers'</span>)</span>
+<span id="cb55-6"><a href="#cb55-6" aria-hidden="true" tabindex="-1"></a>    papers.add(<span class="st">'Paper about thorium.'</span>, title<span class="op">=</span><span class="st">'paper'</span>)</span>
+<span id="cb55-7"><a href="#cb55-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-8"><a href="#cb55-8" aria-hidden="true" tabindex="-1"></a>    sql <span class="op">=</span> []</span>
+<span id="cb55-9"><a href="#cb55-9" aria-hidden="true" tabindex="-1"></a>    v.db.conn.set_exec_trace(</span>
+<span id="cb55-10"><a href="#cb55-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">lambda</span> cursor, statement, bindings:</span>
+<span id="cb55-11"><a href="#cb55-11" aria-hidden="true" tabindex="-1"></a>            sql.append(statement) <span class="kw">or</span> <span class="va">True</span></span>
+<span id="cb55-12"><a href="#cb55-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb55-13"><a href="#cb55-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-14"><a href="#cb55-14" aria-hidden="true" tabindex="-1"></a>    v.context(<span class="st">'thorium'</span>, code<span class="op">=</span><span class="dv">0</span>, shelves<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb55-15"><a href="#cb55-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-16"><a href="#cb55-16" aria-hidden="true" tabindex="-1"></a>    v.db.conn.set_exec_trace(<span class="va">None</span>)</span>
+<span id="cb55-17"><a href="#cb55-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb55-18"><a href="#cb55-18" aria-hidden="true" tabindex="-1"></a>    ddl <span class="op">=</span> [</span>
+<span id="cb55-19"><a href="#cb55-19" aria-hidden="true" tabindex="-1"></a>        q <span class="cf">for</span> q <span class="kw">in</span> sql</span>
+<span id="cb55-20"><a href="#cb55-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> q.lstrip().upper().startswith((<span class="st">'CREATE '</span>, <span class="st">'ALTER '</span>, <span class="st">'DROP '</span>))</span>
+<span id="cb55-21"><a href="#cb55-21" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb55-22"><a href="#cb55-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> ddl <span class="op">==</span> [], ddl</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="bc94fa7c" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:22.623869+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:22.656272+00:00&quot;,&quot;total&quot;:0.03240665199999171}}" data-execution_count="63">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb56"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> tempfile <span class="im">import</span> TemporaryDirectory</span>
+<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-3"><a href="#cb56-3" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> _Chat:</span>
+<span id="cb56-4"><a href="#cb56-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">"A scripted extraction, so the graph is the same every run and no model is asked for."</span></span>
+<span id="cb56-5"><a href="#cb56-5" aria-hidden="true" tabindex="-1"></a>    runtime <span class="op">=</span> <span class="st">'litert'</span>   <span class="co"># it stands in for the local default; a hosted chat builds only over an all-Open shelf</span></span>
+<span id="cb56-6"><a href="#cb56-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> oneshot(<span class="va">self</span>, u, <span class="op">**</span>k):</span>
+<span id="cb56-7"><a href="#cb56-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> (<span class="st">'{"summary":"a report","entities":[{"name":"polonium","type":"substance"}],'</span></span>
+<span id="cb56-8"><a href="#cb56-8" aria-hidden="true" tabindex="-1"></a>                <span class="st">'"relations":[{"src":"polonium","rel":"appears_in","dst":"report"}]}'</span>)</span>
+<span id="cb56-9"><a href="#cb56-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-10"><a href="#cb56-10" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> TemporaryDirectory() <span class="im">as</span> d:</span>
+<span id="cb56-11"><a href="#cb56-11" aria-hidden="true" tabindex="-1"></a>    v <span class="op">=</span> Vault(Path(d)<span class="op">/</span><span class="st">'test.db'</span>, offline<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb56-12"><a href="#cb56-12" aria-hidden="true" tabindex="-1"></a>    v.add(<span class="st">"A scheduled report about polonium."</span>, title<span class="op">=</span><span class="st">"report"</span>)</span>
+<span id="cb56-13"><a href="#cb56-13" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> v.<span class="ex">connect</span>(chat<span class="op">=</span>_Chat())</span>
+<span id="cb56-14"><a href="#cb56-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb56-15"><a href="#cb56-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> result[<span class="st">'entities'</span>] <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb56-16"><a href="#cb56-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> v.search(<span class="st">'polonium'</span>)</span>
+<span id="cb56-17"><a href="#cb56-17" aria-hidden="true" tabindex="-1"></a>    result</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="try-it" class="level2">
+<h2 class="anchored" data-anchor-id="try-it">Try it</h2>
+<p>The cells below use the default embedding model. With <code>offline=True</code> the vault uses <code>hash_embed</code> from litesearch. <code>hash_embed</code> needs no download and matches spelling, not meaning. <code>stats()['encoder']</code> says which model is in use.</p>
+<div id="b76ff4af" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb57"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> Vault(<span class="st">':memory:'</span>)</span>
+<span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a>v.note(<span class="st">'Late chunking beats naive chunking because context survives the split.'</span>, tags<span class="op">=</span>[<span class="st">'retrieval'</span>])</span>
+<span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a>v.add(<span class="st">'# Attention</span><span class="ch">\n\n</span><span class="st">Scaled dot-product attention weights values by query-key similarity.</span><span class="ch">\n\n</span><span class="st">'</span></span>
+<span id="cb57-4"><a href="#cb57-4" aria-hidden="true" tabindex="-1"></a>      <span class="st">'## Multi-head</span><span class="ch">\n\n</span><span class="st">Heads attend to different subspaces in parallel.'</span>, <span class="st">'Attention'</span>, kind<span class="op">=</span><span class="st">'note'</span>)</span>
+<span id="cb57-5"><a href="#cb57-5" aria-hidden="true" tabindex="-1"></a>v.stats()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>{'docs': 2,
+ 'nodes': 5,
+ 'chunks': 3,
+ 'encoder': 'model2vec',
+ 'entities': 0,
+ 'path': ':memory:',
+ 'by_kind': {'note': 2}}</code></pre>
+</div>
+</div>
+<div id="0f598307" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>test_eq(v.stats()[<span class="st">'docs'</span>], <span class="dv">2</span>)</span>
+<span id="cb59-2"><a href="#cb59-2" aria-hidden="true" tabindex="-1"></a>test_eq(v.stats()[<span class="st">'encoder'</span>], <span class="st">'model2vec'</span>)</span>
+<span id="cb59-3"><a href="#cb59-3" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> v.search(<span class="st">'chunking'</span>)[<span class="dv">0</span>][<span class="st">'snippet'</span>]</span>
+<span id="cb59-4"><a href="#cb59-4" aria-hidden="true" tabindex="-1"></a><span class="co"># a hit is a handle plus enough text to recognise it, not the chunk itself; the scoring</span></span>
+<span id="cb59-5"><a href="#cb59-5" aria-hidden="true" tabindex="-1"></a><span class="co"># internals the two legs disagree about (`rank`, `_dist`, `_rrf_score`, `rowid`) stay inside</span></span>
+<span id="cb59-6"><a href="#cb59-6" aria-hidden="true" tabindex="-1"></a>_h <span class="op">=</span> v.search(<span class="st">'chunking'</span>)[<span class="dv">0</span>]</span>
+<span id="cb59-7"><a href="#cb59-7" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="bu">sorted</span>(_h), [<span class="st">'age'</span>, <span class="st">'breadcrumb'</span>, <span class="st">'doc_id'</span>, <span class="st">'node_id'</span>, <span class="st">'page'</span>, <span class="st">'score'</span>, <span class="st">'snippet'</span>, <span class="st">'stale'</span>])</span>
+<span id="cb59-8"><a href="#cb59-8" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(v.search(<span class="st">'chunking'</span>, chars<span class="op">=</span><span class="dv">20</span>)[<span class="dv">0</span>][<span class="st">'snippet'</span>]) <span class="op">&lt;=</span> <span class="dv">20</span></span>
+<span id="cb59-9"><a href="#cb59-9" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> v.read(_h[<span class="st">'node_id'</span>])[<span class="st">'text'</span>]          <span class="co"># the handle opens what the snippet came from</span></span>
+<span id="cb59-10"><a href="#cb59-10" aria-hidden="true" tabindex="-1"></a>test_eq([d[<span class="st">'kind'</span>] <span class="cf">for</span> d <span class="kw">in</span> v.sources()], [<span class="st">'note'</span>, <span class="st">'note'</span>])</span>
+<span id="cb59-11"><a href="#cb59-11" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="bu">len</span>(v.sources(kind<span class="op">=</span><span class="st">'web'</span>)), <span class="dv">0</span>)</span>
+<span id="cb59-12"><a href="#cb59-12" aria-hidden="true" tabindex="-1"></a>test_eq(<span class="bu">len</span>(v.search(<span class="st">'chunking'</span>, kind<span class="op">=</span><span class="st">'web'</span>)), <span class="dv">0</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="c5e2a708" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb60"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a>d <span class="op">=</span> v.doc(<span class="st">'Attention'</span>)                          <span class="co"># by title substring</span></span>
+<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>test_eq(v.doc(d[<span class="st">'id'</span>])[<span class="st">'title'</span>], <span class="st">'Attention'</span>)   <span class="co"># by doc_id</span></span>
+<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a>test_eq(v.doc(d[<span class="st">'source'</span>])[<span class="st">'title'</span>], <span class="st">'Attention'</span>)  <span class="co"># by source</span></span>
+<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a>test_eq(v.doc(<span class="st">'nothing in here'</span>), <span class="va">None</span>)</span>
+<span id="cb60-5"><a href="#cb60-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-6"><a href="#cb60-6" aria-hidden="true" tabindex="-1"></a>whole <span class="op">=</span> v.document(<span class="st">'Attention'</span>)</span>
+<span id="cb60-7"><a href="#cb60-7" aria-hidden="true" tabindex="-1"></a>test_eq((whole.origin, whole.nodes), (<span class="st">'vault'</span>, <span class="dv">3</span>))   <span class="co"># the root, the heading, the subheading</span></span>
+<span id="cb60-8"><a href="#cb60-8" aria-hidden="true" tabindex="-1"></a><span class="co"># every section, in document order, with the headings that say what each one is</span></span>
+<span id="cb60-9"><a href="#cb60-9" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> whole.text.index(<span class="st">'Scaled dot-product'</span>) <span class="op">&lt;</span> whole.text.index(<span class="st">'## Multi-head'</span>) <span class="op">&lt;</span> whole.text.index(<span class="st">'subspaces'</span>)</span>
+<span id="cb60-10"><a href="#cb60-10" aria-hidden="true" tabindex="-1"></a>test_eq(v.document(<span class="st">'Attention'</span>, headings<span class="op">=</span><span class="va">False</span>).text.find(<span class="st">'## Multi-head'</span>), <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb60-11"><a href="#cb60-11" aria-hidden="true" tabindex="-1"></a>test_eq(v.document(<span class="st">'Attention'</span>, max_chars<span class="op">=</span><span class="dv">20</span>).text, whole.text[:<span class="dv">20</span>])</span>
+<span id="cb60-12"><a href="#cb60-12" aria-hidden="true" tabindex="-1"></a>test_eq(v.document(<span class="st">'Attention'</span>, max_chars<span class="op">=</span><span class="dv">20</span>).truncated, <span class="va">True</span>)</span>
+<span id="cb60-13"><a href="#cb60-13" aria-hidden="true" tabindex="-1"></a><span class="co"># a `Pages n–m:` node title is build_tree's placeholder, not a heading the document wrote</span></span>
+<span id="cb60-14"><a href="#cb60-14" aria-hidden="true" tabindex="-1"></a>v.add(<span class="st">'Prose with no headings at all, long enough to chunk and to be stored in the vault.'</span>, <span class="st">'plain'</span>)</span>
+<span id="cb60-15"><a href="#cb60-15" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="st">'# Pages'</span> <span class="kw">not</span> <span class="kw">in</span> v.document(<span class="st">'plain'</span>).text <span class="kw">and</span> <span class="st">'Prose with no'</span> <span class="kw">in</span> v.document(<span class="st">'plain'</span>).text</span>
+<span id="cb60-16"><a href="#cb60-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb60-17"><a href="#cb60-17" aria-hidden="true" tabindex="-1"></a>test_eq(v.set_meta(d[<span class="st">'id'</span>], doctype<span class="op">=</span><span class="st">'paper'</span>)[<span class="st">'doctype'</span>], <span class="st">'paper'</span>)</span>
+<span id="cb60-18"><a href="#cb60-18" aria-hidden="true" tabindex="-1"></a>test_eq(v.doc(d[<span class="st">'id'</span>])[<span class="st">'meta'</span>][<span class="st">'doctype'</span>], <span class="st">'paper'</span>)                 <span class="co"># survives the round trip</span></span>
+<span id="cb60-19"><a href="#cb60-19" aria-hidden="true" tabindex="-1"></a>test_eq(v.set_meta(d[<span class="st">'id'</span>], reviewed<span class="op">=</span><span class="va">True</span>)[<span class="st">'doctype'</span>], <span class="st">'paper'</span>)     <span class="co"># merged, not replaced</span></span>
+<span id="cb60-20"><a href="#cb60-20" aria-hidden="true" tabindex="-1"></a>test_fail(<span class="kw">lambda</span>: v.document(<span class="st">'no such document'</span>), contains<span class="op">=</span><span class="st">'no document in the vault'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="d0c5a13f" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb61"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a>test_eq(tidy_bc(<span class="st">'Attention › Pages 1–1: Scaled dot-product › Multi-head'</span>), <span class="st">'Attention › Multi-head'</span>)</span>
+<span id="cb61-2"><a href="#cb61-2" aria-hidden="true" tabindex="-1"></a>test_eq(tidy_bc(<span class="va">None</span>), <span class="st">''</span>)</span>
+<span id="cb61-3"><a href="#cb61-3" aria-hidden="true" tabindex="-1"></a><span class="co"># a window with a blank first line leaves the placeholder bare, and it is still a placeholder</span></span>
+<span id="cb61-4"><a href="#cb61-4" aria-hidden="true" tabindex="-1"></a>test_eq(tidy_bc(<span class="st">'Doc › Pages 1–1: › Body'</span>), <span class="st">'Doc › Body'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="01f46402" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:23.420853+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:23.421459+00:00&quot;,&quot;total&quot;:0.000607537999997021}}" data-execution_count="66">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb62"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> functools <span class="im">import</span> partial</span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> vishalakshi.ask <span class="im">import</span> CHAT_CACHE, CachedChat, use_chat</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="bb48f77d" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb63"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a><span class="co"># the extraction replays from recordings, so the tests run without the model; VISHALAKSHI_RECORD_CHAT=1 records a miss</span></span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> use_chat(partial(CachedChat, path<span class="op">=</span>CHAT_CACHE)): r <span class="op">=</span> v.<span class="ex">connect</span>()</span>
+<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> r[<span class="st">'entities'</span>] <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb63-4"><a href="#cb63-4" aria-hidden="true" tabindex="-1"></a><span class="co"># `entities` is what each batch wrote and `merged` what resolution folded away again, so the rows</span></span>
+<span id="cb63-5"><a href="#cb63-5" aria-hidden="true" tabindex="-1"></a><span class="co"># left are the difference: one batch covers a corpus this size, and stats counts no topic node</span></span>
+<span id="cb63-6"><a href="#cb63-6" aria-hidden="true" tabindex="-1"></a>test_eq(v.stats()[<span class="st">'entities'</span>], r[<span class="st">'entities'</span>] <span class="op">-</span> r[<span class="st">'merged'</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/vedicreader\.github\.io\/vishalakshi");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/vedicreader/vishalakshi/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

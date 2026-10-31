@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.20">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Find personal information in the vault, give each document a privacy level, and control what retrieval hands back">
+
+<title>pii – vishalakshi</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-17888a1159294d3eb470f19f6f52f5a5.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-66a38d7287321bc50e069add96f8c30e.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="pii – vishalakshi">
+<meta property="og:description" content="Find personal information in the vault, give each document a privacy level, and control what retrieval hands back">
+<meta property="og:site_name" content="vishalakshi">
+<meta name="twitter:title" content="pii – vishalakshi">
+<meta name="twitter:description" content="Find personal information in the vault, give each document a privacy level, and control what retrieval hands back">
+<meta name="twitter:card" content="summary">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">vishalakshi</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+          <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./pii.html">pii</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">vishalakshi</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./core.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">core</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acquire.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">acquire</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ask.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ask</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./code.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">code</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./cli.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cli</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./extract.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">extract</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">concepts</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./skill.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">skill</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pii.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">pii</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quality.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">quality</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./jobs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">jobs</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./read.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./proof.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">proof</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#checking-a-document-and-gating-retrieval" id="toc-checking-a-document-and-gating-retrieval" class="nav-link active" data-scroll-target="#checking-a-document-and-gating-retrieval">Checking a document, and gating retrieval</a></li>
+  <li><a href="#learned-detectors-were-measured-and-not-shipped" id="toc-learned-detectors-were-measured-and-not-shipped" class="nav-link" data-scroll-target="#learned-detectors-were-measured-and-not-shipped">Learned detectors were measured and not shipped</a></li>
+  <li><a href="#privacy-levels-and-findings" id="toc-privacy-levels-and-findings" class="nav-link" data-scroll-target="#privacy-levels-and-findings">Privacy levels and findings</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/vedicreader/vishalakshi/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div><div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="pii.html.md"><i class="bi bi-file-code"></i>Markdown</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">pii</h1>
+</div>
+
+<div>
+  <div class="description">
+    Find personal information in the vault, give each document a privacy level, and control what retrieval hands back
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- WARNING: THIS FILE WAS AUTOGENERATED! DO NOT EDIT! -->
+<p>Personal information, called PII below, is text that identifies a person or opens one of their accounts. Examples are an email address, a phone number, a card or bank account number, a national identity number such as a UK National Insurance number or an Indian Aadhaar number, a street address, a date of birth, an API key and a password. The detector is a separate package, <a href="https://vedicreader.github.io/rahasya/">rahasya</a>. It uses patterns and checksums and no model. A card number must pass the Luhn check, and an NHS number must pass its mod-11 check. The detector gives the same answer on every run and downloads nothing. On a held-out test set of 240 generated documents it missed nothing and raised no false alarm (<code>evals/RESULTS.md</code>, section 3).</p>
+<p>The detector does not find names on their own. No pattern describes a name. Name detection is a second pass, and it finds only a name that follows a title such as Mr, Dr or Prof.&nbsp;“Dr Charles Babbage” is found. “Ada Lovelace” with no title is not. The pass runs when a document is added, except on code, where identifiers are not names. It runs by default in <code>ask</code> (<code>pii_ner=True</code>). <a href="https://vedicreader.github.io/vishalakshi/pii.html#vault.pii"><code>Vault.pii</code></a> and <a href="https://vedicreader.github.io/vishalakshi/pii.html#gated"><code>gated</code></a> run it only with <code>ner=True</code>, and the retrieval methods run it only with <code>pii_ner=True</code>. When a document holds personal information that the detector cannot see, a person marks the document, as described below.</p>
+<p>This page covers the parts that need a vault: the marks a person sets, the privacy level of each document, the table of findings, and <a href="https://vedicreader.github.io/vishalakshi/pii.html#gated"><code>gated</code></a>, which applies a policy to what search and reading return. <a href="./ask.html">ask</a> describes what <code>ask</code> and the other model calls send to a model.</p>
+<section id="checking-a-document-and-gating-retrieval" class="level2">
+<h2 class="anchored" data-anchor-id="checking-a-document-and-gating-retrieval">Checking a document, and gating retrieval</h2>
+<p><code>Vault.pii(ref)</code> reports on one whole document: whether it holds personal information, which kinds, and whether a person’s mark overrides the detector. <code>detected</code> is the detector’s verdict. <code>override</code> is the mark. <code>mark_pii</code> marks a document as personal when the detector finds nothing, for example a letter that names people without titles. <code>mark_not_pii</code> clears a false alarm, such as your own invoice. Only a person may clear a mark (see the next section). <a href="https://vedicreader.github.io/vishalakshi/pii.html#pii_ctx"><code>pii_ctx</code></a> runs the detector over every section of an assembled context, which is the result of <code>context</code>. <code>ask</code> decides on that report.</p>
+<p>Retrieval methods apply the same policy to their results. <code>search</code>, <code>sections</code>, <code>context</code>, <code>read</code>, <code>document</code>, <code>toc</code>, <code>doc_context</code> and <code>federate</code> all take <code>pii=</code>. It sets what happens to a row that holds personal information:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th><code>pii=</code></th>
+<th>the row’s text becomes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>off</code>, the default in Python and the CLI</td>
+<td>the stored text; nothing is checked</td>
+</tr>
+<tr class="even">
+<td><code>redact</code></td>
+<td>the stored text with each recognised identifier replaced by its kind, as in <code>[EMAIL]</code></td>
+</tr>
+<tr class="odd">
+<td><code>refuse</code></td>
+<td>a placeholder such as <code>[withheld: personal information (card, email)]</code></td>
+</tr>
+</tbody>
+</table>
+<p>Under <code>redact</code> and <code>refuse</code> the row stays in the results. Its title and breadcrumb are masked, not removed. A <code>pii</code> key names the kinds found. A caller can use it to say why the text was held back. Three cases depend on the levels described in the next section.</p>
+<ul>
+<li>A Local only document is withheld under <code>redact</code> as well as <code>refuse</code>. Its title, breadcrumb and source are withheld too.</li>
+<li>A document that is private only because of a mark or the shelf’s floor, and that holds nothing the detector recognises, passes through <code>redact</code> unchanged. There is nothing to mask. Use <code>refuse</code> for such a document.</li>
+<li>A document that a person cleared with <code>mark_not_pii</code> comes back untouched, unless the shelf’s floor is above Open.</li>
+</ul>
+<p>The <a href="./mcp.html">MCP server</a> hands its results to a model that the vault does not run. Every MCP tool defaults to <code>redact</code>, and the server gates every result, including the result of <code>ask</code>. A client may ask for <code>refuse</code>. A client may not ask for <code>off</code>.</p>
+</section>
+<section id="learned-detectors-were-measured-and-not-shipped" class="level2">
+<h2 class="anchored" data-anchor-id="learned-detectors-were-measured-and-not-shipped">Learned detectors were measured and not shipped</h2>
+<p>Two learned PII models, an ONNX build and a TFLite build, were tried against the patterns. Both were worse on precision and on recall, and about 200 times slower, so the shipped detector is the patterns alone. The model code stays in <code>evals/backends.py</code>, <code>evals/pii_model.py</code> reruns the comparison, and <code>evals/RESULTS.md</code> has the numbers.</p>
+<div id="11acd66c" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.045058+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.058383+00:00&quot;,&quot;total&quot;:0.013329429999998865}}" data-execution_count="3">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L60" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="pii_ctx" class="level3">
+<h3 class="anchored" data-anchor-id="pii_ctx">pii_ctx</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pii_ctx(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    ctx, ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Run the detector over every section in an assembled context: its text, heading, title and source.</em></p>
+</section>
+</div>
+<div id="aff28442" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.058514+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.062050+00:00&quot;,&quot;total&quot;:0.003538898999991602}}" data-execution_count="4">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L54" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.mark_pii" class="level3">
+<h3 class="anchored" data-anchor-id="vault.mark_pii">Vault.mark_pii</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mark_pii(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    ref, force:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, reason:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, by:<span class="bu">str</span><span class="op">=</span><span class="st">'person'</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Mark a document as personal when the detector finds nothing, or remove that mark with <code>force=False</code>, which only a person may do.</em></p>
+</section>
+</div>
+<div id="a3b5db29" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.062158+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.065958+00:00&quot;,&quot;total&quot;:0.0038035139999976764}}" data-execution_count="5">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L47" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.mark_not_pii" class="level3">
+<h3 class="anchored" data-anchor-id="vault.mark_not_pii">Vault.mark_not_pii</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mark_not_pii(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    ref, clear:<span class="bu">bool</span><span class="op">=</span><span class="va">True</span>, reason:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, by:<span class="bu">str</span><span class="op">=</span><span class="st">'person'</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Mark a document as not personal, or with <code>clear=False</code> hand the decision back to the detector; only a person may do either.</em></p>
+</section>
+</div>
+<div id="b80b8e55" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.066066+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.070320+00:00&quot;,&quot;total&quot;:0.004259395000005384}}" data-execution_count="6">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L29" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.pii" class="level3">
+<h3 class="anchored" data-anchor-id="vault.pii">Vault.pii</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pii(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    ref, <span class="co"># a doc_id, source, title or path: whatever `document` takes</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    max_chars:<span class="bu">int</span><span class="op">=</span><span class="dv">200000</span>, ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># also look for names that follow a title such as Dr; never on code</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Report whether one document holds personal information, which kinds, and any mark that overrides the detector.</em></p>
+</section>
+</div>
+<div id="bbcf526a" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.087546+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.094264+00:00&quot;,&quot;total&quot;:0.0067206330000004755}}" data-execution_count="8">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L148" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="gated" class="level3">
+<h3 class="anchored" data-anchor-id="gated">gated</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gated(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    o, <span class="co"># whatever a retrieval primitive returned</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    pii:<span class="bu">str</span><span class="op">=</span><span class="st">'off'</span>, <span class="co"># off | redact | refuse</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    vault:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># the shelf whose marks apply; None -&gt; no marks</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># also mask names that follow a title such as Dr</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    store:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># the shelf the rows came from; None -&gt; the vault's own</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Apply a retrieval policy, <code>off</code>, <code>redact</code> or <code>refuse</code>, to search rows, an assembled context, one section or a string.</em></p>
+</section>
+</div>
+<div id="4712a410" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.094434+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.098799+00:00&quot;,&quot;total&quot;:0.004367407000003709}}" data-execution_count="9">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L119" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="held" class="level3">
+<h3 class="anchored" data-anchor-id="held">held</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> held(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    kinds</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The placeholder that replaces withheld text: it names the kinds found, or says the document is local only.</em></p>
+</section>
+</div>
+<div id="9e71e2d0" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.100291+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.104396+00:00&quot;,&quot;total&quot;:0.004108811000008927}}" data-execution_count="11">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L176" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.toc" class="level3">
+<h3 class="anchored" data-anchor-id="vault.toc">Vault.toc</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> toc(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    doc:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># narrow to one document, as `Index.toc` takes it</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>, pii:<span class="bu">str</span><span class="op">=</span><span class="st">'off'</span>, pii_ner:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, stale:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="op">**</span>kw</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">list</span>: <span class="co"># forwarded to `Index.toc`</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The heading tree of the shelf or of one document, with <code>pii=</code> applied to the node titles as well as the text.</em></p>
+</section>
+</div>
+</section>
+<section id="privacy-levels-and-findings" class="level2">
+<h2 class="anchored" data-anchor-id="privacy-levels-and-findings">Privacy levels and findings</h2>
+<p>Every document has one of three privacy levels. The level sets what this package’s own model calls may send to a model that runs on another machine. This page calls such a model a hosted model.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>level</th>
+<th>how a document gets it</th>
+<th>what a hosted model may be sent</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Open (<code>open</code>)</td>
+<td>nothing personal found, or a person cleared it</td>
+<td>the text as it is</td>
+</tr>
+<tr class="even">
+<td>Personal (<code>personal</code>)</td>
+<td>the detector found an identifier, or someone marked it</td>
+<td>it depends on the policy: masked text, nothing, or with <code>allow=True</code> the whole text (see <a href="./ask.html">ask</a>)</td>
+</tr>
+<tr class="odd">
+<td>Local only (<code>local</code>)</td>
+<td>someone set it with <code>set_level</code>, or its type is sensitive</td>
+<td>nothing; only a model on this machine reads it</td>
+</tr>
+</tbody>
+</table>
+<p>The sensitive types come from <a href="https://vedicreader.github.io/varga/">varga</a>. They are passport, ID card, bank statement, payslip, tax return and clinical record. These rules cover what vishalakshi sends to models. They do not stop retrieval in Python or the CLI. <code>read</code> or <code>search</code> with the default <code>pii='off'</code> returns the text of a Local only document to the caller. The MCP server defaults to <code>redact</code>, which withholds that text.</p>
+<p><code>level(ref)</code> works out a document’s level in two steps.</p>
+<ol type="1">
+<li>A mark set with <code>mark_pii</code>, <code>mark_not_pii</code> or <code>set_level</code> decides the level. Without a mark, the level is the higher of the level of the document’s type and the level from its findings. Any identifier found in the text or the title makes the document Personal.</li>
+<li>The result is raised to the shelf’s floor.</li>
+</ol>
+<p>The floor is the lowest level any document on the shelf can have. <code>set_floor</code> sets it. A shelf for medical records can have a floor of Local only. A new document on that shelf is protected before the detector has found anything in it.</p>
+<p><code>level(ref, page=n)</code> gives the level of one page from the findings on that page. A page with no text takes the level of the whole document.</p>
+<p>Anyone may raise a level. Only a person may lower one. These actions take <code>by=</code> and raise <code>PermissionError</code> unless <code>by='person'</code>: <code>set_level</code> to a lower level, removing a mark, <code>mark_not_pii</code>, <code>reject_pii</code>, <code>reset_pii</code> and lowering a floor. The default is <code>'person'</code>. Code that a person runs passes nothing. An agent passes its own name. The <a href="./mcp.html">MCP server</a> does not offer <code>by</code>. A model client cannot claim to be a person. It cannot turn the retrieval gate off with <code>pii='off'</code> either.</p>
+<p>When a document is added, <code>scan_pii</code> scans each page. It files every identifier in the <code>pii_findings</code> table as a finding. A finding holds a kind, a page, the start and end offsets in the page text, and a fingerprint. The fingerprint is a 16-character hash of the kind and the value, with spacing, dashes and case removed. <code>ADA@example.com</code> and <code>ada@example.com</code> give the same fingerprint. <code>4111-1111-1111-1111</code> and <code>4111 1111 1111 1111</code> give the same fingerprint.</p>
+<p>The table does not hold the value. The value is still in the document text, which the vault keeps as it was read. The hash has no secret key. Someone who hashes every possible short value, such as a date of birth, can recover it. Treat the findings table as private as the vault file. <code>findings</code> lists the findings. Each has a masked preview such as <code>a••@e••••••.com</code>, taken from the current page text.</p>
+<p>A person can give a verdict on a finding. <code>accept_pii</code> confirms that a finding is personal. An agent may also call it, because it can only raise a level. <code>reject_pii</code> says that a finding is not personal. The level falls if nothing else holds it up. <code>reset_pii</code> takes a verdict back.</p>
+<p>The vault stores a verdict against the fingerprint. The verdict covers every occurrence of the same value in the document. It survives a new read of the page. The new findings get new ids and keep the old verdict. A finding id from before the new read comes back as <code>stale</code>.</p>
+<div id="ec2411c5" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.128505+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.132764+00:00&quot;,&quot;total&quot;:0.004261749000008308}}" data-execution_count="13">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L361" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.reset_pii" class="level3">
+<h3 class="anchored" data-anchor-id="vault.reset_pii">Vault.reset_pii</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> reset_pii(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    ref, ids, by:<span class="bu">str</span><span class="op">=</span><span class="st">'person'</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Remove the verdict on findings so that detection judges every occurrence of the value again; only a person may.</em></p>
+</section>
+</div>
+<div id="03229118" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.132879+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.136596+00:00&quot;,&quot;total&quot;:0.0037208200000122815}}" data-execution_count="14">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L355" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.reject_pii" class="level3">
+<h3 class="anchored" data-anchor-id="vault.reject_pii">Vault.reject_pii</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> reject_pii(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    ref, ids, by:<span class="bu">str</span><span class="op">=</span><span class="st">'person'</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Reject findings as not personal, for every occurrence of the same value in the document; only a person may, and the verdict survives a re-read.</em></p>
+</section>
+</div>
+<div id="174d1587" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.136701+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.140469+00:00&quot;,&quot;total&quot;:0.0037712459999994508}}" data-execution_count="15">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L350" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.accept_pii" class="level3">
+<h3 class="anchored" data-anchor-id="vault.accept_pii">Vault.accept_pii</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> accept_pii(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    ref, ids, by:<span class="bu">str</span><span class="op">=</span><span class="st">'person'</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Confirm findings as personal; the verdict covers every occurrence of the same value in the document.</em></p>
+</section>
+</div>
+<div id="60542e31" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.140624+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.145565+00:00&quot;,&quot;total&quot;:0.004944808999994166}}" data-execution_count="16">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L319" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.findings" class="level3">
+<h3 class="anchored" data-anchor-id="vault.findings">Vault.findings</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> findings(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    ref:NoneType<span class="op">=</span><span class="va">None</span>, state:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, page:<span class="bu">int</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>List filed findings, each with a masked <code>preview</code> such as <code>a••@e••••••.com</code> built from the current page text.</em></p>
+</section>
+</div>
+<div id="9f6aa3b6" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.145691+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.150405+00:00&quot;,&quot;total&quot;:0.004716427999994721}}" data-execution_count="17">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L308" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.set_level" class="level3">
+<h3 class="anchored" data-anchor-id="vault.set_level">Vault.set_level</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> set_level(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    ref, level:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, reason:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, by:<span class="bu">str</span><span class="op">=</span><span class="st">'person'</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Set a document’s privacy level by hand, or pass <code>None</code> to remove the mark and let detection decide; only a person may lower a level or remove a mark.</em></p>
+</section>
+</div>
+<div id="d113e49d" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.150548+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.156404+00:00&quot;,&quot;total&quot;:0.005859186000009231}}" data-execution_count="18">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L287" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.level" class="level3">
+<h3 class="anchored" data-anchor-id="vault.level">Vault.level</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> level(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    ref, page:<span class="bu">int</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>A document’s or one page’s privacy level: its mark if it has one, else the higher of its type’s level and its findings’, never below the shelf’s floor.</em></p>
+</section>
+</div>
+<div id="5cbfd9f3" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.156519+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.163031+00:00&quot;,&quot;total&quot;:0.0065151760000077275}}" data-execution_count="19">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L257" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.scan_pii" class="level3">
+<h3 class="anchored" data-anchor-id="vault.scan_pii">Vault.scan_pii</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> scan_pii(</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    ref, pages:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Scan a document page by page and file each identifier found as a finding (kind, page, offsets and fingerprint) without its value.</em></p>
+</section>
+</div>
+<div id="40564911" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.163144+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.166960+00:00&quot;,&quot;total&quot;:0.003818715999997835}}" data-execution_count="20">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L227" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.set_floor" class="level3">
+<h3 class="anchored" data-anchor-id="vault.set_floor">Vault.set_floor</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> set_floor(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    level:<span class="bu">str</span><span class="op">=</span><span class="st">'open'</span>, by:<span class="bu">str</span><span class="op">=</span><span class="st">'person'</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Set this shelf’s floor; anyone may raise it, and only a person may lower it.</em></p>
+</section>
+</div>
+<div id="4597f6a5" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.167071+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.172329+00:00&quot;,&quot;total&quot;:0.005261451999999167}}" data-execution_count="21">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L221" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="vault.floor" class="level3">
+<h3 class="anchored" data-anchor-id="vault.floor">Vault.floor</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> floor()<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>This shelf’s floor, the lowest privacy level any of its documents can have: <code>open</code>, <code>personal</code> or <code>local</code>.</em></p>
+</section>
+</div>
+<div id="cc73870f" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.172435+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.176909+00:00&quot;,&quot;total&quot;:0.0045288169999935235}}" data-execution_count="22">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L204" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="type_policy" class="level3">
+<h3 class="anchored" data-anchor-id="type_policy">type_policy</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> type_policy(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    doctype:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, text:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>For a document type, or for text whose type is guessed, give the reading preset, the starting privacy level and which vision models may read it.</em></p>
+</section>
+</div>
+<div id="d338bf5c" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-10-31T06:40:11.177086+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-10-31T06:40:11.180509+00:00&quot;,&quot;total&quot;:0.0034275519999908965}}" data-execution_count="23">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/pii.py#L193" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="top" class="level3">
+<h3 class="anchored" data-anchor-id="top">top</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> top(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>ls</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">str</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The highest of the given privacy levels, or <code>open</code> when none is given.</em></p>
+</section>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/vedicreader\.github\.io\/vishalakshi");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/vedicreader/vishalakshi/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
