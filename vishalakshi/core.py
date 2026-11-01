@@ -883,6 +883,19 @@ def put(self:Vault,
     if not r.get('changed') and meta and r.get('doc_id'): self.set_meta(r['doc_id'], **meta)
     return r
 
+# %% ../nbs/00_core.ipynb #bysrc01
+@patch
+def by_source(self:Vault,
+              src:str,          # the source the document was filed under
+              shelf:str=None,   # the shelf to look on; None -> this one
+) -> dict|None:
+    "The newest document filed under exactly `src`, with `meta` decoded, or None. There is no fallback to the title."
+    tn = _docs_tbl(shelf or self.name)
+    if tn not in self.db.t: return None
+    keys = list(dict.fromkeys((str(src), source_key(src))))
+    r = first(self.db.t[tn](where=f"source in ({','.join('?'*len(keys))})", where_args=keys, order_by='added_at desc'))
+    return dict(r, meta=json.loads(r['meta'] or '{}')) if r else None
+
 # %% ../nbs/00_core.ipynb #typedgraph02
 @patch
 def build_graph(self:Vault, chat=None, seed:bool=False, **kw) -> dict:
