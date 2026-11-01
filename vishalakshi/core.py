@@ -226,10 +226,13 @@ def add_files(self:Vault,
               stop=None,            # asked before each batch and each file; True stops, and the result's `unread` holds the rest
               progress=None,        # told `progress(done, total, batch)` after each batch
               batch:int=50,         # files per batch when `stop` or `progress` is given
-              **kw                  # forwarded to add_file
+              refresh:str=None,     # 'mtime' -> skip a filed file, unread, unless its mtime is past its `added_at`
+              **kw                  # forwarded to add_file; `profile=` names a litesearch Profile, such as one with `nb_kw`
 ) -> L:
     "Add a list of files to this shelf, embedding and writing their chunks in batches; the result carries `cancelled` and `unread`."
-    files, cut = L(files).map(Path), L()
+    files, cut, kept = L(files).map(Path), L(), L()
+    if refresh not in (None, 'mtime'): raise ValueError(f"refresh must be None or 'mtime', not {refresh!r}")
+    if refresh: files, kept = self._by_mtime(files)
     def go(fs):
         # an empty list would still reach `rebuild_index`, which is a real cost for no documents
         if not fs: return L()
@@ -243,7 +246,21 @@ def add_files(self:Vault,
     r = run_steps(files, go, size=batch if stop or progress else len(files),
                   stop=stop and (lambda: bool(cut) or stop()), progress=pg)
     if cut: r.cancelled, r.unread = True, cut + r.unread
+    r.extend(kept)
     return r
+
+@patch
+def _by_mtime(self:Vault, files) -> tuple:
+    "Split `files` into those to file (new, or changed since filed) and a skip row for each of the rest. `added_at` has whole seconds, so a change in the second of the filing is not seen."
+    go, kept = L(), L()
+    for p in files:
+        d = self.by_source(str(p))
+        try: at = None if d is None else _epoch(d['added_at']); mt = int(p.stat().st_mtime)
+        except OSError: at = mt = None
+        if at is None or mt is None or mt > at: go.append(p)
+        else: kept.append(dict(doc_id=d['id'], title=d['title'], kind=d['kind'], nodes=0, chunks=0, changed=False,
+                               skipped='unchanged since filed', path=str(p), store=self.name))
+    return go, kept
 
 @patch
 def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,
