@@ -14,6 +14,7 @@
 - `add_tree` takes `max_files`, `max_bytes`, `rank`, `meta` and `links`. `rank(rel_path)` sets the filing order, or skips a file when it returns None. The caps stop the walk, and the result's `cut` says why (`''` when nothing was cut). `meta(path)` is merged into the meta of each document. `links=False` skips a symlink, a hard link, and any path that resolves outside the folder. The defaults walk the tree as before, links included. With `queue=True` these arguments raise `ValueError`.
 - `tree_files(dir, ...)` returns the list that `add_tree` files, with `cut`, and files nothing.
 - `add_dir(files=)` files the given paths instead of walking the folder. Each result of `add_files` and `add_dir` also has `path` and `store`.
+- `grab(target, kw_by_kind={...})` sends keyword arguments to one reader only. The keys are the kinds that `what_is` gives, `sanskrit` and `crawl`. For example, `{'github': dict(code=False)}` leaves the code of a repository out, and a web page does not get `code=False`. Plain `**kw` still goes to each reader.
 
 ## 0.1.36
 - `shelves()` lists only stores that have a docs table. A store of names, such as a graph's `entities` table, is left out. Before, `shelves()` listed it and queried its missing `entities_docs` table, and SQLite logged `no such table` on each search.

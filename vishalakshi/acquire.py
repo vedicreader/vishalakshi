@@ -170,11 +170,13 @@ def grab(self:Vault,
          shelf:str=None,    # shelf to file it on; None uses the shelf `KIND_SHELF` names for its kind
          crawl:bool=False,  # follow links from a web target instead of reading the one page
          max_pages:int=10,  # pages to visit when crawling
+         kw_by_kind:dict=None, # more keyword arguments for one kind only, such as `{'github': dict(code=False)}`; keys are the kinds of `what_is`, `sanskrit` and `crawl`
          **kw               # forwarded to whichever method the target names
 ):
     "Identify `target` and file it with the method that reads that kind of target."
     kind = 'sanskrit' if is_sanskrit_file(target) else what_is(target)
     v = self.shelf(shelf) if shelf else self.route(kind)
+    kw = {**kw, **(kw_by_kind or {}).get('crawl' if crawl else kind, {})}
     if crawl:                        return v.crawl(target, max_pages=max_pages, sel=sel, **kw)
     if kind == 'dir':                return v.add_tree(target, **kw)
     if kind in ('file', 'sanskrit'): return v.add_file(target, title=title, **kw)
