@@ -313,7 +313,7 @@ read_doc('scan.pdf', parse='auto', model='claude/sonnet')   # no vault: the page
 | [skill](https://vedicreader.github.io/vishalakshi/skill.html) | the cheat sheet an agent loads, and what it may call |
 | [pii](https://vedicreader.github.io/vishalakshi/pii.html) | personal information over [rahasya](https://vedicreader.github.io/rahasya/): levels, the floor, findings, marks, [`gated`](https://vedicreader.github.io/vishalakshi/pii.html#gated) |
 | [quality](https://vedicreader.github.io/vishalakshi/quality.html) | the noise score, `suggest_noisy` and `accept_noisy`, feedback, the ranker |
-| [jobs](https://vedicreader.github.io/vishalakshi/jobs.html) | [`Queue`](https://vedicreader.github.io/vishalakshi/jobs.html#queue): retries, leases, dead jobs |
+| [jobs](https://vedicreader.github.io/vishalakshi/jobs.html) | [`Queue`](https://vedicreader.github.io/vishalakshi/jobs.html#queue): retries, leases, dead jobs. [`Ledger`](https://vedicreader.github.io/vishalakshi/jobs.html#ledger): rows for jobs that run outside the queue |
 | [read](https://vedicreader.github.io/vishalakshi/read.html) | [`read_doc`](https://vedicreader.github.io/vishalakshi/read.html#read_doc), `reparse`, page versions, presets, caching, progress and cancelling |
 | [proof](https://vedicreader.github.io/vishalakshi/proof.html) | `proofread` and the review queue: `changes`, `accept`, `reject`, `edit_change`, `undo_decision`, `revert_page` |
 
