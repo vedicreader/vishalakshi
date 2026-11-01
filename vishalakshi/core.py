@@ -10,7 +10,7 @@ __all__ = ['KINDS', 'DFLT_ENC', 'ENCODERS', 'SYMBOLS', 'SHELVES', 'MARK_COLS', '
            'fmt_topics']
 
 # %% ../nbs/00_core.ipynb #66b23414ed2b
-import calendar, hashlib, json, os, re, time, unicodedata, uuid, warnings
+import calendar, hashlib, json, logging, os, re, time, unicodedata, uuid, warnings
 from collections import Counter
 import numpy as np
 from functools import wraps
@@ -22,6 +22,7 @@ from litesearch import (Index, DTYPE, dir2files, hash_embed, static_embedder, to
 from litesearch.tree import doc_id, source_key
 
 # %% ../nbs/00_core.ipynb #a9628282
+_log = logging.getLogger(__name__)
 KINDS = ('web', 'pdf', 'arxiv', 'youtube', 'file', 'code', 'data', 'note', 'image')
 _window, DFLT_ENC = re.compile(r'^Pages \d+(?:–\d+)?:'), 'minishlab/potion-multilingual-128M'
 
@@ -749,15 +750,24 @@ def elsewhere(self:Vault,
               limit:int=2,        # sections taken from each other shelf
               shelves=True,       # True -> every other shelf; a list picks some
               max_read:int=2000,  # chars kept per section
+              errors:str='raise', # 'skip' -> a shelf that fails is logged and left out
 ) -> L:
-    "Search the vault's other shelves and return their best sections in the same shape as this shelf's."
-    out, have = L(), self._tables()
-    names = L(self.db.q('select name from store_meta order by rowid')).attrgot('name') if shelves is True else L(shelves)
-    for nm in names:
-        if nm == self.name or _docs_tbl(nm) not in have or not self.db.t[_docs_tbl(nm)].count: continue
-        for r in self.shelf(nm).sections(q, limit=limit): out.append(AttrDict(node_id=r['node_id'],
-            doc_id=r['node_id'].split('#')[0], store=nm, title=r['title'], breadcrumb=f"{nm} › {r['breadcrumb']}",
-            filename=None, pages=r['pages'], via=f'shelf:{nm}', text=' '.join(r['snippets'])[:max_read]))
+    "Search the vault's other shelves and return their best sections in the same shape as this shelf's, each with its `score`, `doc_title` and `source`."
+    out, ok = L(), set(self.shelf_names())
+    for nm in (self.shelf_names() if shelves is True else L(shelves)):
+        if nm == self.name or nm not in ok or not self.db.t[_docs_tbl(nm)].count: continue
+        try: rs = self.shelf(nm).sections(q, limit=limit)
+        except Exception as e:
+            if errors != 'skip': raise
+            _log.warning('vishalakshi could not search the shelf %r: %r', nm, e); continue
+        ids = list({r['node_id'].split('#')[0] for r in rs})
+        docs = {d['id']: d for d in self.db.t[_docs_tbl(nm)](select='id, title, source',
+                where=f"id in ({','.join('?'*len(ids))})", where_args=ids)} if ids else {}
+        for r in rs:
+            d = docs.get(did := r['node_id'].split('#')[0]) or {}
+            out.append(AttrDict(node_id=r['node_id'], doc_id=did, store=nm, title=r['title'], breadcrumb=f"{nm} › {r['breadcrumb']}",
+                filename=None, pages=r['pages'], via=f'shelf:{nm}', text=' '.join(r['snippets'])[:max_read],
+                score=r.get('score'), doc_title=d.get('title'), source=d.get('source')))
     return out
 
 
