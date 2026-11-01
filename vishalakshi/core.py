@@ -868,6 +868,21 @@ def stats(self:Vault) -> dict:
                 entities=ents, path=self.path,
                 by_kind={r['kind']: r['n'] for r in self.db.q(f'select kind, count(*) as n from {p}docs group by kind order by n desc')})
 
+# %% ../nbs/00_core.ipynb #put01
+@patch
+def put(self:Vault,
+        text:str,          # the text to embed; unchanged text is not embedded again
+        source:str,        # the upsert key
+        kind:str,          # one of KINDS, or your own record kind
+        title:str=None,    # defaults to the first line of `text`
+        meta:dict=None,    # merged into the meta of the document, also when the text is unchanged
+        **kw               # forwarded to `add`
+) -> dict:
+    "Add `text` under `source`, or merge `meta` into the document already there when its text is unchanged. Return the dict from `add`."
+    r = self.add(text, title=title, source=source, kind=kind, meta=meta, **kw)
+    if not r.get('changed') and meta and r.get('doc_id'): self.set_meta(r['doc_id'], **meta)
+    return r
+
 # %% ../nbs/00_core.ipynb #typedgraph02
 @patch
 def build_graph(self:Vault, chat=None, seed:bool=False, **kw) -> dict:
