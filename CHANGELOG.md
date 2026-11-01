@@ -10,6 +10,7 @@
 - `shelf(name, create=False)` returns None for a shelf that does not exist, and makes no table. The default stays `create=True`.
 - Each hit of `elsewhere` also has `score`, `doc_title` and `source`, so a caller can rank the shelves together. `elsewhere(errors='skip')` logs a shelf that fails and searches the others. The default stays `errors='raise'`. A store with no `doc_id` column is left out.
 - A kind filter takes a minus sign to leave a kind out: `search(q, kind='-stats,-marker')`, and also in `sections`, `context` and `sources`. A plain kind filter does not change.
+- `Vault.temp(**kw)` opens a vault on a new file in a temporary folder, with `offline=True` and the hashing encoder. Use it in tests, so a test never opens your real vault.
 
 ## 0.1.36
 - `shelves()` lists only stores that have a docs table. A store of names, such as a graph's `entities` table, is left out. Before, `shelves()` listed it and queried its missing `entities_docs` table, and SQLite logged `no such table` on each search.

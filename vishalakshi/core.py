@@ -119,6 +119,13 @@ def _kw(kind) -> str:
     return ' AND '.join(x for x in (inc and sql_in('kind', inc), exc and f"NOT {sql_in('kind', exc)}") if x)
 
 
+# %% ../nbs/00_core.ipynb #vtemp01
+@patch(cls_method=True)
+def temp(cls:Vault, **kw) -> Vault:
+    "A vault on a new file in a temporary folder, `offline=True` with the hashing encoder unless `kw` says otherwise."
+    import tempfile
+    return cls(str(Path(tempfile.mkdtemp(prefix='vishalakshi-'))/'vault.db'), **{'offline': True, **kw})
+
 # %% ../nbs/00_core.ipynb #f07669ec
 @patch
 def add(self:Vault,
