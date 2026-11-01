@@ -16,7 +16,7 @@ from fossick import json_records, md_title, read, what_is
 from litesearch import code_exts, dir2files, pdf_parse, DOC_EXTS
 from .core import Vault, KINDS, is_sanskrit_file, run_steps, _epoch
 from pobblebonk import Pob, secs
-from .jobs import Queue, Retry
+from .jobs import Ledger, Queue, Retry
 import honker
 
 _all_ = ['secs']   # pobblebonk's, which also understands 'M' and 'y'
@@ -423,6 +423,12 @@ def add_records(self:Vault, recs:list, title:str, source:str=None, kind:str='dat
 
 # %% ../nbs/01_acquire.ipynb #30e68805575acb49
 ACTIONS = ('url', 'web', 'harvest', 'arxiv', 'youtube', 'crawl', 'path', 'remind', 'folder')
+
+@patch(as_prop=True)
+def ledger(self:Vault) -> Ledger:
+    "The vault's job ledger, on its database: rows for jobs that run outside the queue."
+    if (lg := getattr(self.db, '_vl', None)) is None: lg = self.db._vl = Ledger(self.db)
+    return lg
 
 @patch(as_prop=True)
 def q(self:Vault) -> Queue:

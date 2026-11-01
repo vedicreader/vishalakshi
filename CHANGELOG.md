@@ -2,6 +2,15 @@
 
 <!-- do not remove -->
 
+## 0.1.38
+- `jobs.Ledger(db)` keeps one row for each job that runs outside the queue, such as a future in an app's thread pool. A row has `kind`, `state`, `title`, `said`, `start`, `end`, `url`, `obj`, `why`, `seen` and `quiet`; other keys go in its `meta`. The rows are in their own `job_ledger` table in the vault file, so they survive a restart and `Queue` never claims, retries or counts them.
+  - `track(kind, fut, key=None, ok=None, why=None, **meta)` writes a `running` row and ends it when the future ends: `done`, or `failed` with `why`. It never retries. A row that ended first, such as a stopped job, stays. It returns the future.
+  - `start`, `end`, `put`, `get`, `rows`, `say(key, line)`, `seen(obj)`, `activity()` and `purge()` read and write the rows. `say` never raises.
+  - `close_running()` marks `closed` the running rows that another process wrote. Call it when an app starts.
+  - `version` goes up at each write, in any process that shares the file.
+- `Vault.ledger` is the ledger of the vault file. Its shelves share it.
+- `Queue` does not change.
+
 ## 0.1.37
 - `slug(s, translit=True)` reads Indic scripts such as Devanagari and Telugu as IAST, so `संधि` gives `samdhi`. `slug(s, symbols=True)` keeps `+ # &` as words, so `C++` gives `c-plus-plus`. With either flag, a title with no letters gives `c-<sha1[:8]>`. `n=None` keeps the whole slug. The defaults do not change, so note keys stay the same.
 - `Vault.put(text, source, kind, title=None, meta=None)` is an upsert. It runs `add`, and when the text is unchanged it merges `meta` into the document with `set_meta`. Nothing is embedded again. It replaces the pattern `r = v.add(...); if not r['changed']: v.set_meta(...)`.
