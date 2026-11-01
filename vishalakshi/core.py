@@ -31,7 +31,7 @@ def tidy_bc(bc:str) -> str:
     return ' › '.join(dict.fromkeys(p for p in map(str.strip, (bc or '').split('›')) if p and not _window.match(p)))
 
 def kinds(kind) -> L:
-    "A kind filter as a list: `'note'`, `'note,web'` and `['note','web']` all work."
+    "A kind filter as a list: `'note'`, `'note,web'` and `['note','web']` all work. A kind with a minus sign, as in `'-stats'`, is left out."
     return L(kind.split(',') if isinstance(kind, str) else kind).filter()
 
 #: Alias to model id. Three: prose, source, and the ONNX one for when faithfulness beats speed.
@@ -112,7 +112,11 @@ class Vault(Index):
         s = self.stats()
         return (f"Vault({self.path!r}: {s['docs']} docs, {s['chunks']} chunks, {s['entities']} entities, encoder={self.enc.method})")
 
-def _kw(kind) -> str: return sql_in('kind', kinds(kind))
+def _kw(kind) -> str:
+    "The SQL for a kind filter: the kinds to keep, and `NOT IN` for the kinds with a minus sign."
+    ks = kinds(kind)
+    inc, exc = ks.filter(lambda k: not k.startswith('-')), ks.filter(lambda k: k.startswith('-')).map(lambda k: k[1:])
+    return ' AND '.join(x for x in (inc and sql_in('kind', inc), exc and f"NOT {sql_in('kind', exc)}") if x)
 
 
 # %% ../nbs/00_core.ipynb #f07669ec
