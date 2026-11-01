@@ -17,6 +17,8 @@
 - `grab(target, kw_by_kind={...})` sends keyword arguments to one reader only. The keys are the kinds that `what_is` gives, `sanskrit` and `crawl`. For example, `{'github': dict(code=False)}` leaves the code of a repository out, and a web page does not get `code=False`. Plain `**kw` still goes to each reader.
 - `add_files(refresh='mtime')` skips a filed file without reading it, unless its mtime is past the time it was filed. A file that it reads is filed again only when its text changed. `add_dir` and `add_tree` pass `refresh` on. The default does not change: each file is read, and filed again when its text changed. `added_at` has whole seconds, so a change in the same second as the filing is not seen.
 - `add_files(profile=name)` reaches litesearch, so a Profile with `nb_kw=dict(outputs=True, fences=True)` (litesearch 0.1.62) files notebooks with their outputs and code fences.
+- `crawl(scope=True)` files only pages in the folder of the start page, after the redirects of that page. `scope=url` names another folder. A path with `..`, also as `%2e%2e`, is never in scope. With fossick 0.1.24, `crawl` passes the scope to fossick as `keep`, so a link out of scope is not queued. With an older fossick, such a page is visited and not filed. The default `scope=None` crawls as before.
+- `url_folder(url)` and `in_scope(url, scope)` are the two checks that `crawl(scope=)` uses.
 
 ## 0.1.36
 - `shelves()` lists only stores that have a docs table. A store of names, such as a graph's `entities` table, is left out. Before, `shelves()` listed it and queried its missing `entities_docs` table, and SQLite logged `no such table` on each search.
