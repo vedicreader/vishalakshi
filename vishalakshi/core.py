@@ -559,8 +559,11 @@ def _register(self:Vault):
     if self._recorded(self.name) not in ('', eid): self.db._stamp_store(self.name, encoder=eid)
 
 @patch
-def shelf(self:Vault, name:str, encoder:str=None, **kw) -> Vault:
+def shelf(self:Vault, name:str, encoder:str=None,
+          create:bool=True,   # False -> None for a shelf that does not exist yet, and no table is made
+          **kw) -> Vault:
     'Open another shelf in this vault file, with the encoder litesearch recorded for it.'
+    if not create and name not in self.shelf_names(): return None
     enc = encoder or self._recorded(name)
     if not enc or enc == encoder_id(self.enc.model): enc = self.enc
     elif isinstance(enc, str) and enc.startswith('hash'):   # nothing to load; do not try
@@ -589,6 +592,17 @@ def _docs_tbl(s:str) -> str: return 'docs' if s == 'store' else f'{s}_docs'
 
 @patch
 def _tables(self:Vault) -> set: return {r['name'] for r in self.db.q("select name from sqlite_master where type='table'")}
+
+@patch
+def shelf_names(self:Vault,
+                docs_only:bool=True,   # False -> every store in `store_meta`, a store of names included
+) -> L:
+    "The names of the shelves in this vault file, in the order they were made. It counts nothing, so it costs one query."
+    if 'store_meta' not in self.db.t: return L()
+    names = L(self.db.q('select name from store_meta order by rowid')).attrgot('name')
+    if not docs_only: return names
+    have = self._tables()
+    return names.filter(lambda n: _docs_tbl(n) in have and 'doc_id' in self.db.t[n].columns_dict)
 
 @patch
 def shelves(self:Vault) -> L:
