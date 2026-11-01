@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.37
+- `slug(s, translit=True)` reads Indic scripts such as Devanagari and Telugu as IAST, so `संधि` gives `samdhi`. `slug(s, symbols=True)` keeps `+ # &` as words, so `C++` gives `c-plus-plus`. With either flag, a title with no letters gives `c-<sha1[:8]>`. `n=None` keeps the whole slug. The defaults do not change, so note keys stay the same.
+
 ## 0.1.36
 - `shelves()` lists only stores that have a docs table. A store of names, such as a graph's `entities` table, is left out. Before, `shelves()` listed it and queried its missing `entities_docs` table, and SQLite logged `no such table` on each search.
 - `elsewhere(q, shelves=[...])` searches the shelves you name and counts only those. Before, it counted every store in the vault on each call.
