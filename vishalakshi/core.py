@@ -236,7 +236,7 @@ def add_files(self:Vault,
         outs = self.db.add_dir(files=fs, store=self.name, kind=kind, emb_fn=self.emb,
                                n_workers=n_workers, embed_batch=embed_batch, stop=stop, **kw)
         if getattr(outs, 'cancelled', False): cut.extend(outs.unread)
-        return L(self._settled(o, str(p)) for p, o in zip(fs, outs))
+        return L(dict(self._settled(o, str(p)), path=str(p), store=self.name) for p, o in zip(fs, outs))
     # a batch cut short reports only what it filed, and nothing when that was none
     pg = progress and (lambda d, t, s: (k := len(s)-len(cut)) and progress(d-len(cut), t, s[:k]))
     # one call without callbacks: each batch rebuilds the vector index
@@ -248,9 +248,11 @@ def add_files(self:Vault,
 @patch
 def add_dir(self:Vault, dir:str, types:str=DOC_EXTS, kind:str=None,
             route:bool=True,      # send Sanskrit sources to the Sanskrit shelf, file by file
-            stop=None, progress=None, **kw) -> L:
+            stop=None, progress=None,
+            files=None,           # file these paths instead of walking `dir`, such as a `tree_files` list
+            **kw) -> L:
     "Add every document under a directory, skipping dotfiles, tests and build output, and send Sanskrit files to the Sanskrit shelf; `stop` and `progress` as in `add_files`."
-    fs, cb = dir2files(dir, types=types), dict(stop=stop, progress=progress)
+    fs, cb = (dir2files(dir, types=types) if files is None else L(files)), dict(stop=stop, progress=progress)
     if not route or self.name != 'store': return self.add_files(fs, kind=kind, **cb, **kw)
     sa, rest = L(), L()
     for f in fs: (sa if is_sanskrit_file(f) else rest).append(f)

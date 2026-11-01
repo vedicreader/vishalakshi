@@ -11,6 +11,9 @@
 - Each hit of `elsewhere` also has `score`, `doc_title` and `source`, so a caller can rank the shelves together. `elsewhere(errors='skip')` logs a shelf that fails and searches the others. The default stays `errors='raise'`. A store with no `doc_id` column is left out.
 - A kind filter takes a minus sign to leave a kind out: `search(q, kind='-stats,-marker')`, and also in `sections`, `context` and `sources`. A plain kind filter does not change.
 - `Vault.temp(**kw)` opens a vault on a new file in a temporary folder, with `offline=True` and the hashing encoder. Use it in tests, so a test never opens your real vault.
+- `add_tree` takes `max_files`, `max_bytes`, `rank`, `meta` and `links`. `rank(rel_path)` sets the filing order, or skips a file when it returns None. The caps stop the walk, and the result's `cut` says why (`''` when nothing was cut). `meta(path)` is merged into the meta of each document. `links=False` skips a symlink, a hard link, and any path that resolves outside the folder. The defaults walk the tree as before, links included. With `queue=True` these arguments raise `ValueError`.
+- `tree_files(dir, ...)` returns the list that `add_tree` files, with `cut`, and files nothing.
+- `add_dir(files=)` files the given paths instead of walking the folder. Each result of `add_files` and `add_dir` also has `path` and `store`.
 
 ## 0.1.36
 - `shelves()` lists only stores that have a docs table. A store of names, such as a graph's `entities` table, is left out. Before, `shelves()` listed it and queried its missing `entities_docs` table, and SQLite logged `no such table` on each search.
