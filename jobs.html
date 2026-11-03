@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.11.9">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="A job queue kept in the vault file: work survives a crash, failures are retried with a growing delay, and jobs that keep failing are set aside for a person">
+
+<title>jobs – vishalakshi</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/scrollable-regions/scrollable-regions.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-63b5708e65d6cd79cd7618c58d0c21e7.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-f9f5dbbce22ca1ed143a646131f7ec01.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="jobs – vishalakshi">
+<meta property="og:description" content="A job queue kept in the vault file: work survives a crash, failures are retried with a growing delay, and jobs that keep failing are set aside for a person">
+<meta property="og:site_name" content="vishalakshi">
+<meta name="twitter:title" content="jobs – vishalakshi">
+<meta name="twitter:description" content="A job queue kept in the vault file: work survives a crash, failures are retried with a growing delay, and jobs that keep failing are set aside for a person">
+<meta name="twitter:card" content="summary">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light"><a id="quarto-skip-link" class="visually-hidden-focusable" href="#quarto-document-content">Skip to main content</a>
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark" aria-label="Site">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">vishalakshi</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+          <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav" aria-label="Toolbar">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="Breadcrumbs"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./jobs.html">jobs</a></li></ol></nav>
+        <a class="flex-grow-1" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto" aria-label="Section">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">vishalakshi</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./core.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">core</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acquire.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">acquire</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ask.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ask</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./code.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">code</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./cli.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">cli</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">mcp</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./extract.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">extract</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./concepts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">concepts</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./skill.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">skill</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pii.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pii</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quality.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">quality</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./jobs.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">jobs</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./read.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">read</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./proof.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">proof</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" aria-labelledby="toc-title" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#the-queue" id="toc-the-queue" class="nav-link active" data-scroll-target="#the-queue">The queue</a>
+  <ul class="collapse">
+  <li><a href="#claiming" id="toc-claiming" class="nav-link" data-scroll-target="#claiming">Claiming</a></li>
+  <li><a href="#running" id="toc-running" class="nav-link" data-scroll-target="#running">Running</a></li>
+  <li><a href="#looking-at-it" id="toc-looking-at-it" class="nav-link" data-scroll-target="#looking-at-it">Looking at it</a></li>
+  </ul></li>
+  <li><a href="#ledger" id="toc-ledger" class="nav-link" data-scroll-target="#ledger">Ledger</a></li>
+  <li><a href="#try-it" id="toc-try-it" class="nav-link" data-scroll-target="#try-it">Try it</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/vedicreader/vishalakshi/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div><div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="jobs.html.md"><i class="bi bi-file-code"></i>Markdown</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content" tabindex="-1">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">jobs</h1>
+</div>
+
+<div>
+  <div class="description">
+    A job queue kept in the vault file: work survives a crash, failures are retried with a growing delay, and jobs that keep failing are set aside for a person
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- WARNING: THIS FILE WAS AUTOGENERATED! DO NOT EDIT! -->
+<p>Fetching a page, ingesting a batch of files and rebuilding the topic map can fail or stop part way. <a href="https://vedicreader.github.io/vishalakshi/jobs.html#queue"><code>Queue</code></a> keeps such work as rows in a <code>jobs</code> table in the vault’s own SQLite file. A job outlives the process that queued it. No separate server is needed.</p>
+<p><code>enqueue</code> adds a job. A worker takes jobs with <code>claim</code>. <code>claim</code> marks the jobs as running and gives the worker a lease, which is a time limit on the claim (<code>lease</code>, 10 minutes by default). Two workers that claim at the same time never get the same job.</p>
+<p>If a worker dies, its lease runs out. <code>reclaim</code> then fails the job with the error <code>lease expired</code>. This counts as one attempt.</p>
+<p>A job that fails runs again after a delay. The delay doubles with each failure, from 30 seconds up to 6 hours. After <code>max_attempts</code> failures (5 by default) the job is dead. A dead job stays in the table with its error, for a person to examine.</p>
+<p>The queue lives in the same file as the documents. A job queued inside a <code>write_txn</code> is committed with the write that caused it. <a href="https://vedicreader.github.io/vishalakshi/jobs.html#queue"><code>Queue</code></a> needs only a database and knows nothing about a vault. <a href="./acquire.html">acquire</a> registers the vault’s own jobs on it.</p>
+<div id="aa96c782" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.451958+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.482209+00:00&quot;,&quot;total&quot;:0.030257976000001463}}" data-execution_count="4">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L27" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="backoff" class="level3">
+<h3 class="anchored" data-anchor-id="backoff">backoff</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> backoff(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    attempt:<span class="bu">int</span>, <span class="co"># failures so far; 1 on the first</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    base:<span class="bu">float</span><span class="op">=</span><span class="dv">30</span>, <span class="co"># first delay, seconds</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    cap:<span class="bu">float</span><span class="op">=</span><span class="dv">21600</span>, <span class="co"># longest delay, 6h</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    jitter:<span class="bu">float</span><span class="op">=</span><span class="fl">0.25</span>, <span class="co"># +/- fraction of the delay; spreads out jobs that failed together</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">float</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The delay before the next attempt: <code>base</code> seconds doubled for each failure so far, at most <code>cap</code>, with some random jitter.</em></p>
+</section>
+</div>
+<div id="31ef64a3" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.482344+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.485663+00:00&quot;,&quot;total&quot;:0.003349523000011345}}" data-execution_count="5">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L24" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="terminal" class="level3">
+<h3 class="anchored" data-anchor-id="terminal">Terminal</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Terminal(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>args, <span class="op">**</span>kwargs</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Raise from a handler to mark the job dead at once, for a failure that retrying cannot fix, such as a 401 or a missing file.</em></p>
+</section>
+</div>
+<div id="09da1ee7" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.485833+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.489806+00:00&quot;,&quot;total&quot;:0.003977370000001201}}" data-execution_count="6">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L18" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="retry" class="level3">
+<h3 class="anchored" data-anchor-id="retry">Retry</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Retry(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    msg:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, after:<span class="bu">float</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Raise from a handler to have the job run again when nothing failed but the work should be retried, such as a bot wall, an HTTP 429 or an empty read.</em></p>
+</section>
+</div>
+<section id="the-queue" class="level2">
+<h2 class="anchored" data-anchor-id="the-queue">The queue</h2>
+<p>A job has a <code>kind</code>, which names the handler that runs it, and a <code>payload</code>, a dict stored as JSON. <code>key</code> makes queueing idempotent. While a job with the same kind and key is waiting or running, <code>enqueue</code> returns that job and adds no second one. A repeated fan-out does not double the work. A job with a lower <code>priority</code> number runs first.</p>
+<div id="433a422d" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.494428+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.499472+00:00&quot;,&quot;total&quot;:0.005049278000001323}}" data-execution_count="8">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L43" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue" class="level3">
+<h3 class="anchored" data-anchor-id="queue">Queue</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Queue(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    db, <span class="co"># open litesearch/fastlite Database; the queue lives in its file</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    lease:<span class="bu">float</span><span class="op">=</span><span class="dv">600</span>, <span class="co"># seconds a claim is held before another worker may take the job</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    max_attempts:<span class="bu">int</span><span class="op">=</span><span class="dv">5</span>, <span class="co"># attempts before a job is dead-lettered</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    base:<span class="bu">float</span><span class="op">=</span><span class="dv">30</span>, <span class="co"># first retry delay; doubles per attempt</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    keep:<span class="bu">float</span><span class="op">=</span><span class="dv">604800</span>, <span class="co"># how long finished jobs and run history survive `purge`, 7d</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    busy_ms:<span class="bu">int</span><span class="op">=</span><span class="dv">30000</span>, <span class="co"># lock wait before a write gives up; apsw's stock default is 100ms</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>A job queue stored in an open litesearch database, which runs every job at least once.</em></p>
+</section>
+</div>
+<div id="310d86d4" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.503038+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.508193+00:00&quot;,&quot;total&quot;:0.005159574000003886}}" data-execution_count="10">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L103" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.enqueue_all" class="level3">
+<h3 class="anchored" data-anchor-id="queue.enqueue_all">Queue.enqueue_all</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue_all(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span>, payloads, <span class="op">**</span>kw</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Enqueue many jobs of one kind in a single transaction.</em></p>
+</section>
+</div>
+<div id="1d66316c" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.508566+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.513551+00:00&quot;,&quot;total&quot;:0.004988535999999044}}" data-execution_count="11">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L81" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.enqueue" class="level3">
+<h3 class="anchored" data-anchor-id="queue.enqueue">Queue.enqueue</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> enqueue(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span>, <span class="co"># which handler runs it</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    payload:<span class="bu">dict</span><span class="op">=</span><span class="va">None</span>, <span class="co"># arguments, stored as JSON</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    run_at:<span class="bu">float</span><span class="op">=</span><span class="va">None</span>, <span class="co"># epoch seconds; defaults to now</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    priority:<span class="bu">int</span><span class="op">=</span><span class="dv">0</span>, <span class="co"># lower runs first</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    key:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># idempotency key: an identical key still ready or running wins</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    max_attempts:<span class="bu">int</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Add one job, or return the waiting or running job that already has this <code>key</code>.</em></p>
+</section>
+</div>
+<section id="claiming" class="level3">
+<h3 class="anchored" data-anchor-id="claiming">Claiming</h3>
+<p><code>claim</code> picks and marks its jobs in one SQL statement. SQLite runs one write at a time. No other worker can take a job between the pick and the mark. Every job that <code>claim</code> returns is already running and already leased.</p>
+<p><code>ack</code> (finished) and <code>fail</code> (failed) count only while the job is still running under the caller’s <code>worker</code> name. Each worker needs its own name. A handler slower than <code>lease</code> loses its job to <code>reclaim</code>, and another worker can claim it. Without this check, the late <code>ack</code> could mark as done a job that another worker is still running. The late <code>fail</code> could send a finished job back for a third run. A late call returns the job with the state <code>lost</code>, and the run history records <code>lost</code>.</p>
+<div id="6f84246e" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.520311+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.525931+00:00&quot;,&quot;total&quot;:0.005625647000002232}}" data-execution_count="13">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L159" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.reclaim" class="level3">
+<h3 class="anchored" data-anchor-id="queue.reclaim">Queue.reclaim</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> reclaim(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    now:<span class="bu">float</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Fail each running job whose lease expired with <code>lease expired</code>; this counts one attempt, and the job is dead after <code>max_attempts</code>.</em></p>
+</section>
+</div>
+<div id="b929d75c" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.526124+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.532865+00:00&quot;,&quot;total&quot;:0.006747047999994038}}" data-execution_count="14">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L141" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.fail" class="level3">
+<h3 class="anchored" data-anchor-id="queue.fail">Queue.fail</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fail(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    job, <span class="co"># the claimed job</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    error:<span class="bu">str</span>, <span class="co"># what went wrong; truncated to 500 chars on the row</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    after:<span class="bu">float</span><span class="op">=</span><span class="va">None</span>, <span class="co"># seconds until the retry; None uses `backoff`</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    dead:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="co"># dead-letter now, whatever the attempts left: retrying a 401 never turns into success</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Record a failure and schedule a retry after the backoff delay, or mark the job dead once its attempts are spent.</em></p>
+</section>
+</div>
+<div id="deefba55" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.533001+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.539249+00:00&quot;,&quot;total&quot;:0.006258381000009194}}" data-execution_count="15">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L132" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.ack" class="level3">
+<h3 class="anchored" data-anchor-id="queue.ack">Queue.ack</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ack(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    job</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Mark a claimed job done, or return it as <code>lost</code> when this worker’s lease was reclaimed.</em></p>
+</section>
+</div>
+<div id="1b37997f" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.539384+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.544721+00:00&quot;,&quot;total&quot;:0.005339865999999915}}" data-execution_count="16">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L109" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.claim" class="level3">
+<h3 class="anchored" data-anchor-id="queue.claim">Queue.claim</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> claim(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    worker:<span class="bu">str</span><span class="op">=</span><span class="st">'worker'</span>, <span class="co"># who is holding the lease; recorded on the row and in history</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    n:<span class="bu">int</span><span class="op">=</span><span class="dv">1</span>, <span class="co"># how many jobs to take</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    now:<span class="bu">float</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Claim up to <code>n</code> due jobs in one statement; no job was claimed twice over 400 jobs and 8 processes (<code>evals/jobs.py</code>).</em></p>
+</section>
+</div>
+</section>
+<section id="running" class="level3">
+<h3 class="anchored" data-anchor-id="running">Running</h3>
+<p>A handler is a function <code>fn(payload)</code>. Register it with <code>register</code> or the <code>on</code> decorator. <code>run_one</code> runs one claimed job. <code>drain</code> claims and runs jobs until the queue is empty or <code>limit</code> jobs have run. A cron job calls <code>drain</code>. The way a handler ends sets what happens to the job:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>the handler</th>
+<th>the job</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>returns normally</td>
+<td>is done</td>
+</tr>
+<tr class="even">
+<td>returns a dict with a true <code>skipped</code> value</td>
+<td>is done, recorded as a skip, and not retried. The acquisition methods do this when a page has no transcript or is not a PDF</td>
+</tr>
+<tr class="odd">
+<td>raises <a href="https://vedicreader.github.io/vishalakshi/jobs.html#retry"><code>Retry</code></a></td>
+<td>is retried after <code>Retry.after</code> seconds or the backoff delay, and uses one attempt. Use it for work that did not fail but must run again, such as a page behind a bot wall</td>
+</tr>
+<tr class="even">
+<td>raises any other exception</td>
+<td>is retried after the backoff delay, and dead once its attempts are spent</td>
+</tr>
+<tr class="odd">
+<td>raises <a href="https://vedicreader.github.io/vishalakshi/jobs.html#terminal"><code>Terminal</code></a></td>
+<td>is dead at once</td>
+</tr>
+</tbody>
+</table>
+<p>Use <a href="https://vedicreader.github.io/vishalakshi/jobs.html#terminal"><code>Terminal</code></a> for a failure that waiting cannot fix, such as a 401, a model name that does not exist or a file that is gone. Without it, the default schedule retries a doomed job for most of a day. A job whose kind has no handler is dead at once, for the same reason.</p>
+<div id="f4232693" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.563800+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.575401+00:00&quot;,&quot;total&quot;:0.011605627999998092}}" data-execution_count="18">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L214" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.drain" class="level3">
+<h3 class="anchored" data-anchor-id="queue.drain">Queue.drain</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> drain(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    worker:<span class="bu">str</span><span class="op">=</span><span class="st">'worker'</span>, <span class="co"># lease holder recorded on each job</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    limit:<span class="bu">int</span><span class="op">=</span><span class="dv">1000</span>, <span class="co"># jobs to run before returning; a ceiling, not a target</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    batch:<span class="bu">int</span><span class="op">=</span><span class="dv">1</span>, <span class="co"># jobs claimed per round trip</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    now:<span class="bu">float</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Claim and run jobs until the queue is empty or <code>limit</code> jobs have run.</em></p>
+</section>
+</div>
+<div id="ddbc5392" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.575622+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.593955+00:00&quot;,&quot;total&quot;:0.01861405100000013}}" data-execution_count="19">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L192" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.run_one" class="level3">
+<h3 class="anchored" data-anchor-id="queue.run_one">Queue.run_one</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_one(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    job</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Run the handler for one claimed job, then ack or fail the job, and record the run.</em></p>
+</section>
+</div>
+<div id="928c5c33" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.594773+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.614046+00:00&quot;,&quot;total&quot;:0.019234665999988465}}" data-execution_count="20">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L176" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.register" class="level3">
+<h3 class="anchored" data-anchor-id="queue.register">Queue.register</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> register(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span>, fn</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Register the handler for <code>kind</code>.</em></p>
+</section>
+</div>
+<div id="8cce15e5" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.615783+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.632910+00:00&quot;,&quot;total&quot;:0.017131563999996047}}" data-execution_count="21">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L168" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.on" class="level3">
+<h3 class="anchored" data-anchor-id="queue.on">Queue.on</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> on(</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Decorator registering the handler for <code>kind</code>.</em></p>
+</section>
+</div>
+</section>
+<section id="looking-at-it" class="level3">
+<h3 class="anchored" data-anchor-id="looking-at-it">Looking at it</h3>
+<p><code>jobs</code> lists jobs by state and kind. <code>pending</code> counts the jobs that are waiting or running. <code>stats</code> counts the jobs in each state. <code>history</code> lists past runs.</p>
+<p><code>dead</code> lists the dead jobs with the error that ended each one. A failure deletes nothing. <code>retry</code> puts a dead job back on the queue and resets its attempt count. <code>purge</code> deletes finished jobs and run history older than <code>keep</code> (7 days by default). <code>purge</code> leaves dead jobs alone.</p>
+<div id="4fa71e75" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.644154+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.654919+00:00&quot;,&quot;total&quot;:0.010770577999991815}}" data-execution_count="23">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L271" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.purge" class="level3">
+<h3 class="anchored" data-anchor-id="queue.purge">Queue.purge</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> purge(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    before:<span class="bu">float</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Delete finished jobs and run history older than <code>keep</code>. Dead jobs stay.</em></p>
+</section>
+</div>
+<div id="aca2c495" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.655041+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.661035+00:00&quot;,&quot;total&quot;:0.005997336999996605}}" data-execution_count="24">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L264" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.stats" class="level3">
+<h3 class="anchored" data-anchor-id="queue.stats">Queue.stats</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> stats()<span class="op">-&gt;</span><span class="bu">dict</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>How many jobs in each state, and when the next one is due.</em></p>
+</section>
+</div>
+<div id="f9808a00" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.661149+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.667004+00:00&quot;,&quot;total&quot;:0.005858306999996898}}" data-execution_count="25">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L258" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.history" class="level3">
+<h3 class="anchored" data-anchor-id="queue.history">Queue.history</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> history(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    job_id:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, limit:<span class="bu">int</span><span class="op">=</span><span class="dv">50</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Run history, newest first.</em></p>
+</section>
+</div>
+<div id="71b7bfc1" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.667203+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.672769+00:00&quot;,&quot;total&quot;:0.0055724620000034975}}" data-execution_count="26">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L250" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.retry" class="level3">
+<h3 class="anchored" data-anchor-id="queue.retry">Queue.retry</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> retry(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    job_id:<span class="bu">str</span>, after:<span class="bu">float</span><span class="op">=</span><span class="dv">0</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Put a dead or pending job back on the queue now, with its attempt count reset.</em></p>
+</section>
+</div>
+<div id="2b0f7d73" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.672913+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.678926+00:00&quot;,&quot;total&quot;:0.006019441000006509}}" data-execution_count="27">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L244" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.pending" class="level3">
+<h3 class="anchored" data-anchor-id="queue.pending">Queue.pending</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pending(</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">int</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Count the jobs still waiting or running, optionally of one kind.</em></p>
+</section>
+</div>
+<div id="e8d1c104" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.679103+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.684215+00:00&quot;,&quot;total&quot;:0.005117990000002237}}" data-execution_count="28">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L239" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.dead" class="level3">
+<h3 class="anchored" data-anchor-id="queue.dead">Queue.dead</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dead(</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    limit:<span class="bu">int</span><span class="op">=</span><span class="dv">100</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Dead jobs: those that used up their attempts or failed with <a href="https://vedicreader.github.io/vishalakshi/jobs.html#terminal"><code>Terminal</code></a>, each with its last error.</em></p>
+</section>
+</div>
+<div id="c57b6910" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.684343+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.688006+00:00&quot;,&quot;total&quot;:0.0036658599999981334}}" data-execution_count="29">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L230" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="queue.jobs" class="level3">
+<h3 class="anchored" data-anchor-id="queue.jobs">Queue.jobs</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jobs(</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    state:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, limit:<span class="bu">int</span><span class="op">=</span><span class="dv">100</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Jobs, soonest first, filtered by state and kind.</em></p>
+</section>
+</div>
+</section>
+</section>
+<section id="ledger" class="level2">
+<h2 class="anchored" data-anchor-id="ledger">Ledger</h2>
+<p>Some work does not run on the queue. An app runs it in its own thread pool and shows its progress, such as a download, a model call or a build. <a href="https://vedicreader.github.io/vishalakshi/jobs.html#ledger"><code>Ledger</code></a> keeps one row for each such job, so the app can show what runs and what ended, also after a restart. A row has <code>kind</code>, <code>state</code>, <code>title</code>, <code>said</code> (the progress line), <code>start</code>, <code>end</code>, <code>url</code>, <code>obj</code> (the thing the job is about), <code>why</code> (the reason for a failure), <code>seen</code> and <code>quiet</code>. Other keys go in the <code>meta</code> of the row.</p>
+<p>The rows are in their own <code>job_ledger</code> table in the vault file. <a href="https://vedicreader.github.io/vishalakshi/jobs.html#queue"><code>Queue</code></a> does not see them: it never claims, retries or counts a ledger row. <code>version</code> goes up at each write, also in another process, so a page can ask whether anything changed.</p>
+<div id="cb0b45e4" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.691701+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.695520+00:00&quot;,&quot;total&quot;:0.0038236380000000736}}" data-execution_count="31">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L289" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger-1" class="level3">
+<h3 class="anchored" data-anchor-id="ledger-1">Ledger</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Ledger(</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    db, <span class="co"># open litesearch/fastlite Database; the rows live in its file</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    keep:<span class="bu">float</span><span class="op">=</span><span class="dv">172800</span>, <span class="co"># seconds an ended row stays, 2 days</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    run:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># the id of this process; None -&gt; `RUN`</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    busy_ms:<span class="bu">int</span><span class="op">=</span><span class="dv">30000</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Rows for jobs that run elsewhere, such as an in-process future: their state, a progress line and a change counter.</em></p>
+</section>
+</div>
+<p><code>put</code> merges keys into a row and makes the row when it is new. <code>start</code> writes a <code>running</code> row and <code>end</code> ends it. <code>get</code> reads one row and <code>rows</code> lists them, newest first.</p>
+<div id="50783536" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.702757+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.706288+00:00&quot;,&quot;total&quot;:0.0035345820000003414}}" data-execution_count="33">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L360" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.purge" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.purge">Ledger.purge</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> purge(</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    before:<span class="bu">float</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">int</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Delete the ended rows that ended before <code>before</code>, by default <code>keep</code> seconds ago. Return the count.</em></p>
+</section>
+</div>
+<div id="ba2d7d5a" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.706404+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.709796+00:00&quot;,&quot;total&quot;:0.003396614000010345}}" data-execution_count="34">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L353" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.rows" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.rows">Ledger.rows</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rows(</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    state:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, kind:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, obj:<span class="bu">str</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The rows, newest first, filtered by <code>state</code>, <code>kind</code> and <code>obj</code>.</em></p>
+</section>
+</div>
+<div id="f5177646" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.709921+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.712960+00:00&quot;,&quot;total&quot;:0.0030417979999981526}}" data-execution_count="35">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L347" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.end" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.end">Ledger.end</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> end(</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    key:<span class="bu">str</span>, state:<span class="bu">str</span><span class="op">=</span><span class="st">'done'</span>, why:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, <span class="op">**</span>kv</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict <span class="op">|</span> <span class="va">None</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>End the row <code>key</code> now in <code>state</code>, with <code>why</code> for a failure. None when there is no row.</em></p>
+</section>
+</div>
+<div id="7637140f" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.713074+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.716136+00:00&quot;,&quot;total&quot;:0.0030641020000103936}}" data-execution_count="36">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L340" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.start" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.start">Ledger.start</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> start(</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>    key:<span class="bu">str</span>, kind:<span class="bu">str</span>, title:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, said:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, url:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, obj:<span class="bu">str</span><span class="op">=</span><span class="st">''</span>, quiet:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span>, <span class="op">**</span>meta</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Write the row <code>key</code> of a job of <code>kind</code> that runs now. Ended rows older than <code>keep</code> go.</em></p>
+</section>
+</div>
+<div id="32ebafce" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.716236+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.719331+00:00&quot;,&quot;total&quot;:0.0030964799999964043}}" data-execution_count="37">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L328" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.put" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.put">Ledger.put</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> put(</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    key:<span class="bu">str</span>, <span class="op">**</span>kv</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Merge <code>kv</code> into the row <code>key</code>, and make the row when it is new. A key that is not a column goes in <code>meta</code>.</em></p>
+</section>
+</div>
+<div id="3595e214" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.719443+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.722093+00:00&quot;,&quot;total&quot;:0.002652721999993446}}" data-execution_count="38">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L323" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.get" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.get">Ledger.get</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get(</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>    key:<span class="bu">str</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.basics.AttrDict <span class="op">|</span> <span class="va">None</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The row <code>key</code>, or None.</em></p>
+</section>
+</div>
+<p><code>track</code> writes the row of a future and ends it when the future ends: <code>done</code>, or <code>failed</code> with <code>why</code>. A row is never retried: the work is the caller’s. A row that ended first, such as a job that you stopped, stays as it is. <code>say</code> writes the progress line of a running job. A write that fails never breaks the job.</p>
+<div id="b131dcbc" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.724747+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.727394+00:00&quot;,&quot;total&quot;:0.0026495070000009946}}" data-execution_count="40">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L394" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.say" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.say">Ledger.say</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> say(</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    key:<span class="bu">str</span>, line:<span class="bu">str</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">bool</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Write the progress line <code>line</code> to the row <code>key</code> while its job runs. Whether the row changed.</em></p>
+</section>
+</div>
+<div id="e366ff2e" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.727490+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.731127+00:00&quot;,&quot;total&quot;:0.0036403020000079778}}" data-execution_count="41">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L368" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.track" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.track">Ledger.track</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> track(</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>    kind:<span class="bu">str</span>, <span class="co"># what the job is</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>    fut, <span class="co"># a `concurrent.futures.Future`, or a function that returns one, called after the row is written</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>    key:<span class="bu">str</span><span class="op">=</span><span class="va">None</span>, <span class="co"># the row; None -&gt; a new key, which the future has as `fut.key`</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>    ok:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># `ok(result) -&gt; dict`: more keys for the row when it ends, and `state` to end in another state</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    why:NoneType<span class="op">=</span><span class="va">None</span>, <span class="co"># `why(error) -&gt; str`: the line of a failure</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">**</span>meta</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>):</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Write a <code>running</code> row for the future <code>fut</code>, and end it when <code>fut</code> ends. Return the future.</em></p>
+</section>
+</div>
+<p>A row that says <code>running</code> after a restart belongs to a job that died with its process. <code>close_running</code>, called at the start of an app, marks each such row <code>closed</code>. It closes only the rows of other processes. <code>seen</code> marks the ended rows of one object as seen, and <code>activity</code> gives the rows an app shows now: the running ones, then the ended ones not seen yet. A row that you stopped and a <code>quiet</code> row are left out.</p>
+<div id="88687c58" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.733899+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.737571+00:00&quot;,&quot;total&quot;:0.0036757050000062463}}" data-execution_count="43">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L418" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.activity" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.activity">Ledger.activity</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> activity(</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    fresh:<span class="bu">float</span><span class="op">=</span><span class="dv">21600</span>, <span class="co"># seconds an ended row shows until it is seen, 6 hours</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    now:<span class="bu">float</span><span class="op">=</span><span class="va">None</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span>fastcore.foundation.L:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>The running rows, newest first, then the rows that ended in the last <code>fresh</code> seconds and are not seen, newest first.</em></p>
+</section>
+</div>
+<div id="f3737251" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.737679+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.740882+00:00&quot;,&quot;total&quot;:0.0032058760000097664}}" data-execution_count="44">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L411" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.seen" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.seen">Ledger.seen</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> seen(</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>    obj:<span class="bu">str</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>)<span class="op">-&gt;</span><span class="bu">int</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Mark each ended row of the object <code>obj</code> as seen. Return the count that changed.</em></p>
+</section>
+</div>
+<div id="83004e9e" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.740972+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.743654+00:00&quot;,&quot;total&quot;:0.002682946999996716}}" data-execution_count="45">
+<hr>
+<p><a href="https://github.com/vedicreader/vishalakshi/blob/main/vishalakshi/jobs.py#L403" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="ledger.close_running" class="level3">
+<h3 class="anchored" data-anchor-id="ledger.close_running">Ledger.close_running</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> close_running()<span class="op">-&gt;</span><span class="bu">int</span>:</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Mark <code>closed</code> each running row that another process wrote. Return the count.</em></p>
+</section>
+</div>
+</section>
+<section id="try-it" class="level2">
+<h2 class="anchored" data-anchor-id="try-it">Try it</h2>
+<div id="1f8a25d6" class="cell" data-quarto-private-1="{&quot;key&quot;:&quot;execution&quot;,&quot;value&quot;:{&quot;iopub.execute_input&quot;:&quot;2026-11-03T06:58:09.744124+00:00&quot;,&quot;shell.execute_reply&quot;:&quot;2026-11-03T06:58:09.752516+00:00&quot;,&quot;total&quot;:0.008398298999992448}}" data-execution_count="46">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> litesearch <span class="im">import</span> database</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>db <span class="op">=</span> database()</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>q  <span class="op">=</span> Queue(db, lease<span class="op">=</span><span class="dv">60</span>, max_attempts<span class="op">=</span><span class="dv">3</span>, base<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>seen <span class="op">=</span> []</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>q.register(<span class="st">'echo'</span>, <span class="kw">lambda</span> p: seen.append(p[<span class="st">'n'</span>]) <span class="kw">or</span> <span class="bu">dict</span>(n<span class="op">=</span>p[<span class="st">'n'</span>]))</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>q.enqueue_all(<span class="st">'echo'</span>, [<span class="bu">dict</span>(n<span class="op">=</span>i) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">3</span>)])</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>q.drain(<span class="st">'w1'</span>)</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>seen, q.stats()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="46">
+<pre><code>([0, 1, 2], {'ready': 0, 'running': 0, 'done': 3, 'dead': 0, 'next_due': None})</code></pre>
+</div>
+</div>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/vedicreader\.github\.io\/vishalakshi");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+          if (!link.classList.contains('no-external-icon')) {
+          }
+        }
+      }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          // Each band is positioned against its own containing block, which is
+          // not the offsetParent of the lines, so place it from client rects.
+          const placeBand = (band, firstEl, lastEl, codeBlock) => {
+            const container = band.offsetParent;
+            if (container === null) {
+              return;
+            }
+            const containerRect = container.getBoundingClientRect();
+            // Reveal.js scales slides with a transform, so convert client
+            // pixels back to the CSS pixels of the container.
+            const scale = containerRect.height / container.offsetHeight || 1;
+            const firstRect = firstEl.getBoundingClientRect();
+            const lastRect = lastEl.getBoundingClientRect();
+            const top = (firstRect.top - containerRect.top) / scale - container.clientTop + container.scrollTop;
+            const height = (lastRect.bottom - firstRect.top) / scale;
+            band.style.top = top - 2 + "px";
+            band.style.height = height + 4 + "px";
+            if (codeBlock) {
+              // Without the copy button wrapper, the containing block is wider
+              // than the code block, so span the code block explicitly.
+              const blockRect = codeBlock.getBoundingClientRect();
+              band.style.left = (blockRect.left - containerRect.left) / scale - container.clientLeft + container.scrollLeft + "px";
+              band.style.width = blockRect.width / scale + "px";
+            }
+          };
+          if (lineIds.length > 0) {
+            const el = window.document.getElementById(lineIds[0]);
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const parent = el.parentElement.parentElement;
+            // cook up a div (if necessary) and position it
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            placeBand(div, el, lastEl, parent.closest("div.sourceCode") || parent);
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            placeBand(gutterDiv, el, lastEl);
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+  <script type="application/javascript">
+  window.quartoScrollableRegionsLabels = {"code":"Scrollable code","output":"Scrollable output"};
+  </script>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/vedicreader/vishalakshi/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
