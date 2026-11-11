@@ -39,7 +39,7 @@ dependencies = [
     "rgapi",
     "uraiyadal>=0.0.13",   # CachedChat with structured, runtime and the env it switches on
     "vruksha>=0.1.1",
-    "rishi>=0.1.44",
+    "rishi[litert]>=0.1.70",   # the default and private-data model is LiteRT Gemma, and 0.1.70 moved LiteRT into the litert extra
     "pyskills>=0.0.27",
 ]
 
@@ -80,6 +80,6 @@ dev = [
     "nbdev>=3.3.4",
     "notebook>=7.6.1",
     "onnxruntime",
-    "rishi[all]>=0.1.44",
+    "rishi[all]>=0.1.70",
     "tokenizers",
 ]

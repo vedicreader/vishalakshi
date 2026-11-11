@@ -2,6 +2,10 @@
 
 <!-- do not remove -->
 
+## 0.1.39
+- vishalakshi now needs `rishi[litert]>=0.1.70`. rishi 0.1.70 moved LiteRT into the `litert` extra. Without it, the default model and the private-data model, LiteRT Gemma 4 E2B, cannot run.
+- The notebook chat recordings are recorded again for rishi 0.1.70 and uraiyadal 0.0.22, whose recording keys changed.
+
 ## 0.1.38
 - `jobs.Ledger(db)` keeps one row for each job that runs outside the queue, such as a future in an app's thread pool. A row has `kind`, `state`, `title`, `said`, `start`, `end`, `url`, `obj`, `why`, `seen` and `quiet`; other keys go in its `meta`. The rows are in their own `job_ledger` table in the vault file, so they survive a restart and `Queue` never claims, retries or counts them.
   - `track(kind, fut, key=None, ok=None, why=None, **meta)` writes a `running` row and ends it when the future ends: `done`, or `failed` with `why`. It never retries. A row that ended first, such as a stopped job, stays. It returns the future.
