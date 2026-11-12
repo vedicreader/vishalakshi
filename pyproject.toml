@@ -39,7 +39,7 @@ dependencies = [
     "rgapi",
     "uraiyadal>=0.0.13",   # CachedChat with structured, runtime and the env it switches on
     "vruksha>=0.1.1",
-    "rishi[litert]>=0.1.70",   # the default and private-data model is LiteRT Gemma, and 0.1.70 moved LiteRT into the litert extra
+    "rishi[litert]>=0.1.71",   # 0.1.71 needs aidialog 0.0.42 with the fastllm that matches it; 0.1.70 moved LiteRT, the default and private-data model, into the litert extra
     "pyskills>=0.0.27",
 ]
 

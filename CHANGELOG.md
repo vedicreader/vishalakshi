@@ -2,6 +2,9 @@
 
 <!-- do not remove -->
 
+## 0.1.40
+- vishalakshi now needs `rishi[litert]>=0.1.71`. rishi 0.1.71 needs `aidialog>=0.0.42` and `python-fastllm>=0.0.70`. With aidialog 0.0.42 and an older fastllm, every remote model call failed with `ImportError: cannot import name 'usage_info' from 'aidialog.msg_parts'`.
+
 ## 0.1.39
 - vishalakshi now needs `rishi[litert]>=0.1.70`. rishi 0.1.70 moved LiteRT into the `litert` extra. Without it, the default model and the private-data model, LiteRT Gemma 4 E2B, cannot run.
 - The notebook chat recordings are recorded again for rishi 0.1.70 and uraiyadal 0.0.22, whose recording keys changed.
