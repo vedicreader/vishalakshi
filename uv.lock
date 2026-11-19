@@ -2018,7 +2018,7 @@ wheels = [
 
 [[package]]
 name = "laghu"
-version = "0.4.0"
+version = "0.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastcore" },
@@ -2027,22 +2027,22 @@ dependencies = [
     { name = "numpy" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/df/57/37bb07a0d8df778ab7681dca3c28009bd26e5cd4caf4a2df75f773d2370c/laghu-0.4.0.tar.gz", hash = "sha256:bf804c9942a363b787ce05b1f6eae855eca164246bb1147ff34e9d06d1d01d51", size = 29131, upload-time = "2026-10-24T03:06:42.46Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5c/07/032d5acc06d64c0b6d79316442b5acd8ba2a89cd02fc0cd98a0e5ace38fb/laghu-0.4.1.tar.gz", hash = "sha256:92cd7eb153184d12b23284e34624818a1d8bc041fb040c18af69b8859fb3b6fd", size = 29129, upload-time = "2026-11-19T00:37:18.733Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/eb/97cb91b8150d93e6d5fc71d4b2b4fe2d1be081d0f70de8cac73605909ac6/laghu-0.4.0-py3-none-any.whl", hash = "sha256:c2c4ec967fdec6c487febbfd61a55d7c007fcd2e55ccc6d41e4e0919020776d4", size = 30981, upload-time = "2026-10-24T03:06:40.981Z" },
+    { url = "https://files.pythonhosted.org/packages/91/e6/b1804b69e4d6e754cd9ad2c9c2ba270e4b2fcd95a002a9d4597e2f75e1ec/laghu-0.4.1-py3-none-any.whl", hash = "sha256:b772e5ab1683c5e59d549190d086a8d59eaeb9ff4faa1e340bcfe82d3200278e", size = 30981, upload-time = "2026-11-19T00:37:17.449Z" },
 ]
 
 [[package]]
 name = "laghu-rs"
-version = "0.2.0"
+version = "0.2.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/bf/f5/e565b781fa87b1c71dd97cec9d9a3defb85beb043029227e5326d30ee1a6/laghu_rs-0.2.0.tar.gz", hash = "sha256:a34de11e4577aae19cf117cb75f51d811d054b3f954e2f86aa206dcdc63974b1", size = 17774, upload-time = "2026-10-24T02:58:48.47Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/6e/3bb13c4bde81864ecca29562d9d67587af15f7aa678d9f0d7859fdc25fb8/laghu_rs-0.2.2.tar.gz", hash = "sha256:f5ab9b0b3bf5c3fa0ed733fecf8db59063a6778a832294afe485438724fff7fa", size = 18113, upload-time = "2026-11-19T00:36:12.895Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/60/6e/8f4b2ef71990d9584f051def1951313c3ade44a987f834e8b0b7d3a6eda9/laghu_rs-0.2.0-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:46038afeff5a0c8c78854522bb3ce6b34a73ac3bc2afae91b9d6ee8155e60073", size = 1482530, upload-time = "2026-10-24T02:58:40.227Z" },
-    { url = "https://files.pythonhosted.org/packages/0f/b4/9481124246688b8e1ac67e7fa2a9b954af92524504c30baa6eeb9ebd5694/laghu_rs-0.2.0-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:c7db60bf98ad4d3e0558fd2f81738485279696a240825038070998f3c4d354cb", size = 1418977, upload-time = "2026-10-24T02:58:42.089Z" },
-    { url = "https://files.pythonhosted.org/packages/6c/dc/7ade43399f6169c31e64e3950d0aee0ba87864f331921b6a8b8b29030cc3/laghu_rs-0.2.0-cp311-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:53f97e9fef8ad15f22c7ae30375a664b837313620706b7cf9a42be82ce412c9e", size = 1548255, upload-time = "2026-10-24T02:58:43.641Z" },
-    { url = "https://files.pythonhosted.org/packages/fd/42/1f07009831b87eb507a6bd8acfa7f1993926c41913fed5944cc6f4236280/laghu_rs-0.2.0-cp311-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:240c8caa3e83a082ba5e8987be5fd499ca1462ddb4c992347c1089ba7c4de232", size = 1581576, upload-time = "2026-10-24T02:58:45.278Z" },
-    { url = "https://files.pythonhosted.org/packages/f8/74/73fd27e9d1cb8d42e430750f07a78778373aeb9f96e4d7c9beb6ef6abdfd/laghu_rs-0.2.0-cp311-abi3-win_amd64.whl", hash = "sha256:7df92820d1c3fc6b3c8fdf09d3a147099df1bad6ada7e1682e9598fddd87d71a", size = 1429690, upload-time = "2026-10-24T02:58:47.002Z" },
+    { url = "https://files.pythonhosted.org/packages/21/ea/9d17635a928c8756fdf95cd9a6a85397dad5f9d309b8528071dbad54a6e1/laghu_rs-0.2.2-cp311-abi3-macosx_10_12_x86_64.whl", hash = "sha256:1d48082d0c59fae4951d791190f8e863ea3306d8288abd7519dcd14e70d8f1d4", size = 1484096, upload-time = "2026-11-19T00:36:05.663Z" },
+    { url = "https://files.pythonhosted.org/packages/29/7c/a3e7283950e4a4f0505da6306974a2bd1019e1589e1eab9c5fd18427284c/laghu_rs-0.2.2-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:085ea068583f23828837feede6d60941c4905a35f4bbcfe96fe8c627da0137c7", size = 1418206, upload-time = "2026-11-19T00:36:07.648Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/99/7e9340d279bf0d9ff6558e006a04ea708f0d9ed358d132b19b2e8a21daf1/laghu_rs-0.2.2-cp311-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:e0d342ab277944338a6c0a23e82b91a9414587fe025e7242b8230e138d92f741", size = 1554263, upload-time = "2026-11-19T00:36:08.822Z" },
+    { url = "https://files.pythonhosted.org/packages/08/e2/436d8a4ef4aca00f0b0d9fcde8310d4d61c29c294eec0328d1b0bc52f573/laghu_rs-0.2.2-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:283a6f527100fd4a22aa515e14778455a68ca09b25a29186de5733de061e1f3f", size = 1586558, upload-time = "2026-11-19T00:36:10.297Z" },
+    { url = "https://files.pythonhosted.org/packages/42/a1/099d3cf8bbcc476c154f0fa97e543be77973c1238897482ec2fde0c458af/laghu_rs-0.2.2-cp311-abi3-win_amd64.whl", hash = "sha256:0832e196d50823888d91be3cdb6c4c10aa125bdd9bf59425c02fd59a546808db", size = 1430735, upload-time = "2026-11-19T00:36:11.657Z" },
 ]
 
 [[package]]
@@ -2069,7 +2069,7 @@ wheels = [
 
 [[package]]
 name = "litesearch"
-version = "0.1.61"
+version = "0.1.65"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "adhara", marker = "sys_platform != 'win32'" },
@@ -2084,9 +2084,9 @@ dependencies = [
     { name = "tokenizers" },
     { name = "usearch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a8/b3/36ad0ddc931231d0c290770a2fa4fadc5a56c88159d2854e14ca9f5220a7/litesearch-0.1.61.tar.gz", hash = "sha256:4cec536dd2ab46c6b87ad59bff9267b3e8da0d40777dc4f31be0d2266f21270a", size = 91424, upload-time = "2026-10-25T05:41:52.633Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/62/2e5ab9260485b03d18f181c5f75d528253866a5ba746c25e0f35b7f55d9e/litesearch-0.1.65.tar.gz", hash = "sha256:f62a591a5b0049a180e5e4bc9cd5b2ed543e090424d41e9557b738a9dc5828ed", size = 93652, upload-time = "2026-11-19T00:44:33.456Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/57/422dcbc04542b8d38c1e84fe53a0dcc6fdab0b99e59e2302a84bc81c9122/litesearch-0.1.61-py3-none-any.whl", hash = "sha256:d3144d40b16fd53602c93dc0fe8c2b1bb457ee4548b904764da4b2387b42d3d8", size = 97311, upload-time = "2026-10-25T05:41:49.347Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/26/9bbbff955ba51ad85ecdc17518b1ad68624418954778cf162571e9708a41/litesearch-0.1.65-py3-none-any.whl", hash = "sha256:dad3f98e7351efaa84a2ebecdeefd2db8e6367c81c6debc8c4befdbc7a404031", size = 99677, upload-time = "2026-11-19T00:44:32.154Z" },
 ]
 
 [[package]]
@@ -4697,7 +4697,7 @@ requires-dist = [
     { name = "fossick", specifier = ">=0.1.18" },
     { name = "ganapati", specifier = ">=0.0.1" },
     { name = "koshas", specifier = ">=0.1.11" },
-    { name = "litesearch", specifier = ">=0.1.61" },
+    { name = "litesearch", specifier = ">=0.1.65" },
     { name = "mcp" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pdflite", specifier = ">=0.0.4" },

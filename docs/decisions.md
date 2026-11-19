@@ -8,7 +8,9 @@ The numbers are in [evals/RESULTS.md](../evals/RESULTS.md). The old specs (vault
 
 - **`Vault` is a litesearch `Index`.** `find` is gone; `search` is the name. Rerank lives in litesearch's tree legs, so the vault gets it with no code here.
   Why: the encoder is not the lever (0.018 to 0.046 MRR across four encoders), and one route is less to keep. (11 Aug 2026, 0.1.x) `class Vault(Index)` in `nbs/00_core.ipynb`.
-- **One static encoder for all shelves.** `potion-multilingual-128M` covers Devanagari too. `SHELVES` names the shelves; it is not an encoder map. A stale shelf is deleted with `drop_shelf`, not migrated. (11 Aug 2026) `DFLT_ENC`, `SHELVES`, `drop_shelf`.
+- **One static encoder for all shelves.** `blink-multilingual-64M` covers Devanagari too. `SHELVES` names the shelves; it is not an encoder map. A shelf of another encoder that is no longer wanted is deleted with `drop_shelf`. A shelf a former default wrote is re-encoded (next entry). (11 Aug 2026) `DFLT_ENC`, `SHELVES`, `drop_shelf`.
+- **A shelf a former default wrote is re-encoded, not deleted.** `Vault()` opens a shelf with the encoder it records. `upgrade_encoders` re-encodes the shelves of `OLD_ENCS` with `DFLT_ENC` through litesearch's `Index.reencode`.
+  Why: blink replaced potion-multilingual-128M as the default. It scored the same on `evals/encoder.py` and raised recall at 10 on vedicreader's hard questions from 9.6% to 26.5%. Deleting a shelf loses what was collected. (19 Nov 2026, 0.1.41) `OLD_ENCS`, `upgrade_encoders`, `_recorded_in`.
 - **The entity graph stays off.** Its leg gave -0.07 to -0.16 MRR on ordinary queries. The typed graph is vruksha's. (Aug 2026)
 - **`Vault()` opens `$VISHALAKSHI_VAULT`, else `~/.vishalakshi/vault.db`.** Tests use `Vault.temp()`, so a test never opens the real vault. (0.1.36, 0.1.37)
 - **A copied vault still points at the real `.usearch` files.** Before you open a copy, copy the `.usearch` files and rewrite the paths in `usearch_indices`. Else the copy writes the real indexes. (Owner note) `usearch_indices` table.

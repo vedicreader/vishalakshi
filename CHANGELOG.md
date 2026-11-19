@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.1.41
+- vishalakshi needs `litesearch>=0.1.65`, for blink as the default encoder and `Index.reencode`.
+- `DFLT_ENC` is `minishlab/blink-multilingual-64M`. Before, it was `minishlab/potion-multilingual-128M`. A new vault and a new shelf use blink.
+- `Vault()` without `encoder=` opens a shelf with the encoder the shelf records. Before, it used `DFLT_ENC`, and a shelf another model wrote raised `StoreMismatch`.
+- New `Vault.reencode(encoder=None)` embeds a shelf's chunks and the names in its entity graph again with `encoder` (default `DFLT_ENC`) and records it for the shelf. It raises `ValueError` when the model does not load.
+- New `Vault.upgrade_encoders()` re-encodes with `DFLT_ENC` every shelf that a model in `OLD_ENCS` wrote, and returns the chunks re-encoded on each shelf. `OLD_ENCS` holds `potion-multilingual-128M`.
+
 ## 0.1.40
 - vishalakshi now needs `rishi[litert]>=0.1.71`. rishi 0.1.71 needs `aidialog>=0.0.42` and `python-fastllm>=0.0.70`. With aidialog 0.0.42 and an older fastllm, every remote model call failed with `ImportError: cannot import name 'usage_info' from 'aidialog.msg_parts'`.
 
